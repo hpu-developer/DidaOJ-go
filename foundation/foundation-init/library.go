@@ -3,7 +3,10 @@ package foundationinit
 import (
 	foundationconfig "foundation/foundation-config"
 	foundationpanic "foundation/foundation-panic"
+	"meta/engine"
+	metafeishu "meta/meta-feishu"
 	metapanic "meta/meta-panic"
+	"meta/subsystem"
 )
 
 func Init() error {
@@ -14,6 +17,17 @@ func Init() error {
 
 	metapanic.ProcessPanicCallback = foundationpanic.ProcessPanicCallback
 	metapanic.ProcessErrorCallback = foundationpanic.ProcessErrorCallback
+	foundationpanic.GetNoticeGroup = func() string {
+		return foundationconfig.GetErrorNotifyGroup()
+	}
+
+	engine.RegisterSubsystem(
+		func() subsystem.Interface {
+			feishuSubsystem := &metafeishu.Subsystem{}
+			feishuSubsystem.GetFeishuConfigs = foundationconfig.GetFeishuConfigs
+			return feishuSubsystem
+		},
+	)
 
 	return nil
 }

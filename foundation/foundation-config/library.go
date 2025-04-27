@@ -5,6 +5,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"log/slog"
 	metaerror "meta/meta-error"
+	metafeishu "meta/meta-feishu"
 	"os"
 )
 
@@ -31,4 +32,12 @@ func GetConfig() *Config {
 
 func GetJwtSecret() []byte {
 	return []byte(foundationConfig.Auth.Jwt)
+}
+
+func GetErrorNotifyGroup() string {
+	return foundationConfig.Feishu.Chat.Group.ErrorNotifyGroup
+}
+
+func GetFeishuConfigs() map[string]metafeishu.AppConfig {
+	return foundationConfig.Feishu.App
 }

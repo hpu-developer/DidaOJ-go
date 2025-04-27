@@ -1,0 +1,4 @@
+mongo:
+  uri: ""
+  username: ""
+  password: ""

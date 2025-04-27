@@ -1,14 +1,35 @@
 package foundationpanic
 
 import (
+	"context"
+	feishutype "foundation/feishu-type"
 	"log/slog"
+	metafeishu "meta/meta-feishu"
 	metaformat "meta/meta-format"
 	metapanic "meta/meta-panic"
 	"strings"
 )
 
+var GetNotifyAppType func() feishutype.AppType
+var GetNoticeGroup func() string
+
 func SendNotifyMessage(format ...any) {
-	slog.Error("send notify message", "message", metaformat.Format(format...))
+	appType := feishutype.AppTypeMeta
+	if GetNotifyAppType != nil {
+		appType = GetNotifyAppType()
+	}
+	appKey := string(appType)
+	message := metaformat.Format(format...)
+	_, sendErr := metafeishu.GetSubsystem().SendMessageTextToChat(
+		context.Background(),
+		appKey,
+		GetNoticeGroup(),
+		message,
+	)
+	if sendErr != nil {
+		slog.Error("send panic message error", "err", sendErr)
+		return
+	}
 }
 
 func isErrorLog(err error) bool {

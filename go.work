@@ -6,4 +6,5 @@ use (
 	./meta
 	./foundation
 	./web
+	./judge
 )

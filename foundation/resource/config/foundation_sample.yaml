@@ -1,3 +1,16 @@
 auth:
   jwt: ""
   connect: ""
+
+feishu:
+  app:
+    test:
+        app-id: ""
+        app-secret: ""
+        encrypt-key: ""
+        verification-token: ""
+        open-ids:
+            test: ""
+  chat:
+    group:
+      error-notify-group: ""
