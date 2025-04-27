@@ -1,0 +1,10 @@
+<!-- starsweb-web-service.xml -->
+<service>
+    <id>starsweb-web</id>
+    <name>starsweb-web</name>
+    <description>starsweb-web</description>
+    <logpath>C:\StarsProject\starsweb-go\web\service-logs\</logpath>
+    <logmode>roll</logmode>
+    <executable>"C:\StarsProject\starsweb-go\web\run.bat"</executable>
+    <stopexecutable>"C:\StarsProject\starsweb-go\web\stop.bat"</stopexecutable>
+</service>

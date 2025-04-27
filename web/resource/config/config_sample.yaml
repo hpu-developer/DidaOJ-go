@@ -1,0 +1,7 @@
+env:
+  http-port: 8180
+
+mongo:
+  uri: ""
+  username: ""
+  password: ""
