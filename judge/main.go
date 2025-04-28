@@ -25,8 +25,8 @@ func InitPre() error {
 
 	engine.RegisterSubsystem(
 		func() subsystem.Interface {
-			mongoSubsystem := &mongo.Subsystem{}
-			mongoSubsystem.GetConfig = func() *mongo.Config {
+			mongoSubsystem := &metamongo.Subsystem{}
+			mongoSubsystem.GetConfig = func() *metamongo.Config {
 				return config.GetMongoConfig()
 			}
 			return mongoSubsystem

@@ -14,19 +14,19 @@ import (
 	"time"
 )
 
-type MigrateService struct{}
+type MigrateProblemService struct{}
 
-var singletonMigrateService = singleton.Singleton[MigrateService]{}
+var singletonMigrateProblemService = singleton.Singleton[MigrateProblemService]{}
 
-func GetMigrateService() *MigrateService {
-	return singletonMigrateService.GetInstance(
-		func() *MigrateService {
-			return &MigrateService{}
+func GetMigrateProblemService() *MigrateProblemService {
+	return singletonMigrateProblemService.GetInstance(
+		func() *MigrateProblemService {
+			return &MigrateProblemService{}
 		},
 	)
 }
 
-func (s *MigrateService) Start() error {
+func (s *MigrateProblemService) Start() error {
 
 	ctx := context.Background()
 
@@ -143,8 +143,13 @@ func (s *MigrateService) Start() error {
 			return metaerror.Wrap(err, "query problem row failed")
 		}
 
+		seq, err := foundationdao.GetCounterDao().GetNextSequence(ctx, "problem_id")
+		if err != nil {
+			return err
+		}
+
 		problemDocs = append(problemDocs, foundationmodel.NewProblemBuilder().
-			Id(strconv.Itoa(p.ProblemID)).
+			Id(strconv.Itoa(seq)).
 			Title(nullStringToString(p.Title)).
 			Description(nullStringToString(p.Description)).
 			Hint(nullStringToString(p.Hint)).
@@ -179,14 +184,6 @@ func (s *MigrateService) Start() error {
 	slog.Info("migrate problem success")
 
 	return nil
-}
-
-// === 辅助处理函数 ===
-func nullIntToInt(n sql.NullInt64) int {
-	if n.Valid {
-		return int(n.Int64)
-	}
-	return 0
 }
 
 func nullStringToString(s sql.NullString) string {

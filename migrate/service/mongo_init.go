@@ -20,7 +20,16 @@ func GetMongoInitService() *MongoInitService {
 
 func (s *MongoInitService) Start() error {
 	ctx := context.Background()
-	err := foundationdao.GetProblemTagDao().InitDao(ctx)
+	var err error
+	err = foundationdao.GetCounterDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
+	err = foundationdao.GetProblemDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
+	err = foundationdao.GetProblemTagDao().InitDao(ctx)
 	if err != nil {
 		return nil
 	}

@@ -3,11 +3,14 @@ package config
 import (
 	"meta/engine"
 	metaconfig "meta/meta-config"
-	"meta/meta-mongo"
+	metamongo "meta/meta-mongo"
 )
 
 type Config struct {
-	Mongo mongo.Config `yaml:"mongo"`
+	GoJudgeUrl string `yaml:"go-judge-url"` // GoJudge 服务地址
+	MaxJob     int    `yaml:"max-job"`      // 最大同时评测的job数量
+
+	Mongo metamongo.Config `yaml:"mongo"`
 }
 
 type Subsystem struct {
@@ -35,7 +38,7 @@ func GetConfig() *Config {
 	return GetSubsystem().config
 }
 
-func GetMongoConfig() *mongo.Config {
+func GetMongoConfig() *metamongo.Config {
 	configSubsystem := GetSubsystem()
 	if configSubsystem == nil {
 		return nil

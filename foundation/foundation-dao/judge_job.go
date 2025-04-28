@@ -13,39 +13,39 @@ import (
 	"meta/singleton"
 )
 
-type ProblemDao struct {
+type JudgeJobDao struct {
 	collection *mongo.Collection
 }
 
-var singletonProblemDao = singleton.Singleton[ProblemDao]{}
+var singletonJudgeJobDao = singleton.Singleton[JudgeJobDao]{}
 
-func GetProblemDao() *ProblemDao {
-	return singletonProblemDao.GetInstance(
-		func() *ProblemDao {
+func GetJudgeJobDao() *JudgeJobDao {
+	return singletonJudgeJobDao.GetInstance(
+		func() *JudgeJobDao {
 			mongoSubsystem := metamongo.GetSubsystem()
 			if mongoSubsystem == nil {
 				return nil
 			}
 			client := mongoSubsystem.GetClient()
-			var ProblemDao ProblemDao
-			ProblemDao.collection = client.
+			var JudgeJobDao JudgeJobDao
+			JudgeJobDao.collection = client.
 				Database("didaoj").
-				Collection("problem")
-			return &ProblemDao
+				Collection("judge_job")
+			return &JudgeJobDao
 		},
 	)
 }
 
-func (d *ProblemDao) InitDao(ctx context.Context) error {
+func (d *JudgeJobDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
-func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *foundationmodel.Problem) error {
+func (d *JudgeJobDao) UpdateJudgeJob(ctx context.Context, id int, judgeSource *foundationmodel.JudgeJob) error {
 	filter := bson.D{
-		{"_id", key},
+		{"_id", id},
 	}
 	update := bson.M{
-		"$set": problem,
+		"$set": judgeSource,
 	}
 	updateOptions := options.Update().SetUpsert(true)
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
@@ -55,25 +55,25 @@ func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *fou
 	return nil
 }
 
-func (d *ProblemDao) GetProblem(ctx context.Context, key string) (*foundationmodel.Problem, error) {
+func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, key string) (*foundationmodel.JudgeJob, error) {
 	filter := bson.M{
 		"_id": key,
 	}
-	var problem foundationmodel.Problem
-	if err := d.collection.FindOne(ctx, filter).Decode(&problem); err != nil {
+	var judgeSource foundationmodel.JudgeJob
+	if err := d.collection.FindOne(ctx, filter).Decode(&judgeSource); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
-		return nil, metaerror.Wrap(err, "find problem error")
+		return nil, metaerror.Wrap(err, "find judgeSource error")
 	}
-	return &problem, nil
+	return &judgeSource, nil
 }
 
-func (d *ProblemDao) GetProblemList(ctx context.Context) ([]foundationmodel.Problem, error) {
+func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context) ([]foundationmodel.JudgeJob, error) {
 	filter := bson.M{}
 	cursor, err := d.collection.Find(ctx, filter, options.Find())
 	if err != nil {
-		return nil, metaerror.Wrap(err, "find Problem error")
+		return nil, metaerror.Wrap(err, "find JudgeJob error")
 	}
 	defer func(cursor *mongo.Cursor, ctx context.Context) {
 		err := cursor.Close(ctx)
@@ -81,14 +81,14 @@ func (d *ProblemDao) GetProblemList(ctx context.Context) ([]foundationmodel.Prob
 			metapanic.ProcessError(err)
 		}
 	}(cursor, ctx)
-	var problemList []foundationmodel.Problem
-	if err = cursor.All(ctx, &problemList); err != nil {
-		return nil, metaerror.Wrap(err, "decode Problem error")
+	var judgeSourceList []foundationmodel.JudgeJob
+	if err = cursor.All(ctx, &judgeSourceList); err != nil {
+		return nil, metaerror.Wrap(err, "decode JudgeJob error")
 	}
-	return problemList, nil
+	return judgeSourceList, nil
 }
 
-func (d *ProblemDao) UpdateProblems(ctx context.Context, tags []*foundationmodel.Problem) error {
+func (d *JudgeJobDao) UpdateJudgeJobs(ctx context.Context, tags []*foundationmodel.JudgeJob) error {
 	var models []mongo.WriteModel
 	for _, tab := range tags {
 		filter := bson.D{
