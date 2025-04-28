@@ -4,9 +4,9 @@ import (
 	foundationflag "foundation/foundation-flag"
 	foundationinit "foundation/foundation-init"
 	"meta/engine"
+	metamogo "meta/meta-mongo"
 	metamysql "meta/meta-mysql"
 	metapanic "meta/meta-panic"
-	"meta/mongo"
 	"meta/subsystem"
 	"migrate/application"
 	"migrate/config"
@@ -26,8 +26,8 @@ func InitPre() error {
 
 	engine.RegisterSubsystem(
 		func() subsystem.Interface {
-			mongoSubsystem := &mongo.Subsystem{}
-			mongoSubsystem.GetConfig = func() *mongo.Config {
+			mongoSubsystem := &metamogo.Subsystem{}
+			mongoSubsystem.GetConfig = func() *metamogo.Config {
 				return config.GetMongoConfig()
 			}
 			return mongoSubsystem

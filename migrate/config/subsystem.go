@@ -3,13 +3,13 @@ package config
 import (
 	"meta/engine"
 	metaconfig "meta/meta-config"
+	metamongo "meta/meta-mongo"
 	metamysql "meta/meta-mysql"
-	"meta/mongo"
 )
 
 type Config struct {
 	OnlyInit bool             `yaml:"only-init"` // 仅初始化，不导入
-	Mongo    mongo.Config     `yaml:"mongo"`
+	Mongo    metamongo.Config `yaml:"mongo"`
 	Mysql    metamysql.Config `yaml:"mysql"`
 }
 
@@ -38,7 +38,7 @@ func GetConfig() *Config {
 	return GetSubsystem().config
 }
 
-func GetMongoConfig() *mongo.Config {
+func GetMongoConfig() *metamongo.Config {
 	configSubsystem := GetSubsystem()
 	if configSubsystem == nil {
 		return nil

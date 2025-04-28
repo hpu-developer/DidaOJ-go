@@ -6,8 +6,8 @@ import (
 	"judge/application"
 	"judge/config"
 	"meta/engine"
+	"meta/meta-mongo"
 	metapanic "meta/meta-panic"
-	"meta/mongo"
 	"meta/subsystem"
 )
 

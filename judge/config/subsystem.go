@@ -3,7 +3,7 @@ package config
 import (
 	"meta/engine"
 	metaconfig "meta/meta-config"
-	"meta/mongo"
+	"meta/meta-mongo"
 )
 
 type Config struct {

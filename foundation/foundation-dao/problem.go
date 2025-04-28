@@ -8,8 +8,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	metaerror "meta/meta-error"
+	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
-	metamongo "meta/mongo"
 	"meta/singleton"
 )
 
