@@ -3,6 +3,7 @@ package foundationdao
 import (
 	"context"
 	"errors"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -10,6 +11,7 @@ import (
 	metaerror "meta/meta-error"
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
+	metatime "meta/meta-time"
 	"meta/singleton"
 )
 
@@ -88,6 +90,35 @@ func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context) ([]foundationmodel.Ju
 	return judgeSourceList, nil
 }
 
+// GetJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的
+func (d *JudgeJobDao) GetJudgeJobListPendingJudge(ctx context.Context, maxCount int) ([]*foundationmodel.JudgeJob, error) {
+	filter := bson.M{
+		"status": bson.M{
+			"$in": []foundationjudge.JudgeStatus{foundationjudge.JudgeStatusInit, foundationjudge.JudgeStatusRejudge},
+		},
+	}
+	// 按照 id 升序排列
+	findOptions := options.Find().SetSort(bson.M{"_id": 1})
+	if maxCount > 0 {
+		findOptions.SetLimit(int64(maxCount))
+	}
+	cursor, err := d.collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find JudgeJob error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(err)
+		}
+	}(cursor, ctx)
+	var judgeSourceList []*foundationmodel.JudgeJob
+	if err = cursor.All(ctx, &judgeSourceList); err != nil {
+		return nil, metaerror.Wrap(err, "decode JudgeJob error")
+	}
+	return judgeSourceList, nil
+}
+
 func (d *JudgeJobDao) UpdateJudgeJobs(ctx context.Context, tags []*foundationmodel.JudgeJob) error {
 	var models []mongo.WriteModel
 	for _, tab := range tags {
@@ -107,6 +138,41 @@ func (d *JudgeJobDao) UpdateJudgeJobs(ctx context.Context, tags []*foundationmod
 	_, err := d.collection.BulkWrite(ctx, models, bulkOptions)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to perform bulk update")
+	}
+	return nil
+}
+
+func (d *JudgeJobDao) StartProcessJudgeJob(ctx context.Context, id int) error {
+	filter := bson.D{
+		{"_id", id},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"status":     foundationjudge.JudgeStatusCompiling,
+			"judge_time": metatime.GetTimeNow(),
+		},
+	}
+	updateOptions := options.Update()
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to save tapd subscription")
+	}
+	return nil
+}
+
+func (d *JudgeJobDao) MarkJudgeJobJudgeFailed(ctx context.Context, id int) error {
+	filter := bson.D{
+		{"_id", id},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"status": foundationjudge.JudgeStatusJudgeFail,
+		},
+	}
+	updateOptions := options.Update()
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to save tapd subscription")
 	}
 	return nil
 }

@@ -2,3 +2,14 @@ mongo:
   uri: ""
   username: ""
   password: ""
+
+go-judge-url: ""
+
+#同时评测的job数
+max-job: 2
+
+judge-data:
+  url: ""
+  token: ""
+  key: ""
+  secret: ""

@@ -20,6 +20,7 @@ type Problem struct {
 	Tags        []int     `json:"tags" bson:"tags"`
 	InsertTime  time.Time `json:"insert_time" bson:"insert_time"`
 	UpdateTime  time.Time `json:"update_time" bson:"update_time"`
+	JudgeMd5    string    `json:"judge_md5" bson:"judge_md5"` // 判题数据的Md5标识
 }
 
 type ProblemBuilder struct {
