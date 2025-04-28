@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	Judger     string `yaml:"judger"`       // 评测器标识
 	GoJudgeUrl string `yaml:"go-judge-url"` // GoJudge 服务地址
 	MaxJob     int    `yaml:"max-job"`      // 最大同时评测的job数量
 	JudgeData  struct {

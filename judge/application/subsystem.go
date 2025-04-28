@@ -18,7 +18,7 @@ func GetSubsystem() *Subsystem {
 }
 
 func (s *Subsystem) GetName() string {
-	return "Migrate"
+	return "Judge"
 }
 
 func (s *Subsystem) Start() error {

@@ -142,12 +142,13 @@ func (d *JudgeJobDao) UpdateJudgeJobs(ctx context.Context, tags []*foundationmod
 	return nil
 }
 
-func (d *JudgeJobDao) StartProcessJudgeJob(ctx context.Context, id int) error {
+func (d *JudgeJobDao) StartProcessJudgeJob(ctx context.Context, id int, judger string) error {
 	filter := bson.D{
 		{"_id", id},
 	}
 	update := bson.M{
 		"$set": bson.M{
+			"judger":     judger,
 			"status":     foundationjudge.JudgeStatusCompiling,
 			"judge_time": metatime.GetTimeNow(),
 		},
@@ -160,13 +161,65 @@ func (d *JudgeJobDao) StartProcessJudgeJob(ctx context.Context, id int) error {
 	return nil
 }
 
-func (d *JudgeJobDao) MarkJudgeJobJudgeFailed(ctx context.Context, id int) error {
+func (d *JudgeJobDao) MarkJudgeJobJudgeStatus(ctx context.Context, id int, status foundationjudge.JudgeStatus) error {
 	filter := bson.D{
 		{"_id", id},
 	}
 	update := bson.M{
 		"$set": bson.M{
-			"status": foundationjudge.JudgeStatusJudgeFail,
+			"status": status,
+		},
+	}
+	updateOptions := options.Update()
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to mark judge job status")
+	}
+	return nil
+}
+
+func (d *JudgeJobDao) MarkJudgeJobCompileMessage(ctx context.Context, id int, message string) error {
+	filter := bson.D{
+		{"_id", id},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"compile_message": message,
+		},
+	}
+	updateOptions := options.Update()
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to save tapd subscription")
+	}
+	return nil
+}
+
+func (d *JudgeJobDao) MarkJudgeJobTaskTotal(ctx context.Context, id int, taskTotalCount int) error {
+	filter := bson.D{
+		{"_id", id},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"task_current": 0,
+			"task_total":   taskTotalCount,
+		},
+	}
+	updateOptions := options.Update()
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to save tapd subscription")
+	}
+	return nil
+}
+
+func (d *JudgeJobDao) AddJudgeJobTaskCurrent(ctx context.Context, id int) error {
+	filter := bson.D{
+		{"_id", id},
+	}
+	update := bson.M{
+		"$inc": bson.M{
+			"task_current": 1,
 		},
 	}
 	updateOptions := options.Update()

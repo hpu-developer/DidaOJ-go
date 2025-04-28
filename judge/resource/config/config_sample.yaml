@@ -3,6 +3,8 @@ mongo:
   username: ""
   password: ""
 
+judger: test
+
 go-judge-url: ""
 
 #同时评测的job数

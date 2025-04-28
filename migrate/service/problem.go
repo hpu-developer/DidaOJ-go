@@ -156,8 +156,8 @@ func (s *MigrateProblemService) Start() error {
 			Source(nullStringToString(p.Source)).
 			Creator(nullStringToString(p.Creator)).
 			Privilege(int(p.Privilege.Int64)).
-			TimeLimit(int(p.TimeLimit.Int64)).
-			MemoryLimit(int(p.MemoryLimit.Int64)).
+			TimeLimit(int(p.TimeLimit.Int64)*1000).
+			MemoryLimit(int(p.MemoryLimit.Int64)*1024).
 			JudgeType(int(p.JudgeType.Int64)).
 			Tags(problemTagMap[p.ProblemID]).
 			Accept(int(p.Accept.Int64)).
