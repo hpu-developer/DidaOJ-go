@@ -1,9 +1,10 @@
 package application
 
 import (
-	"judge/service"
 	"meta/engine"
 	"meta/subsystem"
+	"migrate/config"
+	"migrate/service"
 )
 
 type Subsystem struct {
@@ -31,7 +32,18 @@ func (s *Subsystem) Start() error {
 
 func (s *Subsystem) startSubSystem() error {
 
-	err := service.GetJudgeService().Start()
+	var err error
+
+	err = service.GetMongoInitService().Start()
+	if err != nil {
+		return err
+	}
+
+	if config.GetConfig().OnlyInit {
+		return nil
+	}
+
+	err = service.GetMigrateService().Start()
 	if err != nil {
 		return err
 	}

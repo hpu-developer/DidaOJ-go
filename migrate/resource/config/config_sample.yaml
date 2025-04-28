@@ -1,0 +1,12 @@
+only-init: true
+
+mongo:
+  uri: ""
+  username: ""
+  password: ""
+
+mysql:
+  uri: ""
+  username: ""
+  password: ""
+  database: ""
