@@ -47,34 +47,9 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                `json:"time"`
-		TotalCount int                      `json:"total_count"`
-		List       []*foundationmodel.Judge `json:"list"`
-	}{
-		Time:       metatime.GetTimeNow(),
-		TotalCount: totalCount,
-		List:       list,
-	}
-	response.NewResponse(ctx, metaerrorcode.Success, responseData)
-}
-
-func (c *JudgeController) GetTagList(ctx *gin.Context) {
-	JudgeService := foundationservice.GetJudgeService()
-	maxCountStr := ctx.DefaultQuery("max_count", "-1")
-	maxCount, err := strconv.Atoi(maxCountStr)
-	if err != nil {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	list, totalCount, err := JudgeService.GetJudgeTagList(ctx, maxCount)
-	if err != nil {
-		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-	responseData := struct {
 		Time       time.Time                   `json:"time"`
 		TotalCount int                         `json:"total_count"`
-		List       []*foundationmodel.JudgeTag `json:"list"`
+		List       []*foundationmodel.JudgeJob `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
