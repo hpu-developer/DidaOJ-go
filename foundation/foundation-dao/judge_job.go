@@ -87,16 +87,18 @@ func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
 		SetProjection(bson.M{
 			"_id":          1,
 			"approve_time": 1,
-			"code_length":  1,
 			"language":     1,
 			"score":        1,
 			"status":       1,
 			"time":         1,
 			"memory":       1,
+			"problem_id":   1,
+			"author":       1,
+			"code_length":  1,
 		}).
 		SetSkip(skip).
 		SetLimit(limit).
-		SetSort(bson.M{"_id": 1})
+		SetSort(bson.M{"_id": -1})
 	// 查询总记录数
 	totalCount, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {

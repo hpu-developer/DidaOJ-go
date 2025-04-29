@@ -18,7 +18,7 @@ var (
 	JudgeStatusRE        JudgeStatus = 10
 	JudgeStatusCE        JudgeStatus = 11
 	JudgeStatusCLE       JudgeStatus = 12
-	JudgeStatusJudgeFail JudgeStatus = 14
+	JudgeStatusJudgeFail JudgeStatus = 13
 )
 
 func GetFinalStatus(finalStatus JudgeStatus, currentStatus JudgeStatus) JudgeStatus {
