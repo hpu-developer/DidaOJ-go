@@ -76,7 +76,7 @@ func (s *MigrateProblemService) Start() error {
 		tagMap[tag.Name] = tagKey
 		mongoTags = append(mongoTags,
 			foundationmodel.NewProblemTagBuilder().
-				Id(strconv.Itoa(tagKey)).Name(tag.Name).
+				Id(tagKey).Name(tag.Name).
 				Build(),
 		)
 		tagKey++

@@ -5,7 +5,7 @@ import (
 	foundationinit "foundation/foundation-init"
 	"meta/engine"
 	"meta/meta-http"
-	"meta/meta-mongo"
+	metamogo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
 	"meta/subsystem"
 	"web/config"
@@ -26,8 +26,8 @@ func InitPre() error {
 
 	engine.RegisterSubsystem(
 		func() subsystem.Interface {
-			mongoSubsystem := &mongo.Subsystem{}
-			mongoSubsystem.GetConfig = func() *mongo.Config {
+			mongoSubsystem := &metamogo.Subsystem{}
+			mongoSubsystem.GetConfig = func() *metamogo.Config {
 				return config.GetMongoConfig()
 			}
 			return mongoSubsystem

@@ -3,7 +3,7 @@ package config
 import (
 	"meta/engine"
 	metaconfig "meta/meta-config"
-	"meta/meta-mongo"
+	metamogo "meta/meta-mongo"
 )
 
 type Config struct {
@@ -11,7 +11,7 @@ type Config struct {
 		HttpPort int32 `yaml:"http-port"` // Http端口
 	} `yaml:"env"`
 
-	Mongo mongo.Config `yaml:"mongo"`
+	Mongo metamogo.Config `yaml:"mongo"`
 }
 
 type Subsystem struct {
@@ -46,7 +46,7 @@ func GetHttpPort() int32 {
 	return GetSubsystem().config.Env.HttpPort
 }
 
-func GetMongoConfig() *mongo.Config {
+func GetMongoConfig() *metamogo.Config {
 	configSubsystem := GetSubsystem()
 	if configSubsystem == nil {
 		return nil

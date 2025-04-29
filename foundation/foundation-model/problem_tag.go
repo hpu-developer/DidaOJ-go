@@ -1,8 +1,11 @@
 package foundationmodel
 
+import "time"
+
 type ProblemTag struct {
-	Id   string `json:"id" bson:"_id"`
-	Name string `json:"name" bson:"name"`
+	Id         int       `json:"id" bson:"_id"`
+	Name       string    `json:"name" bson:"name"`
+	UpdateTime time.Time `json:"update_time" bson:"update_time"` // 更新时间，定义为本身修改或者题目修改时更新
 }
 
 type ProblemTagBuilder struct {
@@ -13,7 +16,7 @@ func NewProblemTagBuilder() *ProblemTagBuilder {
 	return &ProblemTagBuilder{item: &ProblemTag{}}
 }
 
-func (b *ProblemTagBuilder) Id(id string) *ProblemTagBuilder {
+func (b *ProblemTagBuilder) Id(id int) *ProblemTagBuilder {
 	b.item.Id = id
 	return b
 }

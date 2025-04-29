@@ -77,11 +77,19 @@ func (d *ProblemTagDao) GetProblemTag(ctx context.Context, key string) (*foundat
 	return &problemTag, nil
 }
 
-func (d *ProblemTagDao) GetProblemTagList(ctx context.Context) ([]foundationmodel.ProblemTag, error) {
+func (d *ProblemTagDao) GetProblemTagList(ctx context.Context, maxCount int) ([]*foundationmodel.ProblemTag, int, error) {
 	filter := bson.M{}
-	cursor, err := d.collection.Find(ctx, filter, options.Find())
+	findOptions := options.Find().SetSort(bson.D{{Key: "update_time", Value: -1}})
+	if maxCount > 0 {
+		findOptions.SetLimit(int64(maxCount))
+	}
+	totalCount, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {
-		return nil, metaerror.Wrap(err, "find ProblemTag error")
+		return nil, 0, metaerror.Wrap(err, "failed to count documents, maxCount: %d", maxCount)
+	}
+	cursor, err := d.collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, 0, metaerror.Wrap(err, "find ProblemTag error")
 	}
 	defer func(cursor *mongo.Cursor, ctx context.Context) {
 		err := cursor.Close(ctx)
@@ -89,11 +97,11 @@ func (d *ProblemTagDao) GetProblemTagList(ctx context.Context) ([]foundationmode
 			metapanic.ProcessError(err)
 		}
 	}(cursor, ctx)
-	var problemList []foundationmodel.ProblemTag
+	var problemList []*foundationmodel.ProblemTag
 	if err = cursor.All(ctx, &problemList); err != nil {
-		return nil, metaerror.Wrap(err, "decode ProblemTag error")
+		return nil, 0, metaerror.Wrap(err, "decode ProblemTag error")
 	}
-	return problemList, nil
+	return problemList, int(totalCount), nil
 }
 
 func (d *ProblemTagDao) UpdateProblemTags(ctx context.Context, tags []*foundationmodel.ProblemTag) error {
