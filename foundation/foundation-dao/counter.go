@@ -37,6 +37,10 @@ func (d *CounterDao) InitDao(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	err = d.InitCounter(ctx, "user_id", 0)
+	if err != nil {
+		return err
+	}
 	err = d.InitCounter(ctx, "problem_id", 999)
 	if err != nil {
 		return err
