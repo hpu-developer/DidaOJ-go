@@ -11,6 +11,8 @@ type Config struct {
 		HttpPort int32 `yaml:"http-port"` // Http端口
 	} `yaml:"env"`
 
+	AllowedOrigins []string `yaml:"allowed-origins"` // 允许的跨域请求来源
+
 	Mongo metamogo.Config `yaml:"mongo"`
 }
 
@@ -55,4 +57,15 @@ func GetMongoConfig() *metamogo.Config {
 		return nil
 	}
 	return &configSubsystem.config.Mongo
+}
+
+func GetAllowedOrigins() []string {
+	configSubsystem := GetSubsystem()
+	if configSubsystem == nil {
+		return nil
+	}
+	if configSubsystem.config == nil {
+		return nil
+	}
+	return configSubsystem.config.AllowedOrigins
 }

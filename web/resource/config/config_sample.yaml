@@ -1,6 +1,9 @@
 env:
   http-port: 8180
 
+allowed-origins:
+  - "*"
+
 mongo:
   uri: ""
   username: ""

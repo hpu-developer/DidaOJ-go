@@ -40,6 +40,7 @@ func InitPre() error {
 			httpSubsystem.GetPort = func() int32 {
 				return config.GetHttpPort()
 			}
+			metahttp.GetAllowedOrigins = config.GetAllowedOrigins
 			httpSubsystem.ProcessGin = router.RegisterRoutes
 			return httpSubsystem
 		},
