@@ -8,12 +8,12 @@ import (
 	goTime "time"
 )
 
-func GetToken(userId string, openId string, secret []byte) (*string, error) {
+func GetToken(userId int, secret []byte) (*string, error) {
 	duration := goTime.Hour * 24 * 7
-	return GetTokenExpiration(userId, openId, duration, secret)
+	return GetTokenExpiration(userId, duration, secret)
 }
 
-func GetTokenExpiration(userId string, openId string, duration goTime.Duration, secret []byte) (
+func GetTokenExpiration(userId int, duration goTime.Duration, secret []byte) (
 	*string,
 	error,
 ) {
@@ -27,7 +27,7 @@ func GetTokenExpiration(userId string, openId string, duration goTime.Duration, 
 	return auth.GetToken(claims, secret)
 }
 
-func GetUserIdFromContext(c *gin.Context) (*string, error) {
+func GetUserIdFromContext(c *gin.Context) (*int, error) {
 	claimsPtr := c.Value("claims")
 	if claimsPtr == nil {
 		return nil, metaerror.New("claims not found in context")

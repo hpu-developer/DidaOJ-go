@@ -23,7 +23,7 @@ func AuthMiddlewareOptional() gin.HandlerFunc {
 				},
 			)
 			if err == nil {
-				if jwtClaims.UserId != "" {
+				if jwtClaims.IsValid() {
 					c.Set("claims", jwtClaims)
 				}
 			}

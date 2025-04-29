@@ -3,5 +3,5 @@ package weberrorcode
 import "meta/error-code"
 
 const (
-	WebErrorCodeTest metaerrorcode.ErrorCode = 100001
+	WebErrorCodeUerNotMatch metaerrorcode.ErrorCode = 100001
 )

@@ -28,7 +28,7 @@ func (s *ProblemService) GetProblemList(ctx context.Context, page int, pageSize 
 	return foundationdao.GetProblemDao().GetProblemList(ctx, page, pageSize)
 }
 
-func (s *ProblemService) GetProblemListWithUser(ctx context.Context, user string, page int, pageSize int,
+func (s *ProblemService) GetProblemListWithUser(ctx context.Context, userId int, page int, pageSize int,
 ) ([]*foundationmodel.Problem, int, map[string]foundationmodel.ProblemAttemptStatus, error) {
 	problemList, totalCount, err := foundationdao.GetProblemDao().GetProblemList(ctx, page, pageSize)
 	if err != nil {
@@ -38,7 +38,7 @@ func (s *ProblemService) GetProblemListWithUser(ctx context.Context, user string
 	for _, problem := range problemList {
 		problemIds = append(problemIds, problem.Id)
 	}
-	problemStatus, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(ctx, problemIds, user)
+	problemStatus, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(ctx, problemIds, userId)
 	if err != nil {
 		return nil, 0, nil, err
 	}

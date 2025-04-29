@@ -122,7 +122,7 @@ func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
 	return list, int(totalCount), nil
 }
 
-func (d *JudgeJobDao) GetProblemAttemptStatus(ctx context.Context, problemIds []string, author string,
+func (d *JudgeJobDao) GetProblemAttemptStatus(ctx context.Context, problemIds []string, author int,
 ) (map[string]foundationmodel.ProblemAttemptStatus, error) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{

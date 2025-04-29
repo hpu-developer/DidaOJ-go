@@ -1,0 +1,91 @@
+package foundationdao
+
+import (
+	"context"
+	"errors"
+	foundationmodel "foundation/foundation-model"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	metaerror "meta/meta-error"
+	metamongo "meta/meta-mongo"
+	"meta/singleton"
+)
+
+type UserDao struct {
+	collection *mongo.Collection
+}
+
+var singletonUserDao = singleton.Singleton[UserDao]{}
+
+func GetUserDao() *UserDao {
+	return singletonUserDao.GetInstance(
+		func() *UserDao {
+			mongoSubsystem := metamongo.GetSubsystem()
+			if mongoSubsystem == nil {
+				return nil
+			}
+			client := mongoSubsystem.GetClient()
+			var UserDao UserDao
+			UserDao.collection = client.
+				Database("didaoj").
+				Collection("user")
+			return &UserDao
+		},
+	)
+}
+
+func (d *UserDao) InitDao(ctx context.Context) error {
+	indexModel := mongo.IndexModel{
+		Keys:    bson.D{{Key: "username", Value: 1}}, // 1表示升序索引
+		Options: options.Index().SetUnique(true),
+	}
+	_, err := d.collection.Indexes().CreateOne(ctx, indexModel)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *UserDao) GetUser(ctx context.Context, key string) (*foundationmodel.User, error) {
+	filter := bson.M{
+		"_id": key,
+	}
+	var User foundationmodel.User
+	if err := d.collection.FindOne(ctx, filter).Decode(&User); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find User error")
+	}
+	return &User, nil
+}
+
+func (d *UserDao) GetUserPassword(ctx context.Context, username string) (*foundationmodel.UserLogin, error) {
+	filter := bson.M{
+		"username": username,
+	}
+	var result foundationmodel.UserLogin
+	if err := d.collection.FindOne(ctx, filter).Decode(&result); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find user password error")
+	}
+	return &result, nil
+}
+
+func (d *UserDao) UpdateUser(ctx context.Context, key string, User *foundationmodel.User) error {
+	filter := bson.D{
+		{"_id", key},
+	}
+	update := bson.M{
+		"$set": User,
+	}
+	updateOptions := options.Update().SetUpsert(true)
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to save tapd subscription")
+	}
+	return nil
+}

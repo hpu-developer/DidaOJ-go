@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
-	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	"meta/response"
 	"strconv"
@@ -47,7 +46,7 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	var totalCount int
 	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
-	if err == nil && !metastring.IsEmpty(userId) {
+	if err == nil {
 		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, *userId, page, pageSize)
 	} else {
 		list, totalCount, err = problemService.GetProblemList(ctx, page, pageSize)

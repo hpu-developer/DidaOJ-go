@@ -6,13 +6,19 @@ import (
 
 type User struct {
 	Id           int       `json:"id" bson:"_id"`                                        // 数据库索引时真正的Id
-	OpenId       string    `json:"open_id" bson:"open_id"`                               // 对用户展示的唯一标识
+	Username     string    `json:"username" bson:"username"`                             // 对用户展示的唯一标识
 	Nickname     string    `json:"nickname,omitempty" bson:"nickname"`                   // 显示的昵称
 	Password     string    `json:"password" bson:"password"`                             // 密码
 	Email        string    `json:"email" bson:"email"`                                   // 邮箱
 	Sign         string    `json:"sign,omitempty" bson:"sign,omitempty"`                 // 签名
 	Organization string    `json:"organization,omitempty" bson:"organization,omitempty"` // 组织
 	RegTime      time.Time `json:"reg_time" bson:"reg_time"`                             // 注册时间
+}
+
+type UserLogin struct {
+	Id       int    `json:"id" bson:"_id"`                      // 数据库索引时真正的Id
+	Nickname string `json:"nickname,omitempty" bson:"nickname"` // 显示的昵称
+	Password string `json:"password" bson:"password"`           // 密码
 }
 
 type UserBuilder struct {
@@ -28,8 +34,8 @@ func (b *UserBuilder) Id(id int) *UserBuilder {
 	return b
 }
 
-func (b *UserBuilder) OpenId(openId string) *UserBuilder {
-	b.item.OpenId = openId
+func (b *UserBuilder) Username(username string) *UserBuilder {
+	b.item.Username = username
 	return b
 }
 
