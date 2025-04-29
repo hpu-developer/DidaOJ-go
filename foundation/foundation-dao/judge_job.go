@@ -52,7 +52,7 @@ func (d *JudgeJobDao) UpdateJudgeJob(ctx context.Context, id int, judgeSource *f
 	updateOptions := options.Update().SetUpsert(true)
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
+		return metaerror.Wrap(err, "failed to update job")
 	}
 	return nil
 }
@@ -156,7 +156,7 @@ func (d *JudgeJobDao) StartProcessJudgeJob(ctx context.Context, id int, judger s
 	updateOptions := options.Update()
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
+		return metaerror.Wrap(err, "failed to update job")
 	}
 	return nil
 }
@@ -168,6 +168,31 @@ func (d *JudgeJobDao) MarkJudgeJobJudgeStatus(ctx context.Context, id int, statu
 	update := bson.M{
 		"$set": bson.M{
 			"status": status,
+		},
+	}
+	updateOptions := options.Update()
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to mark judge job status")
+	}
+	return nil
+}
+
+func (d *JudgeJobDao) MarkJudgeJobJudgeFinalStatus(ctx context.Context, id int,
+	status foundationjudge.JudgeStatus,
+	score int,
+	time int,
+	memory int,
+) error {
+	filter := bson.D{
+		{"_id", id},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"status": status,
+			"score":  score,
+			"time":   time,
+			"memory": memory,
 		},
 	}
 	updateOptions := options.Update()
@@ -190,7 +215,7 @@ func (d *JudgeJobDao) MarkJudgeJobCompileMessage(ctx context.Context, id int, me
 	updateOptions := options.Update()
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
+		return metaerror.Wrap(err, "failed to update job")
 	}
 	return nil
 }
@@ -208,12 +233,12 @@ func (d *JudgeJobDao) MarkJudgeJobTaskTotal(ctx context.Context, id int, taskTot
 	updateOptions := options.Update()
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
+		return metaerror.Wrap(err, "failed to update job")
 	}
 	return nil
 }
 
-func (d *JudgeJobDao) AddJudgeJobTaskCurrent(ctx context.Context, id int) error {
+func (d *JudgeJobDao) AddJudgeJobTaskCurrent(ctx context.Context, id int, task *foundationmodel.JudgeTask) error {
 	filter := bson.D{
 		{"_id", id},
 	}
@@ -221,11 +246,14 @@ func (d *JudgeJobDao) AddJudgeJobTaskCurrent(ctx context.Context, id int) error 
 		"$inc": bson.M{
 			"task_current": 1,
 		},
+		"$push": bson.M{
+			"task": task,
+		},
 	}
 	updateOptions := options.Update()
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
+		return metaerror.Wrap(err, "failed to update job")
 	}
 	return nil
 }

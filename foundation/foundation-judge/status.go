@@ -2,6 +2,8 @@ package foundationjudge
 
 type JudgeStatus int
 
+// 按照严重程度排序
+
 var (
 	JudgeStatusInit      JudgeStatus = 0
 	JudgeStatusRejudge   JudgeStatus = 1
@@ -18,3 +20,10 @@ var (
 	JudgeStatusCLE       JudgeStatus = 12
 	JudgeStatusJudgeFail JudgeStatus = 14
 )
+
+func GetFinalStatus(finalStatus JudgeStatus, currentStatus JudgeStatus) JudgeStatus {
+	if int(currentStatus) > int(finalStatus) {
+		return currentStatus
+	}
+	return finalStatus
+}

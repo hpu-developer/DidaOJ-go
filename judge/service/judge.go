@@ -10,6 +10,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	"io"
 	"judge/config"
+	gojudge "judge/go-judge"
 	"log/slog"
 	"meta/cron"
 	metaerror "meta/meta-error"
@@ -90,7 +91,9 @@ func (s *JudgeService) handleStart() error {
 	for _, job := range jobs {
 		routine.SafeGo(fmt.Sprintf("RunningJudgeJob_%d", job.Id), func() error {
 			defer s.runningTasks.Add(-1)
+			slog.Info(fmt.Sprintf("JudgeTask_%d start", job.Id))
 			err = s.startJudgeTask(job)
+			slog.Info(fmt.Sprintf("JudgeTask_%d end", job.Id))
 			if err != nil {
 				err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, foundationjudge.JudgeStatusJudgeFail)
 				if err != nil {
@@ -119,7 +122,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update judge data")
 	}
-	execFileId, extraMessage, err := s.compileCode(job)
+	execFileId, extraMessage, compileStatus, err := s.compileCode(job)
 	if extraMessage != "" {
 		markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobCompileMessage(ctx, job.Id, extraMessage)
 		if markErr != nil {
@@ -130,7 +133,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 		return err
 	}
 	if execFileId == nil {
-		err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, foundationjudge.JudgeStatusCE)
+		err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, compileStatus)
 		if err != nil {
 			metapanic.ProcessError(err)
 		}
@@ -326,7 +329,7 @@ func (s *JudgeService) downloadObject(ctx context.Context, s3Client *s3.S3, buck
 	return nil
 }
 
-func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (*string, string, error) {
+func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (*string, string, foundationjudge.JudgeStatus, error) {
 	slog.Info("compile code", "job", job.Id)
 	runUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "run")
 	// 准备请求数据
@@ -355,11 +358,11 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (*string, stri
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return nil, "compile failed, system error.", err
+		return nil, "compile failed, system error.", foundationjudge.JudgeStatusJudgeFail, err
 	}
 	resp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, "compile failed, upload file error.", err
+		return nil, "compile failed, upload file error.", foundationjudge.JudgeStatusJudgeFail, err
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
@@ -368,10 +371,10 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (*string, stri
 		}
 	}(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, "compile failed, upload file response error.", metaerror.New("unexpected status code: %d", resp.StatusCode)
+		return nil, "compile failed, upload file response error.", foundationjudge.JudgeStatusJudgeFail, metaerror.New("unexpected status code: %d", resp.StatusCode)
 	}
 	var responseDataList []struct {
-		Status string `json:"status"`
+		Status gojudge.Status `json:"status"`
 		Files  struct {
 			Stderr string `json:"stderr"`
 			Stdout string `json:"stdout"`
@@ -382,17 +385,21 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (*string, stri
 	}
 	err = json.NewDecoder(resp.Body).Decode(&responseDataList)
 	if err != nil {
-		return nil, "compile failed, upload file response parse error.", metaerror.Wrap(err, "failed to decode response")
+		return nil, "compile failed, upload file response parse error.", foundationjudge.JudgeStatusJudgeFail, metaerror.Wrap(err, "failed to decode response")
 	}
 	if len(responseDataList) != 1 {
-		return nil, "compile failed, compile response data error.", metaerror.New("unexpected response length: %d", len(responseDataList))
+		return nil, "compile failed, compile response data error.", foundationjudge.JudgeStatusJudgeFail, metaerror.New("unexpected response length: %d", len(responseDataList))
 	}
 	responseData := responseDataList[0]
 	errorMessage := responseData.Files.Stderr + "\n" + responseData.Files.Stdout
-	if responseData.Status != "Accepted" {
-		return nil, errorMessage, nil
+	if responseData.Status != gojudge.StatusAccepted {
+		if responseData.Status != gojudge.StatusNonzeroExit {
+			return nil, errorMessage, foundationjudge.JudgeStatusCLE, nil
+		} else {
+			return nil, errorMessage, foundationjudge.JudgeStatusCE, nil
+		}
 	}
-	return &responseData.FileIds.A, errorMessage, nil
+	return &responseData.FileIds.A, errorMessage, foundationjudge.JudgeStatusAccept, nil
 }
 
 func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.JudgeJob, timeLimit int, memoryLimit int, execFileId string) error {
@@ -443,11 +450,27 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 	}
 
 	acTask := 0
+	finalStatus := foundationjudge.JudgeStatusAccept
+	sumTime := 0
+	sumMemory := 0
 
 	for _, file := range Files {
+		task := foundationmodel.NewJudgeTaskBuilder().
+			TaskId(file).
+			Status(foundationjudge.JudgeStatusJudgeFail).
+			Time(0).
+			Memory(0).
+			Content("").
+			WaHint("").
+			Build()
+
 		runUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "run")
 		inContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, file+".in"))
 		if err != nil {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
 			return err
 		}
 		data := map[string]interface{}{
@@ -473,6 +496,10 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		}
 		jsonData, err := json.Marshal(data)
 		if err != nil {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
 			return metaerror.Wrap(err)
 		}
 		resp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(jsonData))
@@ -486,37 +513,118 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			}
 		}(resp.Body)
 		if resp.StatusCode != http.StatusOK {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
 			return metaerror.New("unexpected status code: %d", resp.StatusCode)
 		}
 		var responseDataList []struct {
-			Status string `json:"status"`
+			Status gojudge.Status `json:"status"`
 			Files  struct {
 				Stderr string `json:"stderr"`
 				Stdout string `json:"stdout"`
 			} `json:"files"`
+			Time   int `json:"time"`
+			Memory int `json:"memory"`
 		}
 		err = json.NewDecoder(resp.Body).Decode(&responseDataList)
 		if err != nil {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
 			return metaerror.Wrap(err, "failed to decode response")
 		}
 		if len(responseDataList) != 1 {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
 			return metaerror.New("unexpected response length: %d", len(responseDataList))
 		}
 		responseData := responseDataList[0]
-		if responseData.Status != "Accepted" {
+		if responseData.Status != gojudge.StatusAccepted {
+			switch responseData.Status {
+			case gojudge.StatusSignalled:
+			case gojudge.StatusNonzeroExit:
+				task.Status = foundationjudge.JudgeStatusRE
+			case gojudge.StatusInternalError:
+				task.Status = foundationjudge.JudgeStatusJudgeFail
+			case gojudge.StatusOutputLimit:
+			case gojudge.StatusFileError:
+				task.Status = foundationjudge.JudgeStatusOLE
+			case gojudge.StatusMemoryLimit:
+				task.Status = foundationjudge.JudgeStatusMLE
+			case gojudge.StatusTimeLimit:
+				task.Status = foundationjudge.JudgeStatusTLE
+			default:
+				task.Status = foundationjudge.JudgeStatusJudgeFail
+			}
+			finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
 			continue
 		}
-
 		outContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, file+".out"))
 		if err != nil {
 			return err
 		}
 
-		err = foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id)
+		task.Time = responseData.Time
+		task.Memory = responseData.Memory
+
+		sumTime += responseData.Time
+		sumMemory += responseData.Memory
+
+		ansContent := responseData.Files.Stdout
+
+		// 移除所有空行和每行前后的空格
+		outContentMyPe := strings.Fields(outContent)
+		ansContentMyPe := strings.Fields(ansContent)
+		WaHint := ""
+		for i := 0; i < len(outContentMyPe); i++ {
+			if i < len(ansContentMyPe) {
+				if outContentMyPe[i] != ansContentMyPe[i] {
+					WaHint = fmt.Sprintf("%s != %s", outContentMyPe[i], ansContentMyPe[i])
+				}
+			} else {
+				WaHint = fmt.Sprintf("%s not found", outContentMyPe[i])
+				break
+			}
+		}
+		if WaHint != "" {
+			task.Status = foundationjudge.JudgeStatusWA
+			task.WaHint = WaHint
+		} else {
+			if outContent == ansContent {
+				acTask++
+				task.Status = foundationjudge.JudgeStatusAccept
+			} else {
+				task.Status = foundationjudge.JudgeStatusPE
+			}
+		}
+		err = foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
 		if err != nil {
 			return err
 		}
 	}
+	score := 0
+	// 更新任务状态
+	if !enableRule {
+		if acTask == taskCount {
+			score = 100
+		} else {
+			score = int(float64(acTask) / float64(taskCount) * 100)
+		}
+	}
 
-	return nil
+	finalTime := sumTime / taskCount
+	finalMemory := sumMemory / taskCount
+
+	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(ctx, job.Id, finalStatus, score, finalTime, finalMemory)
+
+	return err
 }

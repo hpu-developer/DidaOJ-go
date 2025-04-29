@@ -7,21 +7,22 @@ import (
 
 type JudgeJob struct {
 	Id             int                           `json:"id" bson:"_id"`
-	ProblemId      string                        `json:"problem_id" bson:"problem_id"`           // 题目ID
-	Author         string                        `json:"author" bson:"author"`                   // 提交者UserId
-	ApproveTime    time.Time                     `json:"approve_time" bson:"approve_time"`       //申请时间
-	Language       foundationjudge.JudgeLanguage `json:"language" bson:"language"`               // 代码语言
-	Code           string                        `json:"code" bson:"code"`                       // 所评测代码
-	CodeLength     int                           `json:"code_length" bson:"code_length"`         // 代码长度
-	Status         foundationjudge.JudgeStatus   `json:"status" bson:"status"`                   // 评测状态
-	JudgeTime      time.Time                     `json:"judge_time" bson:"judge_time"`           // 评测的开始时间
-	TaskCurrent    int                           `json:"task_current" bson:"task_current"`       // 评测完成子任务数量
-	TaskTotal      int                           `json:"task_total" bson:"task_total"`           // 评测子任务总数量
-	Score          int                           `json:"score" bson:"score"`                     // 所得分数
-	Judger         string                        `json:"judger" bson:"judger"`                   // 评测机
-	Time           int                           `json:"time" bson:"time"`                       // 所用的时间
-	Memory         int                           `json:"memory" bson:"memory"`                   // 所用的内存
-	CompileMessage string                        `json:"compile_message" bson:"compile_message"` // 编译信息
+	ProblemId      string                        `json:"problem_id" bson:"problem_id"`                               // 题目ID
+	Author         string                        `json:"author" bson:"author"`                                       // 提交者UserId
+	ApproveTime    time.Time                     `json:"approve_time" bson:"approve_time"`                           //申请时间
+	Language       foundationjudge.JudgeLanguage `json:"language" bson:"language"`                                   // 代码语言
+	Code           string                        `json:"code" bson:"code"`                                           // 所评测代码
+	CodeLength     int                           `json:"code_length" bson:"code_length"`                             // 代码长度
+	Status         foundationjudge.JudgeStatus   `json:"status" bson:"status"`                                       // 评测状态
+	JudgeTime      time.Time                     `json:"judge_time" bson:"judge_time"`                               // 评测的开始时间
+	TaskCurrent    int                           `json:"task_current" bson:"task_current"`                           // 评测完成子任务数量
+	TaskTotal      int                           `json:"task_total" bson:"task_total"`                               // 评测子任务总数量
+	Judger         string                        `json:"judger" bson:"judger"`                                       // 评测机
+	Score          int                           `json:"score" bson:"score"`                                         // 所得分数
+	Time           int                           `json:"time,omitempty" bson:"time,omitempty"`                       // 所用的时间，纳秒
+	Memory         int                           `json:"memory,omitempty" bson:"memory,omitempty"`                   // 所用的内存，byte
+	CompileMessage string                        `json:"compile_message,omitempty" bson:"compile_message,omitempty"` // 编译信息
+	Task           []JudgeTask                   `json:"task,omitempty" bson:"task,omitempty"`                       // 评测子任务
 }
 
 type JudgeJobBuilder struct {
