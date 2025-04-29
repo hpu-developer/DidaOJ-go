@@ -2,11 +2,13 @@ package controller
 
 import (
 	foundationerrorcode "foundation/error-code"
+	foundationauth "foundation/foundation-auth"
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
+	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	"meta/response"
 	"strconv"
@@ -41,19 +43,29 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	list, totalCount, err := problemService.GetProblemList(ctx, page, pageSize)
+	var list []*foundationmodel.Problem
+	var totalCount int
+	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err == nil && !metastring.IsEmpty(userId) {
+		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, *userId, page, pageSize)
+	} else {
+		list, totalCount, err = problemService.GetProblemList(ctx, page, pageSize)
+	}
 	if err != nil {
 		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	responseData := struct {
-		Time       time.Time                  `json:"time"`
-		TotalCount int                        `json:"total_count"`
-		List       []*foundationmodel.Problem `json:"list"`
+		Time                 time.Time                                       `json:"time"`
+		TotalCount           int                                             `json:"total_count"`
+		List                 []*foundationmodel.Problem                      `json:"list"`
+		ProblemAttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"problem_attempt_status,omitempty"`
 	}{
-		Time:       metatime.GetTimeNow(),
-		TotalCount: totalCount,
-		List:       list,
+		Time:                 metatime.GetTimeNow(),
+		TotalCount:           totalCount,
+		List:                 list,
+		ProblemAttemptStatus: problemStatus,
 	}
 	response.NewResponse(ctx, metaerrorcode.Success, responseData)
 }

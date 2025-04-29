@@ -122,6 +122,60 @@ func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
 	return list, int(totalCount), nil
 }
 
+func (d *JudgeJobDao) GetProblemAttemptStatus(ctx context.Context, problemIds []string, author string,
+) (map[string]foundationmodel.ProblemAttemptStatus, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"author":    author,
+			"problemId": bson.M{"$in": problemIds},
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id": "$problemId",
+			"statusSum": bson.M{
+				"$sum": bson.M{
+					"$cond": []interface{}{
+						bson.M{"$eq": []interface{}{"$status", 4}},
+						2, // 完成就加2
+						1, // 其他状态加1（尝试）
+					},
+				},
+			},
+		}}},
+		{{Key: "$project", Value: bson.M{
+			"problemId": "$_id",
+			"finalStatus": bson.M{
+				"$cond": bson.A{
+					bson.M{"$gte": bson.A{"$statusSum", 2}},
+					2, // >=2，有完成记录
+					1, // 否则就是尝试过
+				},
+			},
+		}}},
+	}
+	cursor, err := d.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to aggregate judge job")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		if err := cursor.Close(ctx); err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(cursor, ctx)
+	type Result struct {
+		ProblemId   string                               `bson:"problemId"`
+		FinalStatus foundationmodel.ProblemAttemptStatus `bson:"finalStatus"`
+	}
+	var results []Result
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, metaerror.Wrap(err, "failed to decode aggregation result")
+	}
+	statusMap := make(map[string]foundationmodel.ProblemAttemptStatus, len(problemIds))
+	for _, r := range results {
+		statusMap[r.ProblemId] = r.FinalStatus
+	}
+	return statusMap, nil
+}
+
 // GetJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的
 func (d *JudgeJobDao) GetJudgeJobListPendingJudge(ctx context.Context, maxCount int) ([]*foundationmodel.JudgeJob, error) {
 	filter := bson.M{

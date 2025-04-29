@@ -11,6 +11,27 @@ import (
 	"net/http"
 )
 
+func AuthMiddlewareOptional() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Request.Header.Get("X-Token")
+		if token != "" {
+			slog.Info("token", "token", token)
+			var jwtClaims foundationauth.Claims
+			err := auth.ValidateJWT(
+				token, &jwtClaims, func(token *jwt.Token) (interface{}, error) {
+					return foundationconfig.GetJwtSecret(), nil
+				},
+			)
+			if err == nil {
+				if jwtClaims.UserId != "" {
+					c.Set("claims", jwtClaims)
+				}
+			}
+		}
+		c.Next()
+	}
+}
+
 func TokenAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.Request.Header.Get("X-Token")

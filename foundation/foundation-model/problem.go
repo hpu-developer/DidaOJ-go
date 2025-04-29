@@ -4,6 +4,14 @@ import (
 	"time"
 )
 
+type ProblemAttemptStatus int
+
+var (
+	ProblemAttemptStatusNone      ProblemAttemptStatus = 0
+	ProblemAttemptStatusAttempt   ProblemAttemptStatus = 1
+	ProblemAttemptStatusWAccepted ProblemAttemptStatus = 2
+)
+
 type Problem struct {
 	Id          string    `json:"id" bson:"_id"`
 	Title       string    `json:"title" bson:"title"`
