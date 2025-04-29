@@ -53,7 +53,7 @@ func TokenAuthMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		if jwtClaims.UserId == "" {
+		if !jwtClaims.IsValid() {
 			response.NewResponse(c, http.StatusUnauthorized, nil)
 			c.Abort()
 			return

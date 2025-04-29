@@ -11,7 +11,6 @@ import (
 	metapanic "meta/meta-panic"
 	"meta/singleton"
 	"strconv"
-	"time"
 )
 
 type MigrateProblemService struct{}
@@ -150,11 +149,11 @@ func (s *MigrateProblemService) Start() error {
 
 		problemDocs = append(problemDocs, foundationmodel.NewProblemBuilder().
 			Id(strconv.Itoa(seq)).
-			Title(nullStringToString(p.Title)).
-			Description(nullStringToString(p.Description)).
-			Hint(nullStringToString(p.Hint)).
-			Source(nullStringToString(p.Source)).
-			Creator(nullStringToString(p.Creator)).
+			Title(metamysql.NullStringToString(p.Title)).
+			Description(metamysql.NullStringToString(p.Description)).
+			Hint(metamysql.NullStringToString(p.Hint)).
+			Source(metamysql.NullStringToString(p.Source)).
+			Creator(metamysql.NullStringToString(p.Creator)).
 			Privilege(int(p.Privilege.Int64)).
 			TimeLimit(int(p.TimeLimit.Int64)*1000).
 			MemoryLimit(int(p.MemoryLimit.Int64)*1024).
@@ -162,8 +161,8 @@ func (s *MigrateProblemService) Start() error {
 			Tags(problemTagMap[p.ProblemID]).
 			Accept(int(p.Accept.Int64)).
 			Attempt(int(p.Attempt.Int64)).
-			InsertTime(nullTimeToTime(p.InsertTime)).
-			UpdateTime(nullTimeToTime(p.UpdateTime)).
+			InsertTime(metamysql.NullTimeToTime(p.InsertTime)).
+			UpdateTime(metamysql.NullTimeToTime(p.UpdateTime)).
 			Build())
 	}
 
@@ -184,18 +183,4 @@ func (s *MigrateProblemService) Start() error {
 	slog.Info("migrate problem success")
 
 	return nil
-}
-
-func nullStringToString(s sql.NullString) string {
-	if s.Valid {
-		return s.String
-	}
-	return ""
-}
-
-func nullTimeToTime(t sql.NullTime) time.Time {
-	if t.Valid {
-		return t.Time
-	}
-	return time.Time{}
 }

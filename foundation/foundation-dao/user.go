@@ -89,3 +89,34 @@ func (d *UserDao) UpdateUser(ctx context.Context, key string, User *foundationmo
 	}
 	return nil
 }
+
+func (d *UserDao) GetUserIdByUsername(ctx context.Context, username string) (int, error) {
+	filter := bson.M{
+		"username": username,
+	}
+	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1})
+	var result struct {
+		UserId int `bson:"_id"`
+	}
+	if err := d.collection.FindOne(ctx, filter, findOptions).Decode(&result); err != nil {
+		return 0, metaerror.Wrap(err, "find user id by username error, %s", username)
+	}
+	return result.UserId, nil
+}
+
+func (d *UserDao) UpdateUsers(ctx context.Context, users []*foundationmodel.User) error {
+	for _, user := range users {
+		filter := bson.D{
+			{"_id", user.Id},
+		}
+		update := bson.M{
+			"$set": user,
+		}
+		updateOptions := options.Update().SetUpsert(true)
+		_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+		if err != nil {
+			return metaerror.Wrap(err, "failed to update user")
+		}
+	}
+	return nil
+}

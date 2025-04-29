@@ -10,8 +10,6 @@ import (
 	metamysql "meta/meta-mysql"
 	metapanic "meta/meta-panic"
 	"meta/singleton"
-	"strconv"
-	"time"
 )
 
 type MigrateUserService struct{}
@@ -34,7 +32,7 @@ func (s *MigrateUserService) Start() error {
 
 	// User 定义
 	type User struct {
-		UserID       int
+		UserID       string
 		Nickname     sql.NullString
 		Password     sql.NullString
 		Email        sql.NullString
@@ -78,21 +76,14 @@ func (s *MigrateUserService) Start() error {
 		}
 
 		UserDocs = append(UserDocs, foundationmodel.NewUserBuilder().
-			Id(strconv.Itoa(seq)).
-			Title(nullStringToString(p.Title)).
-			Description(nullStringToString(p.Description)).
-			Hint(nullStringToString(p.Hint)).
-			Source(nullStringToString(p.Source)).
-			Creator(nullStringToString(p.Creator)).
-			Privilege(int(p.Privilege.Int64)).
-			TimeLimit(int(p.TimeLimit.Int64)*1000).
-			MemoryLimit(int(p.MemoryLimit.Int64)*1024).
-			JudgeType(int(p.JudgeType.Int64)).
-			Tags(UserTagMap[p.UserID]).
-			Accept(int(p.Accept.Int64)).
-			Attempt(int(p.Attempt.Int64)).
-			InsertTime(nullTimeToTime(p.InsertTime)).
-			UpdateTime(nullTimeToTime(p.UpdateTime)).
+			Id(seq).
+			Username(p.UserID).
+			Nickname(p.Nickname.String).
+			Password(p.Password.String).
+			Email(p.Email.String).
+			Sign(p.Sign.String).
+			Organization(p.Organization.String).
+			RegTime(nullTimeToTime(p.RegTime)).
 			Build())
 	}
 
@@ -113,18 +104,4 @@ func (s *MigrateUserService) Start() error {
 	slog.Info("migrate User success")
 
 	return nil
-}
-
-func nullStringToString(s sql.NullString) string {
-	if s.Valid {
-		return s.String
-	}
-	return ""
-}
-
-func nullTimeToTime(t sql.NullTime) time.Time {
-	if t.Valid {
-		return t.Time
-	}
-	return time.Time{}
 }

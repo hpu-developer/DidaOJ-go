@@ -54,12 +54,14 @@ func (s *MigrateJudgeJobService) Start() error {
 		Name string
 	}
 
-	const batchSize = 10000
+	const batchSize = 1000
 	offset := 0
 
 	mongoStatusId := 1
 
 	slog.Info("migrate judge job start", "batchSize", batchSize)
+
+	usernameToUserId := make(map[string]int)
 
 	for {
 		var judgeJobs []*foundationmodel.JudgeJob
@@ -113,10 +115,19 @@ func (s *MigrateJudgeJobService) Start() error {
 				problemId = 1000
 			}
 
+			userId, ok := usernameToUserId[creator]
+			if !ok {
+				userId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, creator)
+				if err != nil {
+					return err
+				}
+				usernameToUserId[creator] = userId
+			}
+
 			judgeJob := foundationmodel.NewJudgeJobBuilder().
 				Id(mongoStatusId).
 				ProblemId(strconv.Itoa(problemId)).
-				Author(creator).
+				Author(userId).
 				ApproveTime(insertTime).
 				Language(migrate.GetJudgeLanguageByCodeOJ(language)).
 				Code(code.String).
@@ -141,6 +152,8 @@ func (s *MigrateJudgeJobService) Start() error {
 			return err
 		}
 		judgeJobs = nil
+
+		slog.Info("migrate judge job", "offset", offset, "batchSize", batchSize)
 
 		offset += batchSize
 	}
