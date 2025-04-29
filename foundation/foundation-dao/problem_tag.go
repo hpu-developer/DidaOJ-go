@@ -79,7 +79,11 @@ func (d *ProblemTagDao) GetProblemTag(ctx context.Context, key string) (*foundat
 
 func (d *ProblemTagDao) GetProblemTagList(ctx context.Context, maxCount int) ([]*foundationmodel.ProblemTag, int, error) {
 	filter := bson.M{}
-	findOptions := options.Find().SetSort(bson.D{{Key: "update_time", Value: -1}})
+	findOptions := options.Find().
+		SetProjection(bson.M{
+			"update_time": 0,
+		}).
+		SetSort(bson.D{{Key: "update_time", Value: -1}})
 	if maxCount > 0 {
 		findOptions.SetLimit(int64(maxCount))
 	}
