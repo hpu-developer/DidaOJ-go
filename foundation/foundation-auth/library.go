@@ -27,14 +27,14 @@ func GetTokenExpiration(userId int, duration goTime.Duration, secret []byte) (
 	return auth.GetToken(claims, secret)
 }
 
-func GetUserIdFromContext(c *gin.Context) (*int, error) {
+func GetUserIdFromContext(c *gin.Context) (int, error) {
 	claimsPtr := c.Value("claims")
 	if claimsPtr == nil {
-		return nil, metaerror.New("claims not found in context")
+		return -1, metaerror.New("claims not found in context")
 	}
 	claims, err := claimsPtr.(Claims)
 	if !err {
-		return nil, metaerror.New("claims type error")
+		return -1, metaerror.New("claims type error")
 	}
-	return &claims.UserId, nil
+	return claims.UserId, nil
 }

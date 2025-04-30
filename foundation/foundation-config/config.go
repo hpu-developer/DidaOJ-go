@@ -12,7 +12,7 @@ type Config struct {
 	} `yaml:"auth"`
 
 	Feishu struct {
-		NotifyRobot string                          `yaml:"notify_robot"` // 飞书通知机器人
+		NotifyRobot string                          `yaml:"notify-robot"` // 飞书通知机器人
 		App         map[string]metafeishu.AppConfig `yaml:"app"`
 		Chat        feishuchat.Config               `yaml:"chat"`
 	} `yaml:"feishu"`

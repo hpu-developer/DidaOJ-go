@@ -31,8 +31,29 @@ func (s *UserService) GetUser(ctx context.Context, id string) (*foundationmodel.
 	return foundationdao.GetUserDao().GetUser(ctx, id)
 }
 
+func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*response.UserLogin, error) {
+	resultUser, err := foundationdao.GetUserDao().GetUserLogin(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+	if resultUser == nil {
+		return nil, nil
+	}
+	token, err := s.GetTokenByUserId(resultUser.Id, foundationconfig.GetJwtSecret())
+	if err != nil {
+		return nil, err
+	}
+	userResponse := response.NewUserLoginBuilder().
+		Token(*token).
+		UserId(resultUser.Id).
+		Username(resultUser.Username).
+		Nickname(resultUser.Nickname).
+		Build()
+	return userResponse, nil
+}
+
 func (s *UserService) Login(ctx *gin.Context, username string, password string) (*response.UserLogin, error) {
-	resultUser, err := foundationdao.GetUserDao().GetUserPassword(ctx, username)
+	resultUser, err := foundationdao.GetUserDao().GetUserLoginByUsername(ctx, username)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +78,7 @@ func (s *UserService) Login(ctx *gin.Context, username string, password string) 
 	userResponse := response.NewUserLoginBuilder().
 		Token(*token).
 		UserId(resultUser.Id).
-		Username(username).
+		Username(resultUser.Username).
 		Nickname(resultUser.Nickname).
 		Build()
 

@@ -126,11 +126,11 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(ctx context.Context, problemIds []
 ) (map[string]foundationmodel.ProblemAttemptStatus, error) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{
-			"author":    author,
-			"problemId": bson.M{"$in": problemIds},
+			"author":     author,
+			"problem_id": bson.M{"$in": problemIds},
 		}}},
 		{{Key: "$group", Value: bson.M{
-			"_id": "$problemId",
+			"_id": "$problem_id",
 			"statusSum": bson.M{
 				"$sum": bson.M{
 					"$cond": []interface{}{
@@ -142,7 +142,7 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(ctx context.Context, problemIds []
 			},
 		}}},
 		{{Key: "$project", Value: bson.M{
-			"problemId": "$_id",
+			"problem_id": "$_id",
 			"finalStatus": bson.M{
 				"$cond": bson.A{
 					bson.M{"$gte": bson.A{"$statusSum", 2}},
@@ -162,7 +162,7 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(ctx context.Context, problemIds []
 		}
 	}(cursor, ctx)
 	type Result struct {
-		ProblemId   string                               `bson:"problemId"`
+		ProblemId   string                               `bson:"problem_id"`
 		FinalStatus foundationmodel.ProblemAttemptStatus `bson:"finalStatus"`
 	}
 	var results []Result

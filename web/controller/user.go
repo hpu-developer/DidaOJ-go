@@ -2,6 +2,7 @@ package controller
 
 import (
 	foundationerrorcode "foundation/error-code"
+	foundationauth "foundation/foundation-auth"
 	foundationservice "foundation/foundation-service"
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
@@ -13,6 +14,24 @@ import (
 
 type UserController struct {
 	metacontroller.Controller
+}
+
+func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		response.NewResponseError(ctx, err, nil)
+		return
+	}
+	loginResponse, err := foundationservice.GetUserService().GetUserLoginResponse(ctx, userId)
+	if err != nil {
+		response.NewResponseError(ctx, err, nil)
+		return
+	}
+	if loginResponse == nil {
+		response.NewResponse(ctx, weberrorcode.WebErrorCodeUerNotMatch, nil)
+		return
+	}
+	response.NewResponse(ctx, metaerrorcode.Success, loginResponse)
 }
 
 func (c *UserController) PostLogin(ctx *gin.Context) {

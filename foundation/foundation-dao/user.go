@@ -61,12 +61,28 @@ func (d *UserDao) GetUser(ctx context.Context, key string) (*foundationmodel.Use
 	return &User, nil
 }
 
-func (d *UserDao) GetUserPassword(ctx context.Context, username string) (*foundationmodel.UserLogin, error) {
+func (d *UserDao) GetUserLogin(ctx context.Context, userId int) (*foundationmodel.UserLogin, error) {
+	filter := bson.M{
+		"_id": userId,
+	}
+	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1, "username": 1, "nickname": 1, "password": 1})
+	var result foundationmodel.UserLogin
+	if err := d.collection.FindOne(ctx, filter, findOptions).Decode(&result); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find user password error")
+	}
+	return &result, nil
+}
+
+func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (*foundationmodel.UserLogin, error) {
 	filter := bson.M{
 		"username": username,
 	}
+	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1, "username": 1, "nickname": 1, "password": 1})
 	var result foundationmodel.UserLogin
-	if err := d.collection.FindOne(ctx, filter).Decode(&result); err != nil {
+	if err := d.collection.FindOne(ctx, filter, findOptions).Decode(&result); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}

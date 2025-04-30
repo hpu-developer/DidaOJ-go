@@ -47,7 +47,7 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err == nil {
-		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, *userId, page, pageSize)
+		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, page, pageSize)
 	} else {
 		list, totalCount, err = problemService.GetProblemList(ctx, page, pageSize)
 	}
