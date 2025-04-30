@@ -34,10 +34,6 @@ func GetJwtSecret() []byte {
 	return []byte(foundationConfig.Auth.Jwt)
 }
 
-func GetErrorNotifyGroup() string {
-	return foundationConfig.Feishu.Chat.Group.ErrorNotifyGroup
-}
-
 func GetFeishuConfigs() map[string]metafeishu.AppConfig {
 	return foundationConfig.Feishu.App
 }

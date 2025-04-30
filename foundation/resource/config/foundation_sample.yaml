@@ -3,6 +3,7 @@ auth:
   connect: ""
 
 feishu:
+  notify-robot: ""
   app:
     test:
         app-id: ""
@@ -13,4 +14,4 @@ feishu:
             test: ""
   chat:
     group:
-      error-notify-group: ""
+      test: ""

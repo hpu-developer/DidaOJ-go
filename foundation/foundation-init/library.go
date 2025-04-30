@@ -17,9 +17,6 @@ func Init() error {
 
 	metapanic.ProcessPanicCallback = foundationpanic.ProcessPanicCallback
 	metapanic.ProcessErrorCallback = foundationpanic.ProcessErrorCallback
-	foundationpanic.GetNoticeGroup = func() string {
-		return foundationconfig.GetErrorNotifyGroup()
-	}
 
 	engine.RegisterSubsystem(
 		func() subsystem.Interface {
