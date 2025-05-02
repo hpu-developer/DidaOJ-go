@@ -9,6 +9,7 @@ type JudgeJob struct {
 	Id             int                           `json:"id" bson:"_id"`
 	ProblemId      string                        `json:"problem_id" bson:"problem_id"`                               // 题目ID
 	Author         int                           `json:"author" bson:"author"`                                       // 提交者UserId
+	AuthorUsername *string                       `json:"author_username,omitempty" bson:"author_username,omitempty"` // 申请者用户名
 	AuthorNickname *string                       `json:"author_nickname,omitempty" bson:"author_nickname,omitempty"` // 申请者昵称
 	ApproveTime    time.Time                     `json:"approve_time" bson:"approve_time"`                           //申请时间
 	Language       foundationjudge.JudgeLanguage `json:"language" bson:"language"`                                   // 代码语言

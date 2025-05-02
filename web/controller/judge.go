@@ -78,13 +78,31 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 }
 
 func (c *JudgeController) Get(ctx *gin.Context) {
-	response.NewResponse(
-		ctx, metaerrorcode.Success,
-	)
+	judgeService := foundationservice.GetJudgeService()
+	idStr := ctx.Query("id")
+	if idStr == "" {
+		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	judgeJob, err := judgeService.GetJudge(ctx, id)
+	if err != nil {
+		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if judgeJob == nil {
+		response.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	response.NewResponse(ctx, metaerrorcode.Success, judgeJob)
 }
 
 func (c *JudgeController) GetList(ctx *gin.Context) {
-	JudgeService := foundationservice.GetJudgeService()
+	judgeService := foundationservice.GetJudgeService()
 	pageStr := ctx.DefaultQuery("page", "1")
 	pageSizeStr := ctx.DefaultQuery("page_size", "10")
 	page, err := strconv.Atoi(pageStr)
@@ -101,7 +119,7 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	list, totalCount, err := JudgeService.GetJudgeList(ctx, page, pageSize)
+	list, totalCount, err := judgeService.GetJudgeList(ctx, page, pageSize)
 	if err != nil {
 		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

@@ -57,9 +57,9 @@ func (d *JudgeJobDao) UpdateJudgeJob(ctx context.Context, id int, judgeSource *f
 	return nil
 }
 
-func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, key string) (*foundationmodel.JudgeJob, error) {
+func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int) (*foundationmodel.JudgeJob, error) {
 	filter := bson.M{
-		"_id": key,
+		"_id": judgeId,
 	}
 	var judgeSource foundationmodel.JudgeJob
 	if err := d.collection.FindOne(ctx, filter).Decode(&judgeSource); err != nil {

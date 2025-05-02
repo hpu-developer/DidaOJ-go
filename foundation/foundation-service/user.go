@@ -27,8 +27,8 @@ func GetUserService() *UserService {
 	)
 }
 
-func (s *UserService) GetUser(ctx context.Context, id string) (*foundationmodel.User, error) {
-	return foundationdao.GetUserDao().GetUser(ctx, id)
+func (s *UserService) GetUser(ctx context.Context, userId int) (*foundationmodel.User, error) {
+	return foundationdao.GetUserDao().GetUser(ctx, userId)
 }
 
 func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*response.UserLogin, error) {
