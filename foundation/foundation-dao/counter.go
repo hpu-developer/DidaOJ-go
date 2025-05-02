@@ -49,7 +49,7 @@ func (d *CounterDao) InitDao(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = d.InitCounter(ctx, "status", 0)
+	err = d.InitCounter(ctx, "status_id", 0)
 	if err != nil {
 		return err
 	}

@@ -83,7 +83,7 @@ func (s *MigrateUserService) Start() error {
 			Email(p.Email.String).
 			Sign(p.Sign.String).
 			Organization(p.Organization.String).
-			RegTime(nullTimeToTime(p.RegTime)).
+			RegTime(metamysql.NullTimeToTime(p.RegTime)).
 			Build())
 	}
 

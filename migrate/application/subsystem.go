@@ -3,6 +3,7 @@ package application
 import (
 	"meta/engine"
 	"meta/subsystem"
+	"migrate/config"
 	"migrate/service"
 )
 
@@ -32,25 +33,25 @@ func (s *Subsystem) Start() error {
 func (s *Subsystem) startSubSystem() error {
 
 	var err error
-	//
-	//err = service.GetMongoInitService().Start()
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//if config.GetConfig().OnlyInit {
-	//	return nil
-	//}
-	//
-	//err = service.GetMigrateProblemService().Start()
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//err = service.GetMigrateUserService().Start()
-	//if err != nil {
-	//	return err
-	//}
+
+	err = service.GetMongoInitService().Start()
+	if err != nil {
+		return err
+	}
+
+	if config.GetConfig().OnlyInit {
+		return nil
+	}
+
+	err = service.GetMigrateProblemService().Start()
+	if err != nil {
+		return err
+	}
+
+	err = service.GetMigrateUserService().Start()
+	if err != nil {
+		return err
+	}
 
 	err = service.GetMigrateJudgeJobService().Start()
 	if err != nil {

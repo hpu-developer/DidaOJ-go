@@ -19,9 +19,22 @@ type ProblemController struct {
 }
 
 func (c *ProblemController) Get(ctx *gin.Context) {
-	response.NewResponse(
-		ctx, metaerrorcode.Success,
-	)
+	problemService := foundationservice.GetProblemService()
+	id := ctx.Query("id")
+	if id == "" {
+		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	problem, err := problemService.GetProblem(ctx, id)
+	if err != nil {
+		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if problem == nil {
+		response.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	response.NewResponse(ctx, metaerrorcode.Success, problem)
 }
 
 func (c *ProblemController) GetList(ctx *gin.Context) {

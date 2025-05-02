@@ -27,3 +27,7 @@ func (s *JudgeService) GetJudge(ctx context.Context, id string) (*foundationmode
 func (s *JudgeService) GetJudgeList(ctx context.Context, page int, pageSize int) ([]*foundationmodel.JudgeJob, int, error) {
 	return foundationdao.GetJudgeJobDao().GetJudgeJobList(ctx, page, pageSize)
 }
+
+func (s *JudgeService) UpdateJudge(ctx context.Context, id int, judgeJob *foundationmodel.JudgeJob) error {
+	return foundationdao.GetJudgeJobDao().UpdateJudgeJob(ctx, id, judgeJob)
+}
