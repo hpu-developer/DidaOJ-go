@@ -42,6 +42,35 @@ func (d *JudgeJobDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
+func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmodel.JudgeJob) error {
+	mongoSubsystem := metamongo.GetSubsystem()
+	client := mongoSubsystem.GetClient()
+	sess, err := client.StartSession()
+	if err != nil {
+		return err
+	}
+	defer sess.EndSession(ctx)
+	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		// 获取下一个序列号
+		seq, err := GetCounterDao().GetNextSequence(sc, "jduge_id")
+		if err != nil {
+			return nil, err
+		}
+		// 更新 judgeJob 的 ID
+		judgeJob.Id = seq
+		// 插入新的 JudgeJob
+		_, err = d.collection.InsertOne(sc, judgeJob)
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (d *JudgeJobDao) UpdateJudgeJob(ctx context.Context, id int, judgeSource *foundationmodel.JudgeJob) error {
 	filter := bson.D{
 		{"_id", id},
@@ -49,7 +78,7 @@ func (d *JudgeJobDao) UpdateJudgeJob(ctx context.Context, id int, judgeSource *f
 	update := bson.M{
 		"$set": judgeSource,
 	}
-	updateOptions := options.Update().SetUpsert(true)
+	updateOptions := options.Update()
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update job")

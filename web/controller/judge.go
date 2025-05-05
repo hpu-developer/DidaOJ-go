@@ -3,7 +3,6 @@ package controller
 import (
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
-	foundationdao "foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
@@ -52,15 +51,9 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 
 	judgeService := foundationservice.GetJudgeService()
 
-	mongoStatusId, err := foundationdao.GetCounterDao().GetNextSequence(ctx, "status_id")
-	if err != nil {
-		response.NewResponseError(ctx, err)
-		return
-	}
 	nowTime := metatime.GetTimeNow()
 	codeLength := len(code)
 	judgeJob := foundationmodel.NewJudgeJobBuilder().
-		Id(mongoStatusId).
 		ProblemId(problemId).
 		Author(userId).
 		ApproveTime(nowTime).
@@ -69,7 +62,7 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		CodeLength(codeLength).
 		Status(foundationjudge.JudgeStatusInit).
 		Build()
-	err = judgeService.UpdateJudge(ctx, mongoStatusId, judgeJob)
+	err = judgeService.InsertJudgeJob(ctx, judgeJob)
 	if err != nil {
 		response.NewResponseError(ctx, err)
 		return

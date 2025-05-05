@@ -66,3 +66,7 @@ func (s *JudgeService) GetJudgeList(ctx context.Context, page int, pageSize int)
 func (s *JudgeService) UpdateJudge(ctx context.Context, id int, judgeJob *foundationmodel.JudgeJob) error {
 	return foundationdao.GetJudgeJobDao().UpdateJudgeJob(ctx, id, judgeJob)
 }
+
+func (s *JudgeService) InsertJudgeJob(ctx context.Context, judgeJob *foundationmodel.JudgeJob) error {
+	return foundationdao.GetJudgeJobDao().InsertJudgeJob(ctx, judgeJob)
+}
