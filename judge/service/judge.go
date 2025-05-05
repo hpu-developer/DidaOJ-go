@@ -298,12 +298,13 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]st
 		copyOutCached = []string{"a"}
 		break
 	case foundationjudge.JudgeLanguageJava:
-		args = []string{"javac", "-J-Xms128m", "-J-Xmx512m", "-encoding", "UTF-8", "main.java"}
+		args = []string{"javac", "-J-Xms128m", "-J-Xmx512m", "-encoding", "UTF-8", "Main.java"}
 		copyIns = map[string]interface{}{
-			"main.java": map[string]interface{}{
+			"Main.java": map[string]interface{}{
 				"content": job.Code,
 			},
 		}
+		copyOutCached = []string{"Main.class"}
 		break
 	case foundationjudge.JudgeLanguagePython:
 		args = []string{"python3", "-c", "import py_compile; py_compile.compile(r'a.py')"}
@@ -491,9 +492,17 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			}
 		case foundationjudge.JudgeLanguageJava:
 			args = []string{"java", "-Djava.security.manager", "-Djava.security.policy=./java.policy", "Main"}
+			fileId, ok := execFileId["Main.class"]
+			if !ok {
+				markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+				if markErr != nil {
+					metapanic.ProcessError(markErr)
+				}
+				return metaerror.New("fileId not found")
+			}
 			copyIns = map[string]interface{}{
-				"main.java": map[string]interface{}{
-					"content": job.Code,
+				"Main.class": map[string]interface{}{
+					"fileId": fileId,
 				},
 			}
 			break
