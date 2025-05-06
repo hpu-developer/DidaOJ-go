@@ -446,7 +446,6 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		metapanic.ProcessError(err)
 	}
 
-	acTask := 0
 	finalStatus := foundationjudge.JudgeStatusAccept
 	sumTime := 0
 	sumMemory := 0
@@ -458,12 +457,41 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		memoryLimit = memoryLimit + 1024*1024*64
 	}
 
-	for _, file := range Files {
+	taskConfigs := []struct {
+		File  string
+		Score int
+	}{}
+
+	if enableRule {
+
+	} else {
+		totalScore := 100
+		averageScore := totalScore / len(Files)
+		for i, file := range Files {
+			if i == len(Files)-1 {
+				taskConfigs = append(taskConfigs, struct {
+					File  string
+					Score int
+				}{File: file, Score: totalScore - averageScore*(len(Files)-1)})
+			} else {
+				taskConfigs = append(taskConfigs, struct {
+					File  string
+					Score int
+				}{File: file, Score: averageScore})
+			}
+		}
+	}
+
+	finalScore := 0
+
+	for _, taskConfig := range taskConfigs {
+		file := taskConfig.File
 		task := foundationmodel.NewJudgeTaskBuilder().
 			TaskId(file).
 			Status(foundationjudge.JudgeStatusJudgeFail).
 			Time(0).
 			Memory(0).
+			Score(0).
 			Content("").
 			WaHint("").
 			Build()
@@ -650,7 +678,8 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			task.WaHint = WaHint
 		} else {
 			if rightOutContent == ansContent {
-				acTask++
+				task.Score = taskConfig.Score
+				finalScore += taskConfig.Score
 				task.Status = foundationjudge.JudgeStatusAccept
 			} else {
 				task.Status = foundationjudge.JudgeStatusPE
@@ -662,20 +691,11 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			return err
 		}
 	}
-	score := 0
-	// 更新任务状态
-	if !enableRule {
-		if acTask == taskCount {
-			score = 100
-		} else {
-			score = int(float64(acTask) / float64(taskCount) * 100)
-		}
-	}
 
 	finalTime := sumTime / taskCount
 	finalMemory := sumMemory / taskCount
 
-	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(ctx, job.Id, finalStatus, score, finalTime, finalMemory)
+	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(ctx, job.Id, finalStatus, finalScore, finalTime, finalMemory)
 
 	return err
 }
