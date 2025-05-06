@@ -48,6 +48,7 @@ func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*re
 		UserId(resultUser.Id).
 		Username(resultUser.Username).
 		Nickname(resultUser.Nickname).
+		Roles(resultUser.Roles).
 		Build()
 	return userResponse, nil
 }
@@ -80,6 +81,7 @@ func (s *UserService) Login(ctx *gin.Context, username string, password string) 
 		UserId(resultUser.Id).
 		Username(resultUser.Username).
 		Nickname(resultUser.Nickname).
+		Roles(resultUser.Roles).
 		Build()
 
 	return userResponse, nil

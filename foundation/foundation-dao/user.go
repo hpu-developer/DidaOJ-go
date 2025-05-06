@@ -109,7 +109,12 @@ func (d *UserDao) GetUserLogin(ctx context.Context, userId int) (*foundationmode
 	filter := bson.M{
 		"_id": userId,
 	}
-	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1, "username": 1, "nickname": 1, "password": 1})
+	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1,
+		"username": 1,
+		"nickname": 1,
+		"password": 1,
+		"roles":    1,
+	})
 	var result foundationmodel.UserLogin
 	if err := d.collection.FindOne(ctx, filter, findOptions).Decode(&result); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -124,7 +129,12 @@ func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (
 	filter := bson.M{
 		"username": username,
 	}
-	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1, "username": 1, "nickname": 1, "password": 1})
+	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1,
+		"username": 1,
+		"nickname": 1,
+		"password": 1,
+		"roles":    1,
+	})
 	var result foundationmodel.UserLogin
 	if err := d.collection.FindOne(ctx, filter, findOptions).Decode(&result); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
