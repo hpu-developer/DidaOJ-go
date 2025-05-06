@@ -174,6 +174,24 @@ func (d *UserDao) GetUserIdByUsername(ctx context.Context, username string) (int
 	return result.UserId, nil
 }
 
+func (d *UserDao) GetUserRoles(ctx context.Context, userId int) ([]string, error) {
+	filter := bson.M{
+		"_id": userId,
+	}
+	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1, "roles": 1})
+	var result struct {
+		Roles []string `bson:"roles"`
+	}
+	if err := d.collection.FindOne(ctx, filter, findOptions).Decode(&result); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find user roles error")
+	}
+	return result.Roles, nil
+
+}
+
 func (d *UserDao) UpdateUsers(ctx context.Context, users []*foundationmodel.User) error {
 	for _, user := range users {
 		filter := bson.D{

@@ -11,6 +11,8 @@ type Config struct {
 		Connect string `yaml:"connect"` // 连接
 	} `yaml:"auth"`
 
+	Roles map[string][]string `yaml:"roles"` // 角色
+
 	Feishu struct {
 		NotifyRobot string                          `yaml:"notify-robot"` // 飞书通知机器人
 		App         map[string]metafeishu.AppConfig `yaml:"app"`

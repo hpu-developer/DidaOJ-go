@@ -37,3 +37,28 @@ func GetJwtSecret() []byte {
 func GetFeishuConfigs() map[string]metafeishu.AppConfig {
 	return foundationConfig.Feishu.App
 }
+
+func CheckRolesHasAllAuths(roles []string, auths []string) bool {
+	if len(auths) == 0 {
+		return true
+	}
+	if len(roles) == 0 {
+		return false
+	}
+	allRoleAuths := make(map[string]struct{})
+	for _, role := range roles {
+		auths, ok := GetConfig().Roles[role]
+		if !ok {
+			continue
+		}
+		for _, auth := range auths {
+			allRoleAuths[auth] = struct{}{}
+		}
+	}
+	for _, auth := range auths {
+		if _, ok := allRoleAuths[auth]; !ok {
+			return false
+		}
+	}
+	return true
+}

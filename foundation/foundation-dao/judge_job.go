@@ -372,3 +372,59 @@ func (d *JudgeJobDao) AddJudgeJobTaskCurrent(ctx context.Context, id int, task *
 	}
 	return nil
 }
+func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
+	findOpts := options.Find().
+		SetSort(bson.D{{"created_at", -1}}).
+		SetLimit(100)
+	cursor, err := d.collection.Find(ctx, bson.D{}, findOpts)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to find recent submissions")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(cursor, ctx)
+	var ids []int
+	for cursor.Next(ctx) {
+		var doc struct {
+			ID int `bson:"_id"`
+		}
+		if err := cursor.Decode(&doc); err != nil {
+			return metaerror.Wrap(err, "failed to decode document")
+		}
+		ids = append(ids, doc.ID)
+	}
+	if err := cursor.Err(); err != nil {
+		return metaerror.Wrap(err, "cursor error")
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	// 2. 批量更新这些提交
+	filter := bson.M{
+		"_id": bson.M{"$in": ids},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"status": foundationjudge.JudgeStatusRejudge,
+		},
+		"$unset": bson.M{
+			"score":           "",
+			"time":            "",
+			"memory":          "",
+			"compile_message": "",
+			"task":            "",
+			"task_current":    "",
+			"task_total":      "",
+		},
+	}
+
+	_, err = d.collection.UpdateMany(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update submissions")
+	}
+
+	return nil
+}

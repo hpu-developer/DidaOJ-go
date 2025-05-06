@@ -70,3 +70,7 @@ func (s *JudgeService) UpdateJudge(ctx context.Context, id int, judgeJob *founda
 func (s *JudgeService) InsertJudgeJob(ctx context.Context, judgeJob *foundationmodel.JudgeJob) error {
 	return foundationdao.GetJudgeJobDao().InsertJudgeJob(ctx, judgeJob)
 }
+
+func (s *JudgeService) RejudgeRecently(ctx context.Context) error {
+	return foundationdao.GetJudgeJobDao().RejudgeRecently(ctx)
+}

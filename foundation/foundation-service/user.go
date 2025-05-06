@@ -94,3 +94,12 @@ func (s *UserService) GetTokenByUserId(userId int, secret []byte) (*string, erro
 	}
 	return token, nil
 }
+
+func (s *UserService) CheckUserAuths(ctx context.Context, userId int, auths []string) (bool, error) {
+	userRoles, err := foundationdao.GetUserDao().GetUserRoles(ctx, userId)
+	if err != nil {
+		return false, err
+	}
+	ok := foundationconfig.CheckRolesHasAllAuths(userRoles, auths)
+	return ok, nil
+}

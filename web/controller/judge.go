@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
+	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
 	"meta/response"
 	"strconv"
@@ -127,4 +128,30 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		List:       list,
 	}
 	response.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
+func (c *JudgeController) PostRejudgeRecently(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	ok, err := foundationservice.GetUserService().CheckUserAuths(ctx, userId, []string{"i-manage-judge"})
+	if err != nil {
+		metapanic.ProcessError(err)
+		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+
+	err = foundationservice.GetJudgeService().RejudgeRecently(ctx)
+	if err != nil {
+		response.NewResponseError(ctx, err)
+		return
+	}
+
+	response.NewResponse(ctx, metaerrorcode.Success)
 }
