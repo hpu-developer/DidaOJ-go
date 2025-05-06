@@ -334,7 +334,7 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]st
 					{"name": "stderr", "max": 10240},
 				},
 				"cpuLimit":      10000000000,
-				"memoryLimit":   104857600,
+				"memoryLimit":   1048576 * 500, // 500MB
 				"procLimit":     50,
 				"copyIn":        copyIns,
 				"copyOut":       []string{"stdout", "stderr"},
@@ -451,6 +451,13 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 	sumTime := 0
 	sumMemory := 0
 
+	cpuLimit := timeLimit * 1000000
+	memoryLimit = memoryLimit * 1024
+	if job.Language == foundationjudge.JudgeLanguageJava {
+		cpuLimit = cpuLimit + 2000*1000000
+		memoryLimit = memoryLimit + 1024*1024*64
+	}
+
 	for _, file := range Files {
 		task := foundationmodel.NewJudgeTaskBuilder().
 			TaskId(file).
@@ -475,6 +482,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		var copyIns map[string]interface{}
 		switch job.Language {
 		case foundationjudge.JudgeLanguageC:
+			fallthrough
 		case foundationjudge.JudgeLanguageCpp:
 			args = []string{"a"}
 			fileId, ok := execFileId["a"]
@@ -527,8 +535,8 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 						{"name": "stdout", "max": 10240},
 						{"name": "stderr", "max": 10240},
 					},
-					"cpuLimit":    timeLimit * 1000000,
-					"memoryLimit": memoryLimit * 1024,
+					"cpuLimit":    cpuLimit,
+					"memoryLimit": memoryLimit,
 					"procLimit":   50,
 					"copyIn":      copyIns,
 				},
@@ -587,11 +595,13 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		if responseData.Status != gojudge.StatusAccepted {
 			switch responseData.Status {
 			case gojudge.StatusSignalled:
+				task.Status = foundationjudge.JudgeStatusRE
 			case gojudge.StatusNonzeroExit:
 				task.Status = foundationjudge.JudgeStatusRE
 			case gojudge.StatusInternalError:
 				task.Status = foundationjudge.JudgeStatusJudgeFail
 			case gojudge.StatusOutputLimit:
+				task.Status = foundationjudge.JudgeStatusOLE
 			case gojudge.StatusFileError:
 				task.Status = foundationjudge.JudgeStatusOLE
 			case gojudge.StatusMemoryLimit:
