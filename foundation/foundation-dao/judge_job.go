@@ -52,7 +52,7 @@ func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmo
 	defer sess.EndSession(ctx)
 	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
 		// 获取下一个序列号
-		seq, err := GetCounterDao().GetNextSequence(sc, "jduge_id")
+		seq, err := GetCounterDao().GetNextSequence(sc, "judge_id")
 		if err != nil {
 			return nil, err
 		}
