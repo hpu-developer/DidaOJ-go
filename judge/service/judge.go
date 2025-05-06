@@ -695,7 +695,13 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 	finalTime := sumTime / taskCount
 	finalMemory := sumMemory / taskCount
 
-	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(ctx, job.Id, finalStatus, finalScore, finalTime, finalMemory)
+	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(ctx, job.Id,
+		finalStatus,
+		problemId,
+		finalScore,
+		finalTime,
+		finalMemory,
+	)
 
 	return err
 }
