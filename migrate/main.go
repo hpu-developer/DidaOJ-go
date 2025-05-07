@@ -37,7 +37,7 @@ func InitPre() error {
 	engine.RegisterSubsystem(
 		func() subsystem.Interface {
 			mysqlSubsystem := &metamysql.Subsystem{}
-			mysqlSubsystem.GetConfig = func() *metamysql.Config {
+			mysqlSubsystem.GetConfig = func() map[string]*metamysql.Config {
 				return config.GetMysqlConfig()
 			}
 			return mysqlSubsystem

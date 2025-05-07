@@ -13,7 +13,9 @@ import (
 	"strconv"
 )
 
-type MigrateProblemService struct{}
+type MigrateProblemService struct {
+	oldProblemIdToNewProblemId map[int]string
+}
 
 var singletonMigrateProblemService = singleton.Singleton[MigrateProblemService]{}
 
@@ -29,7 +31,7 @@ func (s *MigrateProblemService) Start() error {
 
 	ctx := context.Background()
 
-	mysqlClient := metamysql.GetSubsystem().GetClient()
+	codeojMysqlClient := metamysql.GetSubsystem().GetClient("codeoj")
 
 	// Problem 定义
 	type Problem struct {
@@ -51,7 +53,7 @@ func (s *MigrateProblemService) Start() error {
 	type Tag struct {
 		Name string
 	}
-	rows, err := mysqlClient.Query("SELECT DISTINCT name FROM problem_tag WHERE name IS NOT NULL")
+	rows, err := codeojMysqlClient.Query("SELECT DISTINCT name FROM problem_tag WHERE name IS NOT NULL")
 	if err != nil {
 		return metaerror.Wrap(err, "query problem_tag failed")
 	}
@@ -90,7 +92,7 @@ func (s *MigrateProblemService) Start() error {
 	}
 
 	// === 拉取 problem 表 ===
-	problemRows, err := mysqlClient.Query(`
+	problemRows, err := codeojMysqlClient.Query(`
 		SELECT problem_id, title, description, hint, source, creator, privilege,
 		       time_limit, memory_limit, judge_type, accept, attempt, insert_time, update_time
 		FROM problem
@@ -107,7 +109,7 @@ func (s *MigrateProblemService) Start() error {
 
 	// 先拉取所有 problem_tag 映射 (problem_id -> []tagName)
 	problemTagMap := make(map[int][]int) // problem_id -> []tagKey
-	tagRelRows, err := mysqlClient.Query(`SELECT problem_id, name FROM problem_tag WHERE name IS NOT NULL`)
+	tagRelRows, err := codeojMysqlClient.Query(`SELECT problem_id, name FROM problem_tag WHERE name IS NOT NULL`)
 	if err != nil {
 		return metaerror.Wrap(err, "query problem_tag failed")
 	}
@@ -133,6 +135,8 @@ func (s *MigrateProblemService) Start() error {
 	// === 处理每一条 problem 并插入 MongoDB ===
 	var problemDocs []*foundationmodel.Problem
 
+	s.oldProblemIdToNewProblemId = make(map[int]string)
+
 	for problemRows.Next() {
 		var p Problem
 		if err := problemRows.Scan(
@@ -147,8 +151,12 @@ func (s *MigrateProblemService) Start() error {
 			return err
 		}
 
+		newProblemId := strconv.Itoa(seq)
+
+		s.oldProblemIdToNewProblemId[p.ProblemID] = newProblemId
+
 		problemDocs = append(problemDocs, foundationmodel.NewProblemBuilder().
-			Id(strconv.Itoa(seq)).
+			Id(newProblemId).
 			Title(metamysql.NullStringToString(p.Title)).
 			Description(metamysql.NullStringToString(p.Description)).
 			Hint(metamysql.NullStringToString(p.Hint)).
@@ -157,7 +165,7 @@ func (s *MigrateProblemService) Start() error {
 			Privilege(int(p.Privilege.Int64)).
 			TimeLimit(int(p.TimeLimit.Int64)*1000).
 			MemoryLimit(int(p.MemoryLimit.Int64)*1024).
-			JudgeType(int(p.JudgeType.Int64)).
+			JudgeType(foundationmodel.JudgeType(p.JudgeType.Int64)).
 			Tags(problemTagMap[p.ProblemID]).
 			Accept(int(p.Accept.Int64)).
 			Attempt(int(p.Attempt.Int64)).
@@ -183,4 +191,11 @@ func (s *MigrateProblemService) Start() error {
 	slog.Info("migrate problem success")
 
 	return nil
+}
+
+func (s *MigrateProblemService) GetNewProblemId(oldProblemId int) string {
+	if id, ok := s.oldProblemIdToNewProblemId[oldProblemId]; ok {
+		return id
+	}
+	return strconv.Itoa(oldProblemId)
 }

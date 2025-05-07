@@ -8,9 +8,9 @@ import (
 )
 
 type Config struct {
-	OnlyInit bool             `yaml:"only-init"` // 仅初始化，不导入
-	Mongo    metamongo.Config `yaml:"mongo"`
-	Mysql    metamysql.Config `yaml:"mysql"`
+	OnlyInit bool                         `yaml:"only-init"` // 仅初始化，不导入
+	Mongo    metamongo.Config             `yaml:"mongo"`
+	Mysql    map[string]*metamysql.Config `yaml:"mysql"`
 }
 
 type Subsystem struct {
@@ -49,7 +49,7 @@ func GetMongoConfig() *metamongo.Config {
 	return &configSubsystem.config.Mongo
 }
 
-func GetMysqlConfig() *metamysql.Config {
+func GetMysqlConfig() map[string]*metamysql.Config {
 	configSubsystem := GetSubsystem()
 	if configSubsystem == nil {
 		return nil
@@ -57,5 +57,5 @@ func GetMysqlConfig() *metamysql.Config {
 	if configSubsystem.config == nil {
 		return nil
 	}
-	return &configSubsystem.config.Mysql
+	return configSubsystem.config.Mysql
 }

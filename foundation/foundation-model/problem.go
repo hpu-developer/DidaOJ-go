@@ -22,7 +22,7 @@ type Problem struct {
 	Privilege   int       `json:"privilege" bson:"privilege"`
 	TimeLimit   int       `json:"time_limit" bson:"time_limit"`
 	MemoryLimit int       `json:"memory_limit" bson:"memory_limit"`
-	JudgeType   int       `json:"judge_type" bson:"judge_type"`
+	JudgeType   JudgeType `json:"judge_type" bson:"judge_type"`
 	Accept      int       `json:"accept" bson:"accept"`
 	Attempt     int       `json:"attempt" bson:"attempt"`
 	Tags        []int     `json:"tags" bson:"tags"`
@@ -84,7 +84,7 @@ func (b *ProblemBuilder) MemoryLimit(memoryLimit int) *ProblemBuilder {
 	return b
 }
 
-func (b *ProblemBuilder) JudgeType(judgeType int) *ProblemBuilder {
+func (b *ProblemBuilder) JudgeType(judgeType JudgeType) *ProblemBuilder {
 	b.item.JudgeType = judgeType
 	return b
 }

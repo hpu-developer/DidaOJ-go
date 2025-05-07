@@ -11,7 +11,6 @@ import (
 	metapanic "meta/meta-panic"
 	"meta/singleton"
 	"migrate/migrate"
-	"strconv"
 	"time"
 )
 
@@ -31,7 +30,7 @@ func (s *MigrateJudgeJobService) Start() error {
 
 	ctx := context.Background()
 
-	mysqlClient := metamysql.GetSubsystem().GetClient()
+	codeojMysqlClient := metamysql.GetSubsystem().GetClient("codeoj")
 
 	// Problem 定义
 	type Problem struct {
@@ -66,7 +65,7 @@ func (s *MigrateJudgeJobService) Start() error {
 	for {
 		var judgeJobs []*foundationmodel.JudgeJob
 
-		rows, err := mysqlClient.Query(`
+		rows, err := codeojMysqlClient.Query(`
 		SELECT s.status_id, s.problem_id, s.creator, s.language, s.insert_time, 
 		       s.length, s.time, s.memory, s.result, s.score, s.judge_time, s.judger, c.code
 		FROM status s
@@ -111,9 +110,7 @@ func (s *MigrateJudgeJobService) Start() error {
 				return metaerror.Wrap(err, "scan status failed")
 			}
 
-			if problemId == 1 {
-				problemId = 1000
-			}
+			newProblemId := GetMigrateProblemService().GetNewProblemId(problemId)
 
 			userId, ok := usernameToUserId[creator]
 			if !ok {
@@ -126,7 +123,7 @@ func (s *MigrateJudgeJobService) Start() error {
 
 			judgeJob := foundationmodel.NewJudgeJobBuilder().
 				Id(mongoStatusId).
-				ProblemId(strconv.Itoa(problemId)).
+				ProblemId(newProblemId).
 				Author(userId).
 				ApproveTime(insertTime).
 				Language(migrate.GetJudgeLanguageByCodeOJ(language)).
