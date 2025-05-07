@@ -16,7 +16,6 @@ type Problem struct {
 	Id          string    `json:"id" bson:"_id"`
 	Title       string    `json:"title" bson:"title"`
 	Description string    `json:"description" bson:"description"`
-	Hint        string    `json:"hint" bson:"hint"`
 	Source      string    `json:"source" bson:"source"`
 	Creator     string    `json:"creator" bson:"creator"`
 	Privilege   int       `json:"privilege" bson:"privilege"`
@@ -51,11 +50,6 @@ func (b *ProblemBuilder) Title(title string) *ProblemBuilder {
 
 func (b *ProblemBuilder) Description(description string) *ProblemBuilder {
 	b.item.Description = description
-	return b
-}
-
-func (b *ProblemBuilder) Hint(hint string) *ProblemBuilder {
-	b.item.Hint = hint
 	return b
 }
 

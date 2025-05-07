@@ -65,13 +65,21 @@ func (s *MigrateJudgeJobService) Start() error {
 	for {
 		var judgeJobs []*foundationmodel.JudgeJob
 
+		//	rows, err := codeojMysqlClient.Query(`
+		//	SELECT s.status_id, s.problem_id, s.creator, s.language, s.insert_time,
+		//		   s.length, s.time, s.memory, s.result, s.score, s.judge_time, s.judger, c.code
+		//	FROM status s
+		//	LEFT JOIN status_code c ON s.status_id = c.status_id
+		//	WHERE s.status_id > 98402
+		//	LIMIT ? OFFSET ?
+		//`, batchSize, offset)
 		rows, err := codeojMysqlClient.Query(`
 		SELECT s.status_id, s.problem_id, s.creator, s.language, s.insert_time, 
-		       s.length, s.time, s.memory, s.result, s.score, s.judge_time, s.judger, c.code
+			   s.length, s.time, s.memory, s.result, s.score, s.judge_time, s.judger, c.code
 		FROM status s
 		LEFT JOIN status_code c ON s.status_id = c.status_id
-			LIMIT ? OFFSET ?
-		`, batchSize, offset)
+		LIMIT ? OFFSET ?
+	`, batchSize, offset)
 		if err != nil {
 			return metaerror.Wrap(err, "query status failed")
 		}

@@ -145,9 +145,9 @@ func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (
 	return &result, nil
 }
 
-func (d *UserDao) UpdateUser(ctx context.Context, key string, User *foundationmodel.User) error {
+func (d *UserDao) UpdateUser(ctx context.Context, userId int, User *foundationmodel.User) error {
 	filter := bson.D{
-		{"_id", key},
+		{"_id", userId},
 	}
 	update := bson.M{
 		"$set": User,

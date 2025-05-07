@@ -136,6 +136,7 @@ func (s *MigrateProblemService) Start() error {
 	var problemDocs []*foundationmodel.Problem
 
 	s.oldProblemIdToNewProblemId = make(map[int]string)
+	s.oldProblemIdToNewProblemId[0] = "1000"
 
 	for problemRows.Next() {
 		var p Problem
@@ -155,11 +156,17 @@ func (s *MigrateProblemService) Start() error {
 
 		s.oldProblemIdToNewProblemId[p.ProblemID] = newProblemId
 
+		description := metamysql.NullStringToString(p.Description)
+
+		hint := metamysql.NullStringToString(p.Hint)
+		if hint != "" {
+			description += "\n\n## 提示\n" + hint
+		}
+
 		problemDocs = append(problemDocs, foundationmodel.NewProblemBuilder().
 			Id(newProblemId).
 			Title(metamysql.NullStringToString(p.Title)).
-			Description(metamysql.NullStringToString(p.Description)).
-			Hint(metamysql.NullStringToString(p.Hint)).
+			Description(description).
 			Source(metamysql.NullStringToString(p.Source)).
 			Creator(metamysql.NullStringToString(p.Creator)).
 			Privilege(int(p.Privilege.Int64)).

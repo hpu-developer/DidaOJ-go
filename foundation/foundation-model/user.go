@@ -9,10 +9,15 @@ type User struct {
 	Username     string    `json:"username" bson:"username"`                             // 对用户展示的唯一标识
 	Nickname     string    `json:"nickname,omitempty" bson:"nickname"`                   // 显示的昵称
 	Password     string    `json:"password" bson:"password"`                             // 密码
-	Email        string    `json:"email" bson:"email"`                                   // 邮箱
+	Email        string    `json:"email,omitempty" bson:"email,omitempty"`               // 邮箱
 	Sign         string    `json:"sign,omitempty" bson:"sign,omitempty"`                 // 签名
 	Organization string    `json:"organization,omitempty" bson:"organization,omitempty"` // 组织
 	RegTime      time.Time `json:"reg_time" bson:"reg_time"`                             // 注册时间
+	Accept       int       `json:"accept" bson:"accept"`                                 // AC次数
+	Attempt      int       `json:"attempt" bson:"attempt"`                               // 尝试次数
+	VjudgeId     string    `json:"vjudge_id,omitempty" bson:"vjudge_id,omitempty"`       // vjudge.net Id
+	CheckinCount int       `json:"checkin_count" bson:"checkin_count"`                   // 签到次数
+	Roles        []string  `json:"roles,omitempty" bson:"roles"`                         // 角色
 }
 
 type UserAccountInfo struct {
@@ -74,6 +79,31 @@ func (b *UserBuilder) Organization(organization string) *UserBuilder {
 
 func (b *UserBuilder) RegTime(regTime time.Time) *UserBuilder {
 	b.item.RegTime = regTime
+	return b
+}
+
+func (b *UserBuilder) Accept(accept int) *UserBuilder {
+	b.item.Accept = accept
+	return b
+}
+
+func (b *UserBuilder) Attempt(attempt int) *UserBuilder {
+	b.item.Attempt = attempt
+	return b
+}
+
+func (b *UserBuilder) VjudgeId(vjudgeId string) *UserBuilder {
+	b.item.VjudgeId = vjudgeId
+	return b
+}
+
+func (b *UserBuilder) CheckinCount(checkinCount int) *UserBuilder {
+	b.item.CheckinCount = checkinCount
+	return b
+}
+
+func (b *UserBuilder) Roles(roles []string) *UserBuilder {
+	b.item.Roles = roles
 	return b
 }
 

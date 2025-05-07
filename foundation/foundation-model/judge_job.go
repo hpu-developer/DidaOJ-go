@@ -25,6 +25,7 @@ type JudgeJob struct {
 	Memory         int                           `json:"memory,omitempty" bson:"memory,omitempty"`                   // 所用的内存，byte
 	CompileMessage string                        `json:"compile_message,omitempty" bson:"compile_message,omitempty"` // 编译信息
 	Task           []JudgeTask                   `json:"task,omitempty" bson:"task,omitempty"`                       // 评测子任务
+	Private        bool                          `json:"private,omitempty" bson:"private,omitempty"`                 // 是否隐藏
 }
 
 type JudgeJobBuilder struct {
@@ -107,6 +108,21 @@ func (b *JudgeJobBuilder) Time(time int) *JudgeJobBuilder {
 
 func (b *JudgeJobBuilder) Memory(memory int) *JudgeJobBuilder {
 	b.item.Memory = memory
+	return b
+}
+
+func (b *JudgeJobBuilder) CompileMessage(compileMessage string) *JudgeJobBuilder {
+	b.item.CompileMessage = compileMessage
+	return b
+}
+
+func (b *JudgeJobBuilder) Task(task []JudgeTask) *JudgeJobBuilder {
+	b.item.Task = task
+	return b
+}
+
+func (b *JudgeJobBuilder) Private(private bool) *JudgeJobBuilder {
+	b.item.Private = private
 	return b
 }
 

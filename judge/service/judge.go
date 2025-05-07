@@ -118,6 +118,9 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if err != nil {
 		return metaerror.Wrap(err, "failed to get problem")
 	}
+	if problem == nil {
+		return metaerror.New("problem not found: %s", job.ProblemId)
+	}
 	err = s.updateJudgeData(ctx, problem.Id, problem.JudgeMd5)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update judge data")
@@ -627,6 +630,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			case gojudge.StatusNonzeroExit:
 				task.Status = foundationjudge.JudgeStatusRE
 			case gojudge.StatusInternalError:
+				slog.Warn("internal error", "job", job.Id, "responseData", responseData)
 				task.Status = foundationjudge.JudgeStatusJudgeFail
 			case gojudge.StatusOutputLimit:
 				task.Status = foundationjudge.JudgeStatusOLE
@@ -637,6 +641,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			case gojudge.StatusTimeLimit:
 				task.Status = foundationjudge.JudgeStatusTLE
 			default:
+				slog.Warn("status error", "job", job.Id, "responseData", responseData)
 				task.Status = foundationjudge.JudgeStatusJudgeFail
 			}
 			finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)

@@ -430,7 +430,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 		// 1. 查找最近提交
 		findOpts := options.Find().
-			SetSort(bson.D{{"created_at", -1}}).
+			SetSort(bson.D{{"_id", -1}}).
 			SetLimit(100)
 		cursor, err := d.collection.Find(sessCtx, bson.D{}, findOpts)
 		if err != nil {
