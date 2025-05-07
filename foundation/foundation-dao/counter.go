@@ -41,7 +41,7 @@ func (d *CounterDao) InitDao(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = d.InitCounter(ctx, "problem_id", 999)
+	err = d.InitCounter(ctx, "problem_id", 0)
 	if err != nil {
 		return err
 	}
@@ -50,6 +50,10 @@ func (d *CounterDao) InitDao(ctx context.Context) error {
 		return err
 	}
 	err = d.InitCounter(ctx, "judge_id", 0)
+	if err != nil {
+		return err
+	}
+	err = d.InitCounter(ctx, "contest_id", 0)
 	if err != nil {
 		return err
 	}

@@ -53,6 +53,11 @@ func (s *Subsystem) startSubSystem() error {
 		return err
 	}
 
+	err = service.GetMigrateContestService().Start()
+	if err != nil {
+		return err
+	}
+
 	err = service.GetMigrateJudgeJobService().Start()
 	if err != nil {
 		return err

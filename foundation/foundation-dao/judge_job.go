@@ -70,6 +70,14 @@ func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmo
 				"attempt": 1,
 			}},
 		)
+		// 更新User表的attempt计数
+		_, err = GetUserDao().collection.UpdateOne(sc,
+			bson.M{"_id": judgeJob.Author},
+			bson.M{"$inc": bson.M{
+				"attempt": 1,
+			}},
+		)
+
 		if err != nil {
 			return nil, metaerror.Wrap(err, "failed to update problem attempt count for problem %s", judgeJob.ProblemId)
 		}
@@ -431,6 +439,12 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 		// 1. 查找最近提交
 		findOpts := options.Find().
 			SetSort(bson.D{{"_id", -1}}).
+			SetProjection(bson.M{
+				"_id":        1,
+				"problem_id": 1,
+				"author":     1,
+				"status":     1,
+			}).
 			SetLimit(100)
 		cursor, err := d.collection.Find(sessCtx, bson.D{}, findOpts)
 		if err != nil {
@@ -445,11 +459,13 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 
 		var ids []int
 		problemAcceptDelta := map[string]int{} // problem_id => acceptDelta
+		userAcceptDelta := map[int]int{}       // user_id => acceptDelta
 
 		for cursor.Next(sessCtx) {
 			var doc struct {
 				ID        int                         `bson:"_id"`
 				ProblemID string                      `bson:"problem_id"`
+				Author    int                         `bson:"author"`
 				Status    foundationjudge.JudgeStatus `bson:"status"`
 			}
 			if err := cursor.Decode(&doc); err != nil {
@@ -459,6 +475,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 
 			if doc.Status == foundationjudge.JudgeStatusAccept {
 				problemAcceptDelta[doc.ProblemID]--
+				userAcceptDelta[doc.Author]--
 			}
 		}
 		if err := cursor.Err(); err != nil {
@@ -501,6 +518,20 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 				return nil, metaerror.Wrap(err, "failed to update problem accept count for problem %s", pid)
 			}
 		}
+
+		// 4. 批量更新 User 表的 accept 计数
+		for uid, acceptDelta := range userAcceptDelta {
+			_, err := GetUserDao().collection.UpdateOne(sessCtx,
+				bson.M{"_id": uid},
+				bson.M{"$inc": bson.M{
+					"accept": acceptDelta,
+				}},
+			)
+			if err != nil {
+				return nil, metaerror.Wrap(err, "failed to update user accept count for user %d", uid)
+			}
+		}
+
 		return nil, nil
 	})
 	if err != nil {

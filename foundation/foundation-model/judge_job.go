@@ -6,8 +6,12 @@ import (
 )
 
 type JudgeJob struct {
-	Id             int                           `json:"id" bson:"_id"`
-	ProblemId      string                        `json:"problem_id" bson:"problem_id"`                               // 题目ID
+	Id int `json:"id" bson:"_id"`
+
+	ProblemId        string  `json:"problem_id" bson:"problem_id"`                                     // 题目ID
+	ContestId        *string `json:"contest_id,omitempty" bson:"contest_id,omitempty"`                 // 比赛ID
+	ContestProblemId *string `json:"contest_problem_id,omitempty" bson:"contest_problem_id,omitempty"` // 比赛题目ID
+
 	Author         int                           `json:"author" bson:"author"`                                       // 提交者UserId
 	AuthorUsername *string                       `json:"author_username,omitempty" bson:"author_username,omitempty"` // 申请者用户名
 	AuthorNickname *string                       `json:"author_nickname,omitempty" bson:"author_nickname,omitempty"` // 申请者昵称

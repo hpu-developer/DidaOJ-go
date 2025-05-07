@@ -57,8 +57,14 @@ func GetJudgeService() *JudgeService {
 }
 
 func (s *JudgeService) Start() error {
+
+	err := s.cleanGoJudge()
+	if err != nil {
+		return err
+	}
+
 	c := cron.NewWithSeconds()
-	_, err := c.AddFunc(
+	_, err = c.AddFunc(
 		"* * * * * ?", func() {
 			// 每秒运行一次任务
 			err := s.handleStart()
@@ -77,6 +83,39 @@ func (s *JudgeService) Start() error {
 	return nil
 }
 
+func (s *JudgeService) cleanGoJudge() error {
+	goJudgeUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "file")
+	fileListResp, err := http.Get(goJudgeUrl)
+	if err != nil {
+		return err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			metapanic.ProcessError(err)
+		}
+	}(fileListResp.Body)
+	var fileList map[string]string
+	err = json.NewDecoder(fileListResp.Body).Decode(&fileList)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to decode file list")
+	}
+	client := &http.Client{}
+	for fileId, _ := range fileList {
+		deleteUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "file", fileId)
+		request, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
+		if err != nil {
+			return err
+		}
+		_, err = client.Do(request)
+		if err != nil {
+			return metaerror.Wrap(err, "failed to delete file")
+		}
+	}
+
+	return nil
+}
+
 func (s *JudgeService) handleStart() error {
 	maxJob := config.GetConfig().MaxJob
 	if int(s.runningTasks.Load()) >= maxJob {
@@ -90,14 +129,16 @@ func (s *JudgeService) handleStart() error {
 	s.runningTasks.Add(int32(len(jobs)))
 	for _, job := range jobs {
 		routine.SafeGo(fmt.Sprintf("RunningJudgeJob_%d", job.Id), func() error {
-			defer s.runningTasks.Add(-1)
+			defer func() {
+				slog.Info(fmt.Sprintf("JudgeTask_%d end", job.Id))
+				s.runningTasks.Add(-1)
+			}()
 			slog.Info(fmt.Sprintf("JudgeTask_%d start", job.Id))
 			err = s.startJudgeTask(job)
-			slog.Info(fmt.Sprintf("JudgeTask_%d end", job.Id))
 			if err != nil {
-				err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, foundationjudge.JudgeStatusJudgeFail)
-				if err != nil {
-					metapanic.ProcessError(err)
+				markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, foundationjudge.JudgeStatusJudgeFail)
+				if markErr != nil {
+					metapanic.ProcessError(markErr)
 				}
 				return err
 			}
@@ -125,13 +166,29 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update judge data")
 	}
-	execFileId, extraMessage, compileStatus, err := s.compileCode(job)
+	execFileIds, extraMessage, compileStatus, err := s.compileCode(job)
 	if extraMessage != "" {
 		markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobCompileMessage(ctx, job.Id, extraMessage)
 		if markErr != nil {
 			metapanic.ProcessError(markErr)
 		}
 	}
+	defer func() {
+		client := &http.Client{}
+		for _, fileId := range execFileIds {
+			deleteUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "file", fileId)
+			request, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
+			if err != nil {
+				metapanic.ProcessError(metaerror.Wrap(err, "failed to create delete request"))
+				continue
+			}
+			_, err = client.Do(request)
+			if err != nil {
+				metapanic.ProcessError(metaerror.Wrap(err, "failed to delete file"))
+				continue
+			}
+		}
+	}()
 	if err != nil {
 		return err
 	}
@@ -142,12 +199,12 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 		}
 		return nil
 	}
-	slog.Info("compile code success", "job", job.Id, "execFileId", execFileId)
+	slog.Info("compile code success", "job", job.Id, "execFileIds", execFileIds)
 	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, foundationjudge.JudgeStatusRunning)
 	if err != nil {
 		metapanic.ProcessError(err)
 	}
-	err = s.runJudgeTask(ctx, job, problem.TimeLimit, problem.MemoryLimit, execFileId)
+	err = s.runJudgeTask(ctx, job, problem.TimeLimit, problem.MemoryLimit, execFileIds)
 	return err
 }
 
@@ -394,6 +451,7 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]st
 	}
 	if responseData.Status != gojudge.StatusAccepted {
 		if responseData.Status != gojudge.StatusNonzeroExit {
+			slog.Warn("compile error", "job", job.Id, "responseData", responseData)
 			return nil, errorMessage, foundationjudge.JudgeStatusCLE, nil
 		} else {
 			return nil, errorMessage, foundationjudge.JudgeStatusCE, nil
