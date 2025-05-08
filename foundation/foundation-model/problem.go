@@ -22,6 +22,7 @@ var (
 
 type Problem struct {
 	Id          string    `json:"id" bson:"_id"`
+	Sort        int       `json:"sort" bson:"sort"` // 排序
 	Title       string    `json:"title" bson:"title"`
 	Description string    `json:"description" bson:"description"`
 	Source      string    `json:"source" bson:"source"`
@@ -48,6 +49,11 @@ func NewProblemBuilder() *ProblemBuilder {
 
 func (b *ProblemBuilder) Id(id string) *ProblemBuilder {
 	b.item.Id = id
+	return b
+}
+
+func (b *ProblemBuilder) Sort(sort int) *ProblemBuilder {
+	b.item.Sort = sort
 	return b
 }
 

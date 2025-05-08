@@ -165,6 +165,7 @@ func (s *MigrateProblemService) Start() error {
 
 		problemDocs = append(problemDocs, foundationmodel.NewProblemBuilder().
 			Id(newProblemId).
+			Sort(len(newProblemId)).
 			Title(metamysql.NullStringToString(p.Title)).
 			Description(description).
 			Source(metamysql.NullStringToString(p.Source)).

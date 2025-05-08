@@ -91,7 +91,10 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 		}).
 		SetSkip(skip).
 		SetLimit(limit).
-		SetSort(bson.M{"_id": 1})
+		SetSort(bson.D{
+			{Key: "sort", Value: 1},
+			{Key: "_id", Value: 1},
+		})
 	// 查询总记录数
 	totalCount, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {

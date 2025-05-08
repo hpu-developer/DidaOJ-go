@@ -65,7 +65,7 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 		list, totalCount, err = problemService.GetProblemList(ctx, page, pageSize)
 	}
 	if err != nil {
-		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		response.NewResponseError(ctx, err)
 		return
 	}
 	responseData := struct {
