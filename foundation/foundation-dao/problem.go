@@ -37,6 +37,18 @@ func GetProblemDao() *ProblemDao {
 }
 
 func (d *ProblemDao) InitDao(ctx context.Context) error {
+	_, err := d.collection.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys: bson.D{
+				{Key: "sort", Value: 1},
+				{Key: "_id", Value: 1},
+			},
+			Options: options.Index().SetName("idx_sort_id"),
+		},
+	})
+	if err != nil {
+		return metaerror.Wrap(err, "failed to create index for problem collection")
+	}
 	return nil
 }
 
