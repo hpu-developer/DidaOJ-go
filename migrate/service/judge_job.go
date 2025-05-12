@@ -49,16 +49,49 @@ type JolSolution struct {
 	UserId     string     `gorm:"column:user_id"`
 	Time       int        `gorm:"column:time"`
 	Memory     int        `gorm:"column:memory"`
-	InData     time.Time  `gorm:"column:in_data"`
+	InDate     time.Time  `gorm:"column:in_date"`
 	Result     int        `gorm:"column:result"`
 	Language   int        `gorm:"column:language"`
 	ContestId  int        `gorm:"column:contest_id"`
 	Num        int        `gorm:"column:num"`
 	CodeLength int        `gorm:"column:code_length"`
-	JudgeTime  *time.Time `gorm:"column:judge_time"`
+	JudgeTime  *time.Time `gorm:"column:judgetime"`
 	Judger     string     `gorm:"column:judger"`
-	Code       string     `gorm:"column:code"`
+	Code       string     `gorm:"column:source"`
 	Private    int        `gorm:"column:pr"`
+}
+
+type VhojSubmission struct {
+	Id                int       `gorm:"column:C_ID"`
+	Time              int       `gorm:"column:C_TIME"`
+	Memory            int       `gorm:"column:C_MEMORY"`
+	SubTime           time.Time `gorm:"column:C_SUBTIME"`
+	ProblemId         int       `gorm:"column:C_PROBLEM_ID"`
+	ContestId         int       `gorm:"column:C_CONTEST_ID"`
+	ContestNum        string    `gorm:"column:C_CONTEST_NUM"`
+	Source            string    `gorm:"column:C_SOURCE"`
+	IsOpen            bool      `gorm:"column:C_ISOPEN"`
+	UserId            int       `gorm:"column:C_USER_ID"`
+	Username          string    `gorm:"column:C_USERNAME"`
+	OriginOj          string    `gorm:"column:C_ORIGIN_OJ"`
+	OriginProb        string    `gorm:"column:C_ORIGIN_PROB"`
+	IsPrivate         bool      `gorm:"column:C_IS_PRIVATE"`
+	AdditionalInfo    string    `gorm:"column:C_ADDITIONAL_INFO"`
+	RealRunId         string    `gorm:"column:C_REAL_RUN_ID"`
+	RemoteAccountId   string    `gorm:"column:C_REMOTE_ACCOUNT_ID"`
+	QueryCount        int       `gorm:"column:C_QUERY_COUNT"`
+	StatusUpdateTime  time.Time `gorm:"column:C_STATUS_UPDATE_TIME"`
+	RemoteSubmitTime  time.Time `gorm:"column:C_REMOTE_SUBMIT_TIME"`
+	Status            string    `gorm:"column:C_STATUS"` // RemoteStatus
+	StatusCanonical   string    `gorm:"column:C_STATUS_CANONICAL"`
+	SourceLength      int       `gorm:"column:C_SOURCE_LENGTH"`
+	Language          string    `gorm:"column:C_LANGUAGE"`
+	DispLanguage      string    `gorm:"column:C_DISP_LANGUAGE"`
+	LanguageCanonical string    `gorm:"column:C_LANGUAGE_CANONICAL"`
+}
+
+func (VhojSubmission) TableName() string {
+	return "t_submission"
 }
 
 func (s *MigrateJudgeJobService) Start() error {
@@ -77,6 +110,12 @@ func (s *MigrateJudgeJobService) Start() error {
 		return err
 	}
 	judgeJobs = append(judgeJobs, jolJudgeJobs...)
+
+	vhojJudgeJobs, err := s.processVhojJudgeJob(ctx)
+	if err != nil {
+		return err
+	}
+	judgeJobs = append(judgeJobs, vhojJudgeJobs...)
 
 	slog.Info("migrate judge job updates", "count", len(judgeJobs))
 
@@ -169,7 +208,7 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 		var rows []JolSolution
 
 		err := jolDB.Table("solution AS s").
-			Select("s.solution_id, s.problem_id, s.user_id, s.language, s.contest_id, s.num, s.code_length, s.judge_time, s.judger, c.code, pr.pr").
+			Select("s.solution_id, s.problem_id, s.user_id, s.time, s.memory, s.in_date, s.result, s.language, s.contest_id, s.num, s.code_length, s.judgetime, s.judger, c.source, pr.pr").
 			Joins("LEFT JOIN source_code c ON s.solution_id = c.solution_id").
 			Joins("LEFT JOIN source_code_pr pr ON s.solution_id = pr.solution_id").
 			Limit(batchSize).
@@ -191,12 +230,10 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 
 			newProblemId := GetMigrateProblemService().GetNewProblemId(row.ProblemID)
 
-			// TODO 补充contest信息
-
 			judgeJob := foundationmodel.NewJudgeJobBuilder().
 				ProblemId(newProblemId).
 				Author(userId).
-				ApproveTime(row.InData).
+				ApproveTime(row.InDate).
 				Language(migrate.GetJudgeLanguageByCodeOJ(row.Language)).
 				Code(row.Code).
 				CodeLength(row.CodeLength).
@@ -205,12 +242,57 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 				Judger(row.Judger).
 				Build()
 
+			if row.ContestId > 0 {
+				judgeJob.ContestId = GetMigrateContestService().GetNewContestIdByJol(row.ContestId)
+			}
+
 			judgeJobs = append(judgeJobs, judgeJob)
 		}
 
 		slog.Info("migrate judge job", "offset", offset, "batchSize", batchSize)
 
 		offset += batchSize
+	}
+
+	return judgeJobs, nil
+}
+
+func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*foundationmodel.JudgeJob, error) {
+	slog.Info("migrate judge job processVhojJudgeJob")
+
+	vhojDB := metamysql.GetSubsystem().GetClient("vhoj")
+
+	var judgeJobs []*foundationmodel.JudgeJob
+
+	var rows []VhojSubmission
+	if err := vhojDB.Order("C_ID ASC").Find(&rows).Error; err != nil {
+		return nil, metaerror.Wrap(err, "query judge job failed")
+	}
+	for _, row := range rows {
+		userId, err := GetMigrateUserService().getUserIdByUsername(ctx, row.UserId)
+		if err != nil {
+			return nil, metaerror.Wrap(err, "get user id by username failed")
+		}
+
+		newProblemId := GetMigrateProblemService().GetNewProblemId(row.ProblemID)
+
+		judgeJob := foundationmodel.NewJudgeJobBuilder().
+			ProblemId(newProblemId).
+			Author(userId).
+			ApproveTime(row.SubTime).
+			Language(migrate.GetJudgeLanguageByCodeOJ(row.Language)).
+			Code(row.Code).
+			CodeLength(row.CodeLength).
+			Status(migrate.GetJudgeStatusByCodeOJ(row.Result)).
+			JudgeTime(row.JudgeTime).
+			Judger(row.Judger).
+			Build()
+
+		if row.ContestId > 0 {
+			judgeJob.ContestId = GetMigrateContestService().GetNewContestIdByJol(row.ContestId)
+		}
+
+		judgeJobs = append(judgeJobs, judgeJob)
 	}
 
 	return judgeJobs, nil

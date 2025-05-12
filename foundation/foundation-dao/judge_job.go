@@ -64,11 +64,15 @@ func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmo
 			return nil, err
 		}
 		// 更新Problem表的attempt计数
+		problemAttempt := bson.M{
+			"attempt": 1,
+		}
+		if judgeJob.Status == foundationjudge.JudgeStatusAccept {
+			problemAttempt["accept"] = 1
+		}
 		_, err = GetProblemDao().collection.UpdateOne(sc,
 			bson.M{"_id": judgeJob.ProblemId},
-			bson.M{"$inc": bson.M{
-				"attempt": 1,
-			}},
+			bson.M{"$inc": problemAttempt},
 		)
 		// 更新User表的attempt计数
 		userAttempt := bson.M{
@@ -149,7 +153,7 @@ func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
 		}).
 		SetSkip(skip).
 		SetLimit(limit).
-		SetSort(bson.M{"_id": 1})
+		SetSort(bson.M{"_id": -1})
 	// 查询总记录数
 	totalCount, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {

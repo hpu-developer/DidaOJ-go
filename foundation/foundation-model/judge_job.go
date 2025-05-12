@@ -8,9 +8,8 @@ import (
 type JudgeJob struct {
 	Id int `json:"id" bson:"_id"`
 
-	ProblemId        string  `json:"problem_id" bson:"problem_id"`                                     // 题目ID
-	ContestId        *string `json:"contest_id,omitempty" bson:"contest_id,omitempty"`                 // 比赛ID
-	ContestProblemId *string `json:"contest_problem_id,omitempty" bson:"contest_problem_id,omitempty"` // 比赛题目ID
+	ProblemId string `json:"problem_id" bson:"problem_id"`                     // 题目ID
+	ContestId int    `json:"contest_id,omitempty" bson:"contest_id,omitempty"` // 比赛ID
 
 	Author         int                           `json:"author" bson:"author"`                                       // 提交者UserId
 	AuthorUsername *string                       `json:"author_username,omitempty" bson:"author_username,omitempty"` // 申请者用户名
@@ -30,6 +29,9 @@ type JudgeJob struct {
 	CompileMessage string                        `json:"compile_message,omitempty" bson:"compile_message,omitempty"` // 编译信息
 	Task           []*JudgeTask                  `json:"task,omitempty" bson:"task,omitempty"`                       // 评测子任务
 	Private        bool                          `json:"private,omitempty" bson:"private,omitempty"`                 // 是否隐藏
+
+	// remote judge 独有信息
+	RemoteJudgeId *string `json:"remote_judge_id,omitempty" bson:"remote_judge_id,omitempty"` // 远程评测ID
 }
 
 type JudgeJobBuilder struct {
@@ -75,13 +77,8 @@ func (b *JudgeJobBuilder) CodeLength(codeLength int) *JudgeJobBuilder {
 	return b
 }
 
-func (b *JudgeJobBuilder) ContestId(contestId *string) *JudgeJobBuilder {
+func (b *JudgeJobBuilder) ContestId(contestId int) *JudgeJobBuilder {
 	b.item.ContestId = contestId
-	return b
-}
-
-func (b *JudgeJobBuilder) ContestProblemId(contestProblemId *string) *JudgeJobBuilder {
-	b.item.ContestProblemId = contestProblemId
 	return b
 }
 

@@ -14,7 +14,8 @@ import (
 )
 
 type MigrateUserService struct {
-	usernameToUserId map[string]int
+	usernameToUserId     map[string]int
+	vhojUserIdToUsername map[int]string
 }
 
 var singletonMigrateUserService = singleton.Singleton[MigrateUserService]{}
@@ -24,6 +25,7 @@ func GetMigrateUserService() *MigrateUserService {
 		func() *MigrateUserService {
 			s := &MigrateUserService{}
 			s.usernameToUserId = make(map[string]int)
+			s.vhojUserIdToUsername = make(map[int]string)
 			return s
 		},
 	)
@@ -60,6 +62,22 @@ func (CodeojUser) TableName() string {
 	return "user"
 }
 
+type VhojUser struct {
+	Id         int       `gorm:"column:C_ID"`
+	Username   string    `gorm:"column:C_USERNAME"`
+	Nickname   string    `gorm:"column:C_NICKNAME"`
+	Password   string    `gorm:"column:C_PASSWORD"`
+	CreateTime time.Time `gorm:"column:C_CREATETIME"`
+	QQ         string    `gorm:"column:C_QQ"`
+	School     string    `gorm:"column:C_SCHOOL"`
+	Email      string    `gorm:"column:C_EMAIL"`
+	Blog       string    `gorm:"column:C_BLOG"`
+}
+
+func (VhojUser) TableName() string {
+	return "t_user"
+}
+
 func (s *MigrateUserService) Start() error {
 	ctx := context.Background()
 
@@ -76,6 +94,20 @@ func (s *MigrateUserService) Start() error {
 		usernameToUser[user.Username] = user
 	}
 
+	vhojUsers, err := s.processVhojUser(ctx)
+	if err != nil {
+		return err
+	}
+	for _, u := range vhojUsers {
+		if oldUser, ok := usernameToUser[u.Username]; ok {
+			// 以jol中的用户为准
+			oldUser.QQ = u.QQ
+			continue
+		}
+		usernameToUser[u.Username] = u
+		users = append(users, u)
+	}
+
 	codeojUsers, err := s.processCodeojUser(ctx)
 	if err != nil {
 		return err
@@ -85,6 +117,7 @@ func (s *MigrateUserService) Start() error {
 			usernameToUser[u.Username] = u
 			continue
 		}
+		usernameToUser[u.Username] = u
 		users = append(users, u)
 	}
 
@@ -168,6 +201,42 @@ func (s *MigrateUserService) processCodeojUser(ctx context.Context) ([]*foundati
 	return docs, nil
 }
 
+func (s *MigrateUserService) processVhojUser(ctx context.Context) ([]*foundationmodel.User, error) {
+	slog.Info("migrate User processVhojUser")
+
+	db := metamysql.GetSubsystem().GetClient("vhoj")
+
+	var users []VhojUser
+	if err := db.Order("C_ID ASC").Find(&users).Error; err != nil {
+		return nil, metaerror.Wrap(err, "query User failed")
+	}
+
+	var docs []*foundationmodel.User
+	for _, u := range users {
+
+		s.vhojUserIdToUsername[u.Id] = u.Username
+
+		user := foundationmodel.NewUserBuilder().
+			Username(u.Username).
+			Nickname(u.Nickname).
+			Password(u.Password).
+			Email(u.Email).
+			Sign(u.Blog).
+			Organization(u.School).
+			RegTime(u.CreateTime).
+			QQ(u.QQ).
+			Build()
+
+		if user.Username == "BoilTask" {
+			user.Roles = []string{"r-admin"}
+		}
+
+		docs = append(docs, user)
+	}
+
+	return docs, nil
+}
+
 func (s *MigrateUserService) getUserIdByUsername(ctx context.Context, username string) (int, error) {
 	var err error
 	userId, ok := s.usernameToUserId[username]
@@ -179,4 +248,12 @@ func (s *MigrateUserService) getUserIdByUsername(ctx context.Context, username s
 		s.usernameToUserId[username] = userId
 	}
 	return userId, nil
+}
+
+func (s *MigrateUserService) getUsernameByVhojId(id int) (string, error) {
+	username, ok := s.vhojUserIdToUsername[id]
+	if !ok {
+		return "", metaerror.New("user not found")
+	}
+	return username, nil
 }

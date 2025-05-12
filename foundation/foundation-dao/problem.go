@@ -45,6 +45,13 @@ func (d *ProblemDao) InitDao(ctx context.Context) error {
 			},
 			Options: options.Index().SetName("idx_sort_id"),
 		},
+		{
+			Keys: bson.D{
+				{Key: "origin_oj", Value: 1},
+				{Key: "origin_id", Value: 1},
+			},
+			Options: options.Index().SetName("idx_origin_id"),
+		},
 	})
 	if err != nil {
 		return metaerror.Wrap(err, "failed to create index for problem collection")

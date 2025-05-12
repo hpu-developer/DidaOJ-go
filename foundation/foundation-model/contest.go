@@ -72,12 +72,11 @@ type Contest struct {
 	LockRankDuration *time.Duration `json:"lock_rank_duration,omitempty" bson:"lock_rank_duration,omitempty"` // 比赛结束前锁定排名的时长，空则不锁榜，锁榜期间榜单仅展示尝试次数，ACM模式下只可以查看自己的提交结果，OI模式下无法查看所有的提交结果
 
 	// 题目相关
-	Problems []struct {
-		Id        int     `json:"id" bson:"id"`                               // 题目Id
-		ProblemId string  `json:"problem_id" bson:"problem_id"`               // 实际的题目Id，添加的那一刻需要具有对应问题权限
-		ViewId    *string `json:"view_id,omitempty" bson:"view_id,omitempty"` // 题目描述Id，如果不存在则使用默认描述
-		Score     int     `json:"score" bson:"score"`                         // 搭配ScoreType使用，定义题目分数，不填写则为0分
-	} `json:"problems" bson:"problems"` // 题目Id列表
+	Problems []*ContestProblem `json:"problems" bson:"problems"` // 题目Id列表
+
+	// Migrate相关
+	MigrateJolId  int // Jol中的Id
+	MigrateVhojId int // Vhoj中的Id
 }
 
 type ContestBuilder struct {

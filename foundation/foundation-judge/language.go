@@ -8,4 +8,6 @@ var (
 	JudgeLanguageCpp     JudgeLanguage = 1
 	JudgeLanguageJava    JudgeLanguage = 2
 	JudgeLanguagePython  JudgeLanguage = 3
+	JudgeLanguagePascal  JudgeLanguage = 4
+	JudgeLanguageGolang  JudgeLanguage = 5
 )

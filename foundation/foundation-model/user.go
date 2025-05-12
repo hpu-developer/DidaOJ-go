@@ -10,14 +10,17 @@ type User struct {
 	Nickname     string    `json:"nickname,omitempty" bson:"nickname"`                   // 显示的昵称
 	Password     string    `json:"password" bson:"password"`                             // 密码
 	Email        string    `json:"email,omitempty" bson:"email,omitempty"`               // 邮箱
+	QQ           string    `json:"qq,omitempty" bson:"qq,omitempty"`                     // QQ
 	Sign         string    `json:"sign,omitempty" bson:"sign,omitempty"`                 // 签名
 	Organization string    `json:"organization,omitempty" bson:"organization,omitempty"` // 组织
 	RegTime      time.Time `json:"reg_time" bson:"reg_time"`                             // 注册时间
 	Accept       int       `json:"accept" bson:"accept"`                                 // AC次数
 	Attempt      int       `json:"attempt" bson:"attempt"`                               // 尝试次数
-	VjudgeId     string    `json:"vjudge_id,omitempty" bson:"vjudge_id,omitempty"`       // vjudge.net Id
 	CheckinCount int       `json:"checkin_count" bson:"checkin_count"`                   // 签到次数
 	Roles        []string  `json:"roles,omitempty" bson:"roles,omitempty"`               // 角色
+
+	// 账号关联
+	VjudgeId string `json:"vjudge_id,omitempty" bson:"vjudge_id,omitempty"` // vjudge.net Id
 }
 
 type UserAccountInfo struct {
@@ -74,6 +77,11 @@ func (b *UserBuilder) Sign(sign string) *UserBuilder {
 
 func (b *UserBuilder) Organization(organization string) *UserBuilder {
 	b.item.Organization = organization
+	return b
+}
+
+func (b *UserBuilder) QQ(qq string) *UserBuilder {
+	b.item.QQ = qq
 	return b
 }
 

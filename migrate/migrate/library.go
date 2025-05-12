@@ -10,6 +10,7 @@ func GetJudgeLanguageByCodeOJ(language int) foundationjudge.JudgeLanguage {
 		return foundationjudge.JudgeLanguageC
 	case 1:
 		return foundationjudge.JudgeLanguageCpp
+
 	case 3:
 		return foundationjudge.JudgeLanguageJava
 	case 6:
