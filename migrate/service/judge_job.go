@@ -7,6 +7,7 @@ import (
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
 	"migrate/migrate"
+	"sort"
 	"time"
 
 	foundationdao "foundation/foundation-dao"
@@ -45,18 +46,42 @@ type Status struct {
 func (s *MigrateJudgeJobService) Start() error {
 	ctx := context.Background()
 
+	var judgeJobs []*foundationmodel.JudgeJob
+
+	codeojJudgeJobs, err := s.processCodeojJudgeJob(ctx)
+	if err != nil {
+		return err
+	}
+	judgeJobs = append(judgeJobs, codeojJudgeJobs...)
+
+	slog.Info("migrate judge job updates", "count", len(judgeJobs))
+
+	sort.Slice(judgeJobs, func(i, j int) bool {
+		return judgeJobs[i].ApproveTime.Before(judgeJobs[j].ApproveTime)
+	})
+
+	for _, judgeJob := range judgeJobs {
+		err = foundationdao.GetJudgeJobDao().InsertJudgeJob(ctx, judgeJob)
+		if err != nil {
+			return metaerror.Wrap(err, "insert judge job failed")
+		}
+	}
+
+	return nil
+}
+
+func (s *MigrateJudgeJobService) processCodeojJudgeJob(ctx context.Context) ([]*foundationmodel.JudgeJob, error) {
+
 	codeojDB := metamysql.GetSubsystem().GetClient("codeoj")
 
 	const batchSize = 1000
 	offset := 0
-	mongoStatusId := 1
 
 	slog.Info("migrate judge job start", "batchSize", batchSize)
 
-	usernameToUserId := make(map[string]int)
+	var judgeJobs []*foundationmodel.JudgeJob
 
 	for {
-		var judgeJobs []*foundationmodel.JudgeJob
 		var rows []Status
 
 		err := codeojDB.Table("status AS s").
@@ -66,7 +91,7 @@ func (s *MigrateJudgeJobService) Start() error {
 			Offset(offset).
 			Scan(&rows).Error
 		if err != nil {
-			return metaerror.Wrap(err, "query status failed")
+			return nil, metaerror.Wrap(err, "query status failed")
 		}
 
 		if len(rows) == 0 {
@@ -74,19 +99,14 @@ func (s *MigrateJudgeJobService) Start() error {
 		}
 
 		for _, row := range rows {
-			newProblemId := GetMigrateProblemService().GetNewProblemId(row.ProblemID)
-
-			userId, ok := usernameToUserId[row.Creator]
-			if !ok {
-				userId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, row.Creator)
-				if err != nil {
-					return err
-				}
-				usernameToUserId[row.Creator] = userId
+			userId, err := GetMigrateUserService().getUserIdByUsername(ctx, row.Creator)
+			if err != nil {
+				return nil, metaerror.Wrap(err, "get user id by username failed")
 			}
 
+			newProblemId := GetMigrateProblemService().GetNewProblemId(row.ProblemID)
+
 			judgeJob := foundationmodel.NewJudgeJobBuilder().
-				Id(mongoStatusId).
 				ProblemId(newProblemId).
 				Author(userId).
 				ApproveTime(row.InsertTime).
@@ -100,12 +120,6 @@ func (s *MigrateJudgeJobService) Start() error {
 				Build()
 
 			judgeJobs = append(judgeJobs, judgeJob)
-			mongoStatusId++
-		}
-
-		err = foundationdao.GetJudgeJobDao().UpdateJudgeJobs(ctx, judgeJobs)
-		if err != nil {
-			return err
 		}
 
 		slog.Info("migrate judge job", "offset", offset, "batchSize", batchSize)
@@ -113,5 +127,5 @@ func (s *MigrateJudgeJobService) Start() error {
 		offset += batchSize
 	}
 
-	return nil
+	return judgeJobs, nil
 }

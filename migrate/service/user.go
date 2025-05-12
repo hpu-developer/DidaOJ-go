@@ -12,7 +12,9 @@ import (
 	"meta/singleton"
 )
 
-type MigrateUserService struct{}
+type MigrateUserService struct {
+	usernameToUserId map[string]int
+}
 
 var singletonMigrateUserService = singleton.Singleton[MigrateUserService]{}
 
@@ -150,4 +152,17 @@ func (s *MigrateUserService) processCodeojUser(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *MigrateUserService) getUserIdByUsername(ctx context.Context, username string) (int, error) {
+	var err error
+	userId, ok := s.usernameToUserId[username]
+	if !ok {
+		userId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
+		if err != nil {
+			return -1, err
+		}
+		s.usernameToUserId[username] = userId
+	}
+	return userId, nil
 }
