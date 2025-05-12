@@ -28,7 +28,7 @@ func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 		return
 	}
 	if loginResponse == nil {
-		response.NewResponse(ctx, weberrorcode.WebErrorCodeUerNotMatch, nil)
+		response.NewResponse(ctx, weberrorcode.UserNotMatch, nil)
 		return
 	}
 	response.NewResponse(ctx, metaerrorcode.Success, loginResponse)
@@ -50,7 +50,7 @@ func (c *UserController) PostLogin(ctx *gin.Context) {
 		return
 	}
 	if loginResponse == nil {
-		response.NewResponse(ctx, weberrorcode.WebErrorCodeUerNotMatch, nil)
+		response.NewResponse(ctx, weberrorcode.UserNotMatch, nil)
 		return
 	}
 	response.NewResponse(ctx, metaerrorcode.Success, loginResponse)

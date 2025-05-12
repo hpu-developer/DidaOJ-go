@@ -1,6 +1,7 @@
 package application
 
 import (
+	"log/slog"
 	"meta/engine"
 	"meta/subsystem"
 	"migrate/config"
@@ -62,6 +63,8 @@ func (s *Subsystem) startSubSystem() error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("migrate finished")
 
 	return nil
 }

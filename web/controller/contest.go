@@ -110,6 +110,7 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		StartTime(*startTime).
 		EndTime(*endTime).
 		OwnerId(userId).
+		CreateTime(metatime.GetTimeNow()).
 		Build()
 
 	err = contestService.InsertContest(ctx, contest)

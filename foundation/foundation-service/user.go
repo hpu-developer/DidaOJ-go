@@ -3,6 +3,8 @@ package foundationservice
 import (
 	"context"
 	"crypto/md5"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/hex"
 	foundationauth "foundation/foundation-auth"
 	foundationconfig "foundation/foundation-config"
@@ -68,9 +70,27 @@ func (s *UserService) Login(ctx *gin.Context, username string, password string) 
 	}
 	passwordInputMd5 := hex.EncodeToString(hash.Sum(nil))
 	if passwordInputMd5 != resultUser.Password {
-		return nil, nil
+		decoded, err := base64.StdEncoding.DecodeString(resultUser.Password)
+		if err != nil {
+			return nil, metaerror.Wrap(err)
+		}
+		if len(decoded) <= 20 {
+			return nil, metaerror.New("password decoded error", "len", len(decoded))
+		}
+		salt := decoded[20:]
+		md5Hex := md5.Sum([]byte(password))
+		md5HexStr := make([]byte, 32)
+		hex.Encode(md5HexStr, md5Hex[:])
+		sha1Hasher := sha1.New()
+		sha1Hasher.Write(md5HexStr)
+		sha1Hasher.Write(salt)
+		sha1Hash := sha1Hasher.Sum(nil)
+		final := append(sha1Hash, salt...)
+		encoded := base64.StdEncoding.EncodeToString(final)
+		if encoded != resultUser.Password {
+			return nil, nil
+		}
 	}
-
 	token, err := s.GetTokenByUserId(resultUser.Id, foundationconfig.GetJwtSecret())
 	if err != nil {
 		return nil, err

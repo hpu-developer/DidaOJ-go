@@ -7,8 +7,9 @@ import (
 
 type Config struct {
 	Auth struct {
-		Jwt     string `yaml:"jwt"`     // JWT密钥
-		Connect string `yaml:"connect"` // 连接
+		Jwt          string `yaml:"jwt"`           // JWT密钥
+		Connect      string `yaml:"connect"`       // 连接
+		PasswordSalt string `yaml:"password-salt"` //用户密码盐值
 	} `yaml:"auth"`
 
 	Roles map[string][]string `yaml:"roles"` // 角色

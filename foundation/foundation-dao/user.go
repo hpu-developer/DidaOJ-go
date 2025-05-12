@@ -48,6 +48,35 @@ func (d *UserDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
+func (d *UserDao) InsertUser(ctx context.Context, user *foundationmodel.User) error {
+	mongoSubsystem := metamongo.GetSubsystem()
+	client := mongoSubsystem.GetClient()
+	sess, err := client.StartSession()
+	if err != nil {
+		return err
+	}
+	defer sess.EndSession(ctx)
+	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		// 获取下一个序列号
+		seq, err := GetCounterDao().GetNextSequence(sc, "user_id")
+		if err != nil {
+			return nil, err
+		}
+		// 更新 user 的 ID
+		user.Id = seq
+		// 插入新的 UserId
+		_, err = d.collection.InsertOne(sc, user)
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (d *UserDao) GetUser(ctx context.Context, userId int) (*foundationmodel.User, error) {
 	filter := bson.M{
 		"_id": userId,
@@ -57,7 +86,7 @@ func (d *UserDao) GetUser(ctx context.Context, userId int) (*foundationmodel.Use
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
-		return nil, metaerror.Wrap(err, "find User error")
+		return nil, metaerror.Wrap(err, "find UserId error")
 	}
 	return &User, nil
 }

@@ -9,8 +9,8 @@ type ContestType int
 
 var (
 	ContestTypeAcm       ContestType = 0 // ACM模式比赛=
-	ContestTypeOiLast    ContestType = 1 // OI模式比赛，以最后一次提交为准
-	ContestTypeOiHighest ContestType = 2 // OI模式比赛，以最高分提交为准
+	ContestTypeOiHighest ContestType = 1 // OI模式比赛，以最高分提交为准
+	ContestTypeOiLast    ContestType = 2 // OI模式比赛，以最后一次提交为准
 )
 
 type ContestAuth int
@@ -48,17 +48,19 @@ type Contest struct {
 	Id            int       `json:"id" bson:"_id"`                                            // 数据库索引时真正的Id
 	Title         string    `json:"title" bson:"title"`                                       // 比赛标题
 	Description   string    `json:"description" bson:"description"`                           // 比赛描述
+	Notification  string    `json:"notification,omitempty" bson:"notification,omitempty"`     // 比赛通知，会醒目的出现在大部分页面
 	StartTime     time.Time `json:"start_time" bson:"start_time"`                             // 比赛开始时间
 	EndTime       time.Time `json:"end_time" bson:"end_time"`                                 // 比赛结束时间
 	OwnerId       int       `json:"owner_id" bson:"owner_id"`                                 // 比赛组织者
 	OwnerUsername *string   `json:"owner_username,omitempty" bson:"owner_username,omitempty"` // 比赛组织者用户名
 	OwnerNickname *string   `json:"owner_nickname,omitempty" bson:"owner_nickname,omitempty"` // 比赛组织者昵称
 	Languages     []string  `json:"languages,omitempty" bson:"languages,omitempty"`           // 允许的语言
-	Notification  string    `json:"notification,omitempty" bson:"notification,omitempty"`     // 比赛通知，会醒目的出现在大部分页面
+
+	CreateTime time.Time `json:"create_time" bson:"create_time"` // 创建时间
 
 	// 权限相关
 	Auth     ContestAuth `json:"auth" bson:"auth"`                             // 比赛权限
-	Password string      `json:"password,omitempty" bson:"password,omitempty"` // 比赛密码
+	Password *string     `json:"password,omitempty" bson:"password,omitempty"` // 比赛密码
 	Members  []string    `json:"members,omitempty" bson:"members,omitempty"`   // 比赛成员，只有在私有比赛时才会使用
 
 	// 排名相关
@@ -101,6 +103,16 @@ func (b *ContestBuilder) Description(description string) *ContestBuilder {
 	return b
 }
 
+func (b *ContestBuilder) Notification(notification string) *ContestBuilder {
+	b.item.Notification = notification
+	return b
+}
+
+func (b *ContestBuilder) CreateTime(createTime time.Time) *ContestBuilder {
+	b.item.CreateTime = createTime
+	return b
+}
+
 func (b *ContestBuilder) StartTime(startTime time.Time) *ContestBuilder {
 	b.item.StartTime = startTime
 	return b
@@ -113,6 +125,46 @@ func (b *ContestBuilder) EndTime(endTime time.Time) *ContestBuilder {
 
 func (b *ContestBuilder) OwnerId(ownerId int) *ContestBuilder {
 	b.item.OwnerId = ownerId
+	return b
+}
+
+func (b *ContestBuilder) OwnerUsername(ownerUsername string) *ContestBuilder {
+	b.item.OwnerUsername = &ownerUsername
+	return b
+}
+
+func (b *ContestBuilder) OwnerNickname(ownerNickname string) *ContestBuilder {
+	b.item.OwnerNickname = &ownerNickname
+	return b
+}
+
+func (b *ContestBuilder) Languages(languages []string) *ContestBuilder {
+	b.item.Languages = languages
+	return b
+}
+
+func (b *ContestBuilder) Auth(auth ContestAuth) *ContestBuilder {
+	b.item.Auth = auth
+	return b
+}
+
+func (b *ContestBuilder) Password(password *string) *ContestBuilder {
+	b.item.Password = password
+	return b
+}
+
+func (b *ContestBuilder) Members(members []string) *ContestBuilder {
+	b.item.Members = members
+	return b
+}
+
+func (b *ContestBuilder) Type(typ ContestType) *ContestBuilder {
+	b.item.Type = typ
+	return b
+}
+
+func (b *ContestBuilder) ScoreType(scoreType ContestScoreType) *ContestBuilder {
+	b.item.ScoreType = scoreType
 	return b
 }
 

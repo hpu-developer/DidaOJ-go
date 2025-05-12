@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"sort"
 	"time"
 
 	foundationdao "foundation/foundation-dao"
@@ -21,7 +22,9 @@ var singletonMigrateUserService = singleton.Singleton[MigrateUserService]{}
 func GetMigrateUserService() *MigrateUserService {
 	return singletonMigrateUserService.GetInstance(
 		func() *MigrateUserService {
-			return &MigrateUserService{}
+			s := &MigrateUserService{}
+			s.usernameToUserId = make(map[string]int)
+			return s
 		},
 	)
 }
@@ -54,41 +57,66 @@ type CodeojUser struct {
 }
 
 func (CodeojUser) TableName() string {
-	return "User"
+	return "user"
 }
 
 func (s *MigrateUserService) Start() error {
 	ctx := context.Background()
 
-	if err := s.processJolUser(ctx); err != nil {
+	var users []*foundationmodel.User
+
+	jolUsers, err := s.processJolUser(ctx)
+	if err != nil {
 		return err
 	}
-	if err := s.processCodeojUser(ctx); err != nil {
+	users = append(users, jolUsers...)
+
+	usernameToUser := make(map[string]*foundationmodel.User)
+	for _, user := range users {
+		usernameToUser[user.Username] = user
+	}
+
+	codeojUsers, err := s.processCodeojUser(ctx)
+	if err != nil {
 		return err
+	}
+	for _, u := range codeojUsers {
+		if _, ok := usernameToUser[u.Username]; ok {
+			usernameToUser[u.Username] = u
+			continue
+		}
+		users = append(users, u)
+	}
+
+	slog.Info("migrate users updates", "count", len(users))
+
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].RegTime.Before(users[j].RegTime)
+	})
+
+	for _, user := range users {
+		err = foundationdao.GetUserDao().InsertUser(ctx, user)
+		if err != nil {
+			return metaerror.Wrap(err, "insert user failed")
+		}
 	}
 
 	return nil
 }
 
-func (s *MigrateUserService) processJolUser(ctx context.Context) error {
+func (s *MigrateUserService) processJolUser(ctx context.Context) ([]*foundationmodel.User, error) {
 	slog.Info("migrate User processJolUser")
 
 	db := metamysql.GetSubsystem().GetClient("jol")
 
 	var users []JolUser
 	if err := db.Order("reg_time ASC").Find(&users).Error; err != nil {
-		return metaerror.Wrap(err, "query Users failed")
+		return nil, metaerror.Wrap(err, "query Users failed")
 	}
 
 	var docs []*foundationmodel.User
 	for _, u := range users {
-		seq, err := foundationdao.GetCounterDao().GetNextSequence(ctx, "user_id")
-		if err != nil {
-			return err
-		}
-
-		user := foundationmodel.NewUserBuilder().
-			Id(seq).
+		finalUser := foundationmodel.NewUserBuilder().
 			Username(u.UserID).
 			Nickname(u.Nick).
 			Password(u.Password).
@@ -102,27 +130,20 @@ func (s *MigrateUserService) processJolUser(ctx context.Context) error {
 			Attempt(0).
 			Build()
 
-		docs = append(docs, user)
+		docs = append(docs, finalUser)
 	}
 
-	if len(docs) > 0 {
-		if err := foundationdao.GetUserDao().UpdateUsers(ctx, docs); err != nil {
-			return err
-		}
-		slog.Info("migrate User processJolUser success")
-	}
-
-	return nil
+	return docs, nil
 }
 
-func (s *MigrateUserService) processCodeojUser(ctx context.Context) error {
+func (s *MigrateUserService) processCodeojUser(ctx context.Context) ([]*foundationmodel.User, error) {
 	slog.Info("migrate User processCodeojUser")
 
 	db := metamysql.GetSubsystem().GetClient("codeoj")
 
 	var users []CodeojUser
 	if err := db.Order("reg_time ASC").Find(&users).Error; err != nil {
-		return metaerror.Wrap(err, "query User failed")
+		return nil, metaerror.Wrap(err, "query User failed")
 	}
 
 	var docs []*foundationmodel.User
@@ -144,14 +165,7 @@ func (s *MigrateUserService) processCodeojUser(ctx context.Context) error {
 		docs = append(docs, user)
 	}
 
-	if len(docs) > 0 {
-		if err := foundationdao.GetUserDao().UpdateUsers(ctx, docs); err != nil {
-			return err
-		}
-		slog.Info("migrate User processCodeojUser success")
-	}
-
-	return nil
+	return docs, nil
 }
 
 func (s *MigrateUserService) getUserIdByUsername(ctx context.Context, username string) (int, error) {

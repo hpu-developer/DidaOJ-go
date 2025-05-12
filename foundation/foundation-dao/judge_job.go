@@ -71,11 +71,15 @@ func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmo
 			}},
 		)
 		// 更新User表的attempt计数
+		userAttempt := bson.M{
+			"attempt": 1,
+		}
+		if judgeJob.Status == foundationjudge.JudgeStatusAccept {
+			userAttempt["accept"] = 1
+		}
 		_, err = GetUserDao().collection.UpdateOne(sc,
 			bson.M{"_id": judgeJob.Author},
-			bson.M{"$inc": bson.M{
-				"attempt": 1,
-			}},
+			bson.M{"$inc": userAttempt},
 		)
 
 		if err != nil {
@@ -145,7 +149,7 @@ func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
 		}).
 		SetSkip(skip).
 		SetLimit(limit).
-		SetSort(bson.M{"_id": -1})
+		SetSort(bson.M{"_id": 1})
 	// 查询总记录数
 	totalCount, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {
@@ -519,7 +523,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 			}
 		}
 
-		// 4. 批量更新 User 表的 accept 计数
+		// 4. 批量更新 UserId 表的 accept 计数
 		for uid, acceptDelta := range userAcceptDelta {
 			_, err := GetUserDao().collection.UpdateOne(sessCtx,
 				bson.M{"_id": uid},

@@ -75,6 +75,16 @@ func (b *JudgeJobBuilder) CodeLength(codeLength int) *JudgeJobBuilder {
 	return b
 }
 
+func (b *JudgeJobBuilder) ContestId(contestId *string) *JudgeJobBuilder {
+	b.item.ContestId = contestId
+	return b
+}
+
+func (b *JudgeJobBuilder) ContestProblemId(contestProblemId *string) *JudgeJobBuilder {
+	b.item.ContestProblemId = contestProblemId
+	return b
+}
+
 func (b *JudgeJobBuilder) Status(status foundationjudge.JudgeStatus) *JudgeJobBuilder {
 	b.item.Status = status
 	return b

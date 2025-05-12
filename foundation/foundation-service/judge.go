@@ -42,22 +42,24 @@ func (s *JudgeService) GetJudgeList(ctx context.Context, page int, pageSize int)
 	if err != nil {
 		return nil, 0, err
 	}
-	var userIds []int
-	for _, judgeJob := range judgeJobs {
-		userIds = append(userIds, judgeJob.Author)
-	}
-	users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
-	if err != nil {
-		return nil, 0, err
-	}
-	userMap := make(map[int]*foundationmodel.UserAccountInfo)
-	for _, user := range users {
-		userMap[user.Id] = user
-	}
-	for _, judgeJob := range judgeJobs {
-		if user, ok := userMap[judgeJob.Author]; ok {
-			judgeJob.AuthorUsername = &user.Username
-			judgeJob.AuthorNickname = &user.Nickname
+	if len(judgeJobs) > 0 {
+		var userIds []int
+		for _, judgeJob := range judgeJobs {
+			userIds = append(userIds, judgeJob.Author)
+		}
+		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
+		if err != nil {
+			return nil, 0, err
+		}
+		userMap := make(map[int]*foundationmodel.UserAccountInfo)
+		for _, user := range users {
+			userMap[user.Id] = user
+		}
+		for _, judgeJob := range judgeJobs {
+			if user, ok := userMap[judgeJob.Author]; ok {
+				judgeJob.AuthorUsername = &user.Username
+				judgeJob.AuthorNickname = &user.Nickname
+			}
 		}
 	}
 	return judgeJobs, totalCount, nil
