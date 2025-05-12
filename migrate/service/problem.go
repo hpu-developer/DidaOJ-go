@@ -2,15 +2,15 @@ package service
 
 import (
 	"context"
-	"database/sql"
+	"log/slog"
+	metamysql "meta/meta-mysql"
+	"strconv"
+	"time"
+
 	foundationdao "foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
-	"log/slog"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
-	metapanic "meta/meta-panic"
 	"meta/singleton"
-	"strconv"
 )
 
 type MigrateProblemService struct {
@@ -27,169 +27,132 @@ func GetMigrateProblemService() *MigrateProblemService {
 	)
 }
 
-func (s *MigrateProblemService) Start() error {
+// GORM 模型定义
+type Problem struct {
+	ProblemID   int       `gorm:"column:problem_id"`
+	Title       string    `gorm:"column:title"`
+	Description string    `gorm:"column:description"`
+	Hint        string    `gorm:"column:hint"`
+	Source      string    `gorm:"column:source"`
+	Creator     string    `gorm:"column:creator"`
+	Privilege   int       `gorm:"column:privilege"`
+	TimeLimit   int       `gorm:"column:time_limit"`
+	MemoryLimit int       `gorm:"column:memory_limit"`
+	JudgeType   int       `gorm:"column:judge_type"`
+	Accept      int       `gorm:"column:accept"`
+	Attempt     int       `gorm:"column:attempt"`
+	InsertTime  time.Time `gorm:"column:insert_time"`
+	UpdateTime  time.Time `gorm:"column:update_time"`
+}
 
+type ProblemTag struct {
+	ProblemID int    `gorm:"column:problem_id"`
+	Name      string `gorm:"column:name"`
+}
+
+func (Problem) TableName() string {
+	return "problem"
+}
+
+func (ProblemTag) TableName() string {
+	return "problem_tag"
+}
+
+func (s *MigrateProblemService) Start() error {
 	ctx := context.Background()
 
-	codeojMysqlClient := metamysql.GetSubsystem().GetClient("codeoj")
+	// 初始化 GORM 客户端
+	codeojDB := metamysql.GetSubsystem().GetClient("codeoj")
 
-	// Problem 定义
-	type Problem struct {
-		ProblemID   int
-		Title       sql.NullString
-		Description sql.NullString
-		Hint        sql.NullString
-		Source      sql.NullString
-		Creator     sql.NullString
-		Privilege   sql.NullInt64
-		TimeLimit   sql.NullInt64
-		MemoryLimit sql.NullInt64
-		JudgeType   sql.NullInt64
-		Accept      sql.NullInt64
-		Attempt     sql.NullInt64
-		InsertTime  sql.NullTime
-		UpdateTime  sql.NullTime
-	}
-	type Tag struct {
-		Name string
-	}
-	rows, err := codeojMysqlClient.Query("SELECT DISTINCT name FROM problem_tag WHERE name IS NOT NULL")
-	if err != nil {
+	// 查询所有唯一标签
+	var tags []ProblemTag
+	if err := codeojDB.
+		Model(&ProblemTag{}).
+		Select("DISTINCT name").
+		Where("name IS NOT NULL").
+		Scan(&tags).Error; err != nil {
 		return metaerror.Wrap(err, "query problem_tag failed")
 	}
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-	}(rows)
 
-	tagMap := make(map[string]int) // name -> key
+	tagMap := make(map[string]int)
+	var mongoTags []*foundationmodel.ProblemTag
 	tagKey := 1
 
-	var mongoTags []*foundationmodel.ProblemTag
-
-	for rows.Next() {
-		var tag Tag
-		if err := rows.Scan(&tag.Name); err != nil {
-			return metaerror.Wrap(err, "query problem_tag row failed")
-		}
+	for _, tag := range tags {
 		tagMap[tag.Name] = tagKey
-		mongoTags = append(mongoTags,
-			foundationmodel.NewProblemTagBuilder().
-				Id(tagKey).Name(tag.Name).
-				Build(),
-		)
+		mongoTags = append(mongoTags, foundationmodel.NewProblemTagBuilder().Id(tagKey).Name(tag.Name).Build())
 		tagKey++
 	}
 
 	if len(mongoTags) > 0 {
-		err = foundationdao.GetProblemTagDao().UpdateProblemTags(ctx, mongoTags)
+		err := foundationdao.GetProblemTagDao().UpdateProblemTags(ctx, mongoTags)
 		if err != nil {
 			return err
 		}
 		slog.Info("update problem tags success")
 	}
 
-	// === 拉取 problem 表 ===
-	problemRows, err := codeojMysqlClient.Query(`
-		SELECT problem_id, title, description, hint, source, creator, privilege,
-		       time_limit, memory_limit, judge_type, accept, attempt, insert_time, update_time
-		FROM problem
-	`)
-	if err != nil {
-		return metaerror.Wrap(err, "query problem row failed")
+	// 查询题目和标签关系表
+	var tagModels []ProblemTag
+	if err := codeojDB.
+		Model(&ProblemTag{}).
+		Where("name IS NOT NULL").
+		Find(&tagModels).Error; err != nil {
+		return metaerror.Wrap(err, "query problem_tag rels failed")
 	}
-	defer func(problemRows *sql.Rows) {
-		err := problemRows.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-	}(problemRows)
 
-	// 先拉取所有 problem_tag 映射 (problem_id -> []tagName)
-	problemTagMap := make(map[int][]int) // problem_id -> []tagKey
-	tagRelRows, err := codeojMysqlClient.Query(`SELECT problem_id, name FROM problem_tag WHERE name IS NOT NULL`)
-	if err != nil {
-		return metaerror.Wrap(err, "query problem_tag failed")
-	}
-	defer func(tagRelRows *sql.Rows) {
-		err := tagRelRows.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-	}(tagRelRows)
-
-	for tagRelRows.Next() {
-		var pid int
-		var name string
-		if err := tagRelRows.Scan(&pid, &name); err != nil {
-			return metaerror.Wrap(err, "query problem_tag row failed")
-		}
-		key, ok := tagMap[name]
-		if ok {
-			problemTagMap[pid] = append(problemTagMap[pid], key)
+	problemTagMap := map[int][]int{}
+	for _, rel := range tagModels {
+		if key, ok := tagMap[rel.Name]; ok {
+			problemTagMap[rel.ProblemID] = append(problemTagMap[rel.ProblemID], key)
 		}
 	}
 
-	// === 处理每一条 problem 并插入 MongoDB ===
+	// 查询题目主表并构造 Mongo 对象
+	var problems []Problem
+	if err := codeojDB.Find(&problems).Error; err != nil {
+		return metaerror.Wrap(err, "query problems failed")
+	}
+
 	var problemDocs []*foundationmodel.Problem
-
 	s.oldProblemIdToNewProblemId = make(map[int]string)
 	s.oldProblemIdToNewProblemId[0] = "1000"
 
-	for problemRows.Next() {
-		var p Problem
-		if err := problemRows.Scan(
-			&p.ProblemID, &p.Title, &p.Description, &p.Hint, &p.Source, &p.Creator, &p.Privilege,
-			&p.TimeLimit, &p.MemoryLimit, &p.JudgeType, &p.Accept, &p.Attempt, &p.InsertTime, &p.UpdateTime,
-		); err != nil {
-			return metaerror.Wrap(err, "query problem row failed")
-		}
-
+	for _, p := range problems {
 		seq, err := foundationdao.GetCounterDao().GetNextSequence(ctx, "problem_id")
 		if err != nil {
 			return err
 		}
-
 		newProblemId := strconv.Itoa(seq)
-
 		s.oldProblemIdToNewProblemId[p.ProblemID] = newProblemId
 
-		description := metamysql.NullStringToString(p.Description)
-
-		hint := metamysql.NullStringToString(p.Hint)
-		if hint != "" {
-			description += "\n\n## 提示\n" + hint
+		description := p.Description
+		if p.Hint != "" {
+			description += "\n\n## 提示\n" + p.Hint
 		}
 
 		problemDocs = append(problemDocs, foundationmodel.NewProblemBuilder().
 			Id(newProblemId).
 			Sort(len(newProblemId)).
-			Title(metamysql.NullStringToString(p.Title)).
+			Title(p.Title).
 			Description(description).
-			Source(metamysql.NullStringToString(p.Source)).
-			Creator(metamysql.NullStringToString(p.Creator)).
-			Privilege(int(p.Privilege.Int64)).
-			TimeLimit(int(p.TimeLimit.Int64)*1000).
-			MemoryLimit(int(p.MemoryLimit.Int64)*1024).
-			JudgeType(foundationmodel.JudgeType(p.JudgeType.Int64)).
+			Source(p.Source).
+			Creator(p.Creator).
+			Privilege(p.Privilege).
+			TimeLimit(p.TimeLimit*1000).
+			MemoryLimit(p.MemoryLimit*1024).
+			JudgeType(foundationmodel.JudgeType(p.JudgeType)).
 			Tags(problemTagMap[p.ProblemID]).
-			Accept(int(p.Accept.Int64)).
-			Attempt(int(p.Attempt.Int64)).
-			InsertTime(metamysql.NullTimeToTime(p.InsertTime)).
-			UpdateTime(metamysql.NullTimeToTime(p.UpdateTime)).
+			Accept(p.Accept).
+			Attempt(p.Attempt).
+			InsertTime(p.InsertTime).
+			UpdateTime(p.UpdateTime).
 			Build())
 	}
 
 	// 插入 MongoDB
 	if len(problemDocs) > 0 {
-		//err = problemCol.Drop(ctx) // 清空原 problem 集合
-		//if err != nil {
-		//	log.Fatal("清空 problem 出错:", err)
-		//}
-
-		err = foundationdao.GetProblemDao().UpdateProblems(ctx, problemDocs)
+		err := foundationdao.GetProblemDao().UpdateProblems(ctx, problemDocs)
 		if err != nil {
 			return err
 		}

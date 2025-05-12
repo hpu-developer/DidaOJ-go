@@ -20,7 +20,7 @@ type JudgeJob struct {
 	Code           string                        `json:"code" bson:"code"`                                           // 所评测代码
 	CodeLength     int                           `json:"code_length" bson:"code_length"`                             // 代码长度
 	Status         foundationjudge.JudgeStatus   `json:"status" bson:"status"`                                       // 评测状态
-	JudgeTime      time.Time                     `json:"judge_time" bson:"judge_time"`                               // 评测的开始时间
+	JudgeTime      *time.Time                    `json:"judge_time" bson:"judge_time"`                               // 评测的开始时间
 	TaskCurrent    int                           `json:"task_current" bson:"task_current"`                           // 评测完成子任务数量
 	TaskTotal      int                           `json:"task_total" bson:"task_total"`                               // 评测子任务总数量
 	Judger         string                        `json:"judger" bson:"judger"`                                       // 评测机
@@ -28,7 +28,7 @@ type JudgeJob struct {
 	Time           int                           `json:"time,omitempty" bson:"time,omitempty"`                       // 所用的时间，纳秒
 	Memory         int                           `json:"memory,omitempty" bson:"memory,omitempty"`                   // 所用的内存，byte
 	CompileMessage string                        `json:"compile_message,omitempty" bson:"compile_message,omitempty"` // 编译信息
-	Task           []JudgeTask                   `json:"task,omitempty" bson:"task,omitempty"`                       // 评测子任务
+	Task           []*JudgeTask                  `json:"task,omitempty" bson:"task,omitempty"`                       // 评测子任务
 	Private        bool                          `json:"private,omitempty" bson:"private,omitempty"`                 // 是否隐藏
 }
 
@@ -80,7 +80,7 @@ func (b *JudgeJobBuilder) Status(status foundationjudge.JudgeStatus) *JudgeJobBu
 	return b
 }
 
-func (b *JudgeJobBuilder) JudgeTime(judgeTime time.Time) *JudgeJobBuilder {
+func (b *JudgeJobBuilder) JudgeTime(judgeTime *time.Time) *JudgeJobBuilder {
 	b.item.JudgeTime = judgeTime
 	return b
 }
@@ -120,7 +120,7 @@ func (b *JudgeJobBuilder) CompileMessage(compileMessage string) *JudgeJobBuilder
 	return b
 }
 
-func (b *JudgeJobBuilder) Task(task []JudgeTask) *JudgeJobBuilder {
+func (b *JudgeJobBuilder) Task(task []*JudgeTask) *JudgeJobBuilder {
 	b.item.Task = task
 	return b
 }

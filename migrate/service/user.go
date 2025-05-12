@@ -2,13 +2,13 @@ package service
 
 import (
 	"context"
-	"database/sql"
+	"log/slog"
+	"time"
+
 	foundationdao "foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
-	"log/slog"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
-	metapanic "meta/meta-panic"
 	"meta/singleton"
 )
 
@@ -24,16 +24,44 @@ func GetMigrateUserService() *MigrateUserService {
 	)
 }
 
-func (s *MigrateUserService) Start() error {
+// GORM 模型定义
+type JolUser struct {
+	UserID   string    `gorm:"column:user_id"`
+	Nick     string    `gorm:"column:nick"`
+	Password string    `gorm:"column:password"`
+	Email    string    `gorm:"column:email"`
+	Exper    int       `gorm:"column:exper"`
+	Sign     string    `gorm:"column:sign"`
+	School   string    `gorm:"column:school"`
+	RegTime  time.Time `gorm:"column:reg_time"`
+	VjudgeId string    `gorm:"column:vjudge_id"`
+}
 
+func (JolUser) TableName() string {
+	return "Users"
+}
+
+type CodeojUser struct {
+	UserID       string    `gorm:"column:user_id"`
+	Nickname     string    `gorm:"column:nickname"`
+	Password     string    `gorm:"column:password"`
+	Email        string    `gorm:"column:email"`
+	Sign         string    `gorm:"column:sign"`
+	Organization string    `gorm:"column:organization"`
+	RegTime      time.Time `gorm:"column:reg_time"`
+}
+
+func (CodeojUser) TableName() string {
+	return "User"
+}
+
+func (s *MigrateUserService) Start() error {
 	ctx := context.Background()
 
-	err := s.processJolUser(ctx)
-	if err != nil {
+	if err := s.processJolUser(ctx); err != nil {
 		return err
 	}
-	err = s.processCodeojUser(ctx)
-	if err != nil {
+	if err := s.processCodeojUser(ctx); err != nil {
 		return err
 	}
 
@@ -41,182 +69,85 @@ func (s *MigrateUserService) Start() error {
 }
 
 func (s *MigrateUserService) processJolUser(ctx context.Context) error {
-
 	slog.Info("migrate User processJolUser")
 
-	jolMysqlClient := metamysql.GetSubsystem().GetClient("jol")
+	db := metamysql.GetSubsystem().GetClient("jol")
 
-	// User 定义
-	type User struct {
-		UserID   string
-		Nickname sql.NullString
-		Password sql.NullString
-		Email    sql.NullString
-		Exper    sql.NullInt32 // 签到次数
-		Sign     sql.NullString
-		School   sql.NullString
-		RegTime  sql.NullTime
-		VjudgeId sql.NullString
+	var users []JolUser
+	if err := db.Order("reg_time ASC").Find(&users).Error; err != nil {
+		return metaerror.Wrap(err, "query Users failed")
 	}
 
-	// === 拉取 User 表，按照reg_time排序，注册早的靠前 ===
-	UserRows, err := jolMysqlClient.Query(`
-		SELECT user_id, nick, password, email, exper, sign, school, reg_time, vjudge_id 
-		FROM Users
-		ORDER BY reg_time ASC
-	`)
-	if err != nil {
-		return metaerror.Wrap(err, "query User row failed")
-	}
-	defer func(UserRows *sql.Rows) {
-		err := UserRows.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-	}(UserRows)
-
-	// === 处理每一条 User 并插入 MongoDB ===
-	var UserDocs []*foundationmodel.User
-
-	for UserRows.Next() {
-		var p User
-		if err := UserRows.Scan(
-			&p.UserID, &p.Nickname, &p.Password,
-			&p.Email, &p.Exper, &p.Sign,
-			&p.School, &p.RegTime, &p.VjudgeId,
-		); err != nil {
-			return metaerror.Wrap(err, "query User row failed")
-		}
-
+	var docs []*foundationmodel.User
+	for _, u := range users {
 		seq, err := foundationdao.GetCounterDao().GetNextSequence(ctx, "user_id")
 		if err != nil {
 			return err
 		}
 
-		UserDocs = append(UserDocs, foundationmodel.NewUserBuilder().
+		user := foundationmodel.NewUserBuilder().
 			Id(seq).
-			Username(p.UserID).
-			Nickname(p.Nickname.String).
-			Password(p.Password.String).
-			Email(p.Email.String).
+			Username(u.UserID).
+			Nickname(u.Nick).
+			Password(u.Password).
+			Email(u.Email).
+			CheckinCount(u.Exper).
+			Sign(u.Sign).
+			Organization(u.School).
+			VjudgeId(u.VjudgeId).
+			RegTime(u.RegTime).
 			Accept(0).
 			Attempt(0).
-			CheckinCount(int(p.Exper.Int32)).
-			Sign(p.Sign.String).
-			Organization(p.School.String).
-			VjudgeId(p.VjudgeId.String).
-			RegTime(metamysql.NullTimeToTime(p.RegTime)).
-			Build())
+			Build()
+
+		docs = append(docs, user)
 	}
 
-	// 插入 MongoDB
-	if len(UserDocs) > 0 {
-		//err = UserCol.Drop(ctx) // 清空原 User 集合
-		//if err != nil {
-		//	log.Fatal("清空 User 出错:", err)
-		//}
-		err = foundationdao.GetUserDao().UpdateUsers(ctx, UserDocs)
-		if err != nil {
+	if len(docs) > 0 {
+		if err := foundationdao.GetUserDao().UpdateUsers(ctx, docs); err != nil {
 			return err
 		}
+		slog.Info("migrate User processJolUser success")
 	}
-
-	slog.Info("migrate User processJolUser success")
 
 	return nil
 }
 
 func (s *MigrateUserService) processCodeojUser(ctx context.Context) error {
-
 	slog.Info("migrate User processCodeojUser")
 
-	codeojMysqlClient := metamysql.GetSubsystem().GetClient("codeoj")
+	db := metamysql.GetSubsystem().GetClient("codeoj")
 
-	// User 定义
-	type User struct {
-		UserID       string
-		Nickname     sql.NullString
-		Password     sql.NullString
-		Email        sql.NullString
-		Sign         sql.NullString
-		Organization sql.NullString
-		RegTime      sql.NullTime
+	var users []CodeojUser
+	if err := db.Order("reg_time ASC").Find(&users).Error; err != nil {
+		return metaerror.Wrap(err, "query User failed")
 	}
 
-	// === 拉取 User 表，按照reg_time排序，注册早的靠前 ===
-	UserRows, err := codeojMysqlClient.Query(`
-		SELECT user_id, nickname, password, email, sign, organization, reg_time 
-		FROM User
-		ORDER BY reg_time ASC
-	`)
-	if err != nil {
-		return metaerror.Wrap(err, "query User row failed")
-	}
-	defer func(UserRows *sql.Rows) {
-		err := UserRows.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-	}(UserRows)
-
-	// === 处理每一条 User 并插入 MongoDB ===
-	var UserDocs []*foundationmodel.User
-
-	for UserRows.Next() {
-		var p User
-		if err := UserRows.Scan(
-			&p.UserID, &p.Nickname, &p.Password,
-			&p.Email, &p.Sign, &p.Organization,
-			&p.RegTime,
-		); err != nil {
-			return metaerror.Wrap(err, "query User row failed")
-		}
-
-		newUser := foundationmodel.NewUserBuilder().
-			Username(p.UserID).
-			Nickname(p.Nickname.String).
-			Password(p.Password.String).
-			Email(p.Email.String).
-			Sign(p.Sign.String).
-			Organization(p.Organization.String).
-			RegTime(metamysql.NullTimeToTime(p.RegTime)).
+	var docs []*foundationmodel.User
+	for _, u := range users {
+		user := foundationmodel.NewUserBuilder().
+			Username(u.UserID).
+			Nickname(u.Nickname).
+			Password(u.Password).
+			Email(u.Email).
+			Sign(u.Sign).
+			Organization(u.Organization).
+			RegTime(u.RegTime).
 			Build()
 
-		if newUser.Username == "BoilTask" {
-			newUser.Roles = []string{"r-admin"}
+		if user.Username == "BoilTask" {
+			user.Roles = []string{"r-admin"}
 		}
 
-		userId, err := foundationdao.GetUserDao().GetUserIdByUsername(ctx, p.UserID)
-		if err != nil {
-			seq, err := foundationdao.GetCounterDao().GetNextSequence(ctx, "user_id")
-			if err != nil {
-				return err
-			}
-			newUser.Id = seq
-			UserDocs = append(UserDocs, newUser)
-		} else {
-			newUser.Id = userId
-			err = foundationdao.GetUserDao().UpdateUser(ctx, userId, newUser)
-			if err != nil {
-				return err
-			}
-		}
+		docs = append(docs, user)
 	}
 
-	// 插入 MongoDB
-	if len(UserDocs) > 0 {
-		//err = UserCol.Drop(ctx) // 清空原 User 集合
-		//if err != nil {
-		//	log.Fatal("清空 User 出错:", err)
-		//}
-
-		err = foundationdao.GetUserDao().UpdateUsers(ctx, UserDocs)
-		if err != nil {
+	if len(docs) > 0 {
+		if err := foundationdao.GetUserDao().UpdateUsers(ctx, docs); err != nil {
 			return err
 		}
+		slog.Info("migrate User processCodeojUser success")
 	}
-
-	slog.Info("migrate User processCodeojUser success")
 
 	return nil
 }
