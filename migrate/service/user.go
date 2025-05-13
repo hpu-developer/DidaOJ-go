@@ -112,9 +112,10 @@ func (s *MigrateUserService) Start() error {
 	if err != nil {
 		return err
 	}
+
 	for _, u := range codeojUsers {
 		if _, ok := usernameToUser[u.Username]; ok {
-			usernameToUser[u.Username] = u
+			*usernameToUser[u.Username] = *u
 			continue
 		}
 		usernameToUser[u.Username] = u
@@ -162,6 +163,10 @@ func (s *MigrateUserService) processJolUser(ctx context.Context) ([]*foundationm
 			Accept(0).
 			Attempt(0).
 			Build()
+
+		if finalUser.Username == "BoilTask" {
+			finalUser.Roles = []string{"r-admin"}
+		}
 
 		docs = append(docs, finalUser)
 	}

@@ -113,7 +113,25 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	list, totalCount, err := judgeService.GetJudgeList(ctx, page, pageSize)
+	problemId := ctx.Query("problem_id")
+	username := ctx.Query("username")
+	languageStr := ctx.Query("language")
+	language := foundationjudge.JudgeLanguageUnknown
+	if languageStr != "" {
+		languageInt, err := strconv.Atoi(languageStr)
+		if err == nil && foundationjudge.IsValidJudgeLanguage(languageInt) {
+			language = foundationjudge.JudgeLanguage(languageInt)
+		}
+	}
+	statusStr := ctx.Query("status")
+	status := foundationjudge.JudgeStatusUnknown
+	if statusStr != "" {
+		statusInt, err := strconv.Atoi(statusStr)
+		if err == nil && foundationjudge.IsValidJudgeStatus(statusInt) {
+			status = foundationjudge.JudgeStatus(statusInt)
+		}
+	}
+	list, totalCount, err := judgeService.GetJudgeList(ctx, problemId, username, language, status, page, pageSize)
 	if err != nil {
 		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

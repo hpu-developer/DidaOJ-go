@@ -4,7 +4,7 @@ type JudgeStatus int
 
 // 按照严重程度排序
 
-var (
+const (
 	JudgeStatusInit       JudgeStatus = 0
 	JudgeStatusRejudge    JudgeStatus = 1
 	JudgeStatusSubmitting JudgeStatus = 2 // 判题机正在提交到远程评测
@@ -23,6 +23,7 @@ var (
 	JudgeStatusJudgeFail  JudgeStatus = 15
 	JudgeStatusSubmitFail JudgeStatus = 16
 	JudgeStatusUnknown    JudgeStatus = 17
+	JudgeStatusMax        JudgeStatus = iota
 )
 
 func GetFinalStatus(finalStatus JudgeStatus, currentStatus JudgeStatus) JudgeStatus {
@@ -30,4 +31,8 @@ func GetFinalStatus(finalStatus JudgeStatus, currentStatus JudgeStatus) JudgeSta
 		return currentStatus
 	}
 	return finalStatus
+}
+
+func IsValidJudgeStatus(status int) bool {
+	return status >= int(JudgeStatusInit) && status < int(JudgeStatusMax)
 }

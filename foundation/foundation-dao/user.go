@@ -174,21 +174,6 @@ func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (
 	return &result, nil
 }
 
-func (d *UserDao) UpdateUser(ctx context.Context, userId int, User *foundationmodel.User) error {
-	filter := bson.D{
-		{"_id", userId},
-	}
-	update := bson.M{
-		"$set": User,
-	}
-	updateOptions := options.Update().SetUpsert(true)
-	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
-	}
-	return nil
-}
-
 func (d *UserDao) GetUserIdByUsername(ctx context.Context, username string) (int, error) {
 	filter := bson.M{
 		"username": username,
@@ -218,7 +203,21 @@ func (d *UserDao) GetUserRoles(ctx context.Context, userId int) ([]string, error
 		return nil, metaerror.Wrap(err, "find user roles error")
 	}
 	return result.Roles, nil
+}
 
+func (d *UserDao) UpdateUser(ctx context.Context, userId int, User *foundationmodel.User) error {
+	filter := bson.D{
+		{"_id", userId},
+	}
+	update := bson.M{
+		"$set": User,
+	}
+	updateOptions := options.Update().SetUpsert(true)
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to save tapd subscription")
+	}
+	return nil
 }
 
 func (d *UserDao) UpdateUsers(ctx context.Context, users []*foundationmodel.User) error {

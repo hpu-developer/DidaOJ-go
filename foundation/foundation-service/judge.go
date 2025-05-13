@@ -3,6 +3,7 @@ package foundationservice
 import (
 	"context"
 	"foundation/foundation-dao"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	"meta/singleton"
 )
@@ -37,8 +38,19 @@ func (s *JudgeService) GetJudge(ctx context.Context, id int) (*foundationmodel.J
 	return judgeJob, nil
 }
 
-func (s *JudgeService) GetJudgeList(ctx context.Context, page int, pageSize int) ([]*foundationmodel.JudgeJob, int, error) {
-	judgeJobs, totalCount, err := foundationdao.GetJudgeJobDao().GetJudgeJobList(ctx, page, pageSize)
+func (s *JudgeService) GetJudgeList(ctx context.Context, problemId string, username string, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus, page int, pageSize int) ([]*foundationmodel.JudgeJob, int, error) {
+	var err error
+	userId := -1
+	if username != "" {
+		userId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
+		if err != nil {
+			return nil, 0, err
+		}
+		if userId <= 0 {
+			return nil, 0, nil
+		}
+	}
+	judgeJobs, totalCount, err := foundationdao.GetJudgeJobDao().GetJudgeJobList(ctx, problemId, userId, language, status, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}

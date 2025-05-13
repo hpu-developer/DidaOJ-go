@@ -127,13 +127,22 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int) (*foundation
 }
 
 func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
-	page int,
-	pageSize int,
-) ([]*foundationmodel.JudgeJob,
-	int,
-	error,
-) {
+	problemId string, userId int, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus,
+	page int, pageSize int,
+) ([]*foundationmodel.JudgeJob, int, error) {
 	filter := bson.M{}
+	if problemId != "" {
+		filter["problem_id"] = problemId
+	}
+	if userId > 0 {
+		filter["author"] = userId
+	}
+	if language != foundationjudge.JudgeLanguageUnknown {
+		filter["language"] = language
+	}
+	if status != foundationjudge.JudgeStatusUnknown {
+		filter["status"] = status
+	}
 	limit := int64(pageSize)
 	skip := int64((page - 1) * pageSize)
 
