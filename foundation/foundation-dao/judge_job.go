@@ -198,7 +198,7 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(ctx context.Context, problemIds []
 			"statusSum": bson.M{
 				"$sum": bson.M{
 					"$cond": []interface{}{
-						bson.M{"$eq": []interface{}{"$status", 4}},
+						bson.M{"$eq": []interface{}{"$status", foundationjudge.JudgeStatusAC}},
 						2, // 完成就加2
 						1, // 其他状态加1（尝试）
 					},
