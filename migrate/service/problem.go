@@ -230,7 +230,7 @@ func (s *MigrateProblemService) processVhojProblem(ctx context.Context) error {
 		newProblemId := fmt.Sprintf("%s-%s", p.OriginOj, p.OriginProb)
 
 		var vhojDescription VhojDescription
-		if err := vhojDB.Where("C_PROBLEM_ID = ?", p.Id).Find(&vhojDescription).Error; err != nil {
+		if err := vhojDB.Where("C_PROBLEM_ID = ?", p.Id).First(&vhojDescription).Error; err != nil {
 			return metaerror.Wrap(err, "query problem description failed")
 		}
 

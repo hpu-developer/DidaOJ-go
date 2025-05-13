@@ -162,7 +162,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if problem == nil {
 		return metaerror.New("problem not found: %s", job.ProblemId)
 	}
-	err = s.updateJudgeData(ctx, problem.Id, problem.JudgeMd5)
+	err = s.updateJudgeData(ctx, problem.Id, *problem.JudgeMd5)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update judge data")
 	}

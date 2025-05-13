@@ -26,12 +26,16 @@ type JudgeJob struct {
 	Score          int                           `json:"score" bson:"score"`                                         // 所得分数
 	Time           int                           `json:"time,omitempty" bson:"time,omitempty"`                       // 所用的时间，纳秒
 	Memory         int                           `json:"memory,omitempty" bson:"memory,omitempty"`                   // 所用的内存，byte
-	CompileMessage string                        `json:"compile_message,omitempty" bson:"compile_message,omitempty"` // 编译信息
+	CompileMessage *string                       `json:"compile_message,omitempty" bson:"compile_message,omitempty"` // 编译信息
 	Task           []*JudgeTask                  `json:"task,omitempty" bson:"task,omitempty"`                       // 评测子任务
-	Private        bool                          `json:"private,omitempty" bson:"private,omitempty"`                 // 是否隐藏
+	Private        bool                          `json:"private,omitempty" bson:"private,omitempty"`                 // 是否隐藏源码
 
 	// remote judge 独有信息
-	RemoteJudgeId *string `json:"remote_judge_id,omitempty" bson:"remote_judge_id,omitempty"` // 远程评测ID
+	RemoteJudgeId   *string `json:"remote_judge_id,omitempty" bson:"remote_judge_id,omitempty"`     // 远程评测ID
+	OriginOj        *string `json:"origin_oj,omitempty" bson:"origin_oj,omitempty"`                 // 远程评测OJ
+	OriginProblemId *string `json:"origin_problem_id,omitempty" bson:"origin_problem_id,omitempty"` // 远程评测题目ID
+	RemoteAccountId *string `json:"remote_account_id,omitempty" bson:"remote_account_id,omitempty"`
+	RemoteLanguage  *string `json:"remote_language,omitempty" bson:"remote_language,omitempty"` // 远程评测语言
 }
 
 type JudgeJobBuilder struct {
@@ -122,7 +126,7 @@ func (b *JudgeJobBuilder) Memory(memory int) *JudgeJobBuilder {
 	return b
 }
 
-func (b *JudgeJobBuilder) CompileMessage(compileMessage string) *JudgeJobBuilder {
+func (b *JudgeJobBuilder) CompileMessage(compileMessage *string) *JudgeJobBuilder {
 	b.item.CompileMessage = compileMessage
 	return b
 }
@@ -134,6 +138,31 @@ func (b *JudgeJobBuilder) Task(task []*JudgeTask) *JudgeJobBuilder {
 
 func (b *JudgeJobBuilder) Private(private bool) *JudgeJobBuilder {
 	b.item.Private = private
+	return b
+}
+
+func (b *JudgeJobBuilder) RemoteJudgeId(remoteJudgeId *string) *JudgeJobBuilder {
+	b.item.RemoteJudgeId = remoteJudgeId
+	return b
+}
+
+func (b *JudgeJobBuilder) OriginOj(originOj *string) *JudgeJobBuilder {
+	b.item.OriginOj = originOj
+	return b
+}
+
+func (b *JudgeJobBuilder) OriginProblemId(originProblemId *string) *JudgeJobBuilder {
+	b.item.OriginProblemId = originProblemId
+	return b
+}
+
+func (b *JudgeJobBuilder) RemoteAccountId(remoteAccountId *string) *JudgeJobBuilder {
+	b.item.RemoteAccountId = remoteAccountId
+	return b
+}
+
+func (b *JudgeJobBuilder) RemoteLanguage(remoteLanguage *string) *JudgeJobBuilder {
+	b.item.RemoteLanguage = remoteLanguage
 	return b
 }
 

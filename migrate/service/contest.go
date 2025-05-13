@@ -235,7 +235,7 @@ func (s *MigrateContestService) processVhojContest(ctx context.Context) ([]*foun
 		for i, problem := range problems {
 
 			var vhojProblem VhojProblem
-			err := db.Find(&vhojProblem).Where("C_ID = ?", problem.ProblemID).Error
+			err := db.Where("C_ID = ?", problem.ProblemID).First(&vhojProblem).Error
 			if err != nil {
 				return nil, metaerror.Wrap(err, "query problems failed")
 			}

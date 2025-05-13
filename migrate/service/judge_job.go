@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"fmt"
+	foundationjudge "foundation/foundation-judge"
 	"log/slog"
 	"meta/meta-error"
 	metamysql "meta/meta-mysql"
@@ -269,27 +271,49 @@ func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*fo
 		return nil, metaerror.Wrap(err, "query judge job failed")
 	}
 	for _, row := range rows {
-		userId, err := GetMigrateUserService().getUserIdByUsername(ctx, row.UserId)
+		vhojUsername, err := GetMigrateUserService().getUsernameByVhojId(row.UserId)
+		if err != nil {
+			return nil, metaerror.Wrap(err, "get username by vhoj id failed")
+		}
+		userId, err := GetMigrateUserService().getUserIdByUsername(ctx, vhojUsername)
 		if err != nil {
 			return nil, metaerror.Wrap(err, "get user id by username failed")
 		}
 
-		newProblemId := GetMigrateProblemService().GetNewProblemId(row.ProblemID)
+		var newProblemId string
+		if row.OriginOj == "HPU" {
+			newProblemId = row.OriginProb
+		} else {
+			newProblemId = fmt.Sprintf("%s-%s", row.OriginOj, row.OriginProb)
+		}
 
 		judgeJob := foundationmodel.NewJudgeJobBuilder().
 			ProblemId(newProblemId).
-			Author(userId).
+			Time(row.Time).
+			Memory(row.Memory).
 			ApproveTime(row.SubTime).
-			Language(migrate.GetJudgeLanguageByCodeOJ(row.Language)).
-			Code(row.Code).
-			CodeLength(row.CodeLength).
-			Status(migrate.GetJudgeStatusByCodeOJ(row.Result)).
-			JudgeTime(row.JudgeTime).
-			Judger(row.Judger).
+			Code(row.Source).
+			CodeLength(len(row.Source)).
+			Private(!row.IsOpen).
+			Author(userId).
+			OriginOj(&row.OriginOj).
+			OriginProblemId(&row.OriginProb).
+			CompileMessage(&row.AdditionalInfo).
+			RemoteJudgeId(&row.RealRunId).
+			RemoteAccountId(&row.RemoteAccountId).
+			Language(migrate.GetJudgeLanguageByVhoj(row.LanguageCanonical)).
+			Status(migrate.GetJudgeStatusByVhoj(row.StatusCanonical)).
+			RemoteLanguage(&row.Language).
+			JudgeTime(&row.RemoteSubmitTime).
+			Judger("didaoj").
 			Build()
 
+		if judgeJob.Status == foundationjudge.JudgeStatusAccept {
+			judgeJob.Score = 100
+		}
+
 		if row.ContestId > 0 {
-			judgeJob.ContestId = GetMigrateContestService().GetNewContestIdByJol(row.ContestId)
+			judgeJob.ContestId = GetMigrateContestService().GetNewContestIdByVhoj(row.ContestId)
 		}
 
 		judgeJobs = append(judgeJobs, judgeJob)
