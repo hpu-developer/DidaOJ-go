@@ -53,7 +53,7 @@ func GetJudgeStatusByCodeOJ(status int) foundationjudge.JudgeStatus {
 	case 3:
 		return foundationjudge.JudgeStatusRunning
 	case 4:
-		return foundationjudge.JudgeStatusAccept
+		return foundationjudge.JudgeStatusAC
 	case 5:
 		return foundationjudge.JudgeStatusPE
 	case 6:
@@ -90,7 +90,7 @@ func GetJudgeStatusByVhoj(status string) foundationjudge.JudgeStatus {
 	case "JUDGING":
 		return foundationjudge.JudgeStatusRunning
 	case "AC":
-		return foundationjudge.JudgeStatusAccept
+		return foundationjudge.JudgeStatusAC
 	case "PE":
 		return foundationjudge.JudgeStatusPE
 	case "WA":

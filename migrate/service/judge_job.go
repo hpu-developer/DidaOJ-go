@@ -10,6 +10,7 @@ import (
 	"meta/singleton"
 	"migrate/migrate"
 	"sort"
+	"strconv"
 	"time"
 
 	foundationdao "foundation/foundation-dao"
@@ -282,7 +283,11 @@ func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*fo
 
 		var newProblemId string
 		if row.OriginOj == "HPU" {
-			newProblemId = row.OriginProb
+			hpuId, err := strconv.Atoi(row.OriginProb)
+			if err != nil {
+				return nil, metaerror.Wrap(err, "parse hpu id failed")
+			}
+			newProblemId = GetMigrateProblemService().GetNewProblemId(hpuId)
 		} else {
 			newProblemId = fmt.Sprintf("%s-%s", row.OriginOj, row.OriginProb)
 		}
@@ -308,7 +313,7 @@ func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*fo
 			Judger("didaoj").
 			Build()
 
-		if judgeJob.Status == foundationjudge.JudgeStatusAccept {
+		if judgeJob.Status == foundationjudge.JudgeStatusAC {
 			judgeJob.Score = 100
 		}
 

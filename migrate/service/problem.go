@@ -311,5 +311,5 @@ func (s *MigrateProblemService) GetNewProblemId(oldProblemId int) string {
 	if id, ok := s.oldProblemIdToNewProblemId[oldProblemId]; ok {
 		return id
 	}
-	return strconv.Itoa(oldProblemId)
+	return "-1"
 }

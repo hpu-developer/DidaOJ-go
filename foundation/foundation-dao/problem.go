@@ -74,9 +74,9 @@ func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *fou
 	return nil
 }
 
-func (d *ProblemDao) GetProblem(ctx context.Context, key string) (*foundationmodel.Problem, error) {
+func (d *ProblemDao) GetProblem(ctx context.Context, id string) (*foundationmodel.Problem, error) {
 	filter := bson.M{
-		"_id": key,
+		"_id": id,
 	}
 	var problem foundationmodel.Problem
 	if err := d.collection.FindOne(ctx, filter).Decode(&problem); err != nil {
@@ -86,6 +86,34 @@ func (d *ProblemDao) GetProblem(ctx context.Context, key string) (*foundationmod
 		return nil, metaerror.Wrap(err, "find problem error")
 	}
 	return &problem, nil
+}
+
+func (d *ProblemDao) GetProblemListTitle(ctx context.Context, ids []string) ([]*foundationmodel.ProblemViewTitle, error) {
+	filter := bson.M{
+		"_id": bson.M{
+			"$in": ids,
+		},
+	}
+	findOptions := options.Find().SetProjection(bson.M{"_id": 1, "title": 1})
+	cursor, err := d.collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find user account info error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(err, "close cursor error")
+		}
+	}(cursor, ctx)
+	var result []*foundationmodel.ProblemViewTitle
+	for cursor.Next(ctx) {
+		var problems foundationmodel.ProblemViewTitle
+		if err := cursor.Decode(&problems); err != nil {
+			return nil, metaerror.Wrap(err, "decode user account info error")
+		}
+		result = append(result, &problems)
+	}
+	return result, nil
 }
 
 func (d *ProblemDao) GetProblemList(ctx context.Context,

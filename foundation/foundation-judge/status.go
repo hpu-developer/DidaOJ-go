@@ -11,7 +11,7 @@ var (
 	JudgeStatusQueuing    JudgeStatus = 3 // 评测机已接受任务，正在排队
 	JudgeStatusCompiling  JudgeStatus = 4
 	JudgeStatusRunning    JudgeStatus = 5
-	JudgeStatusAccept     JudgeStatus = 6
+	JudgeStatusAC         JudgeStatus = 6
 	JudgeStatusPE         JudgeStatus = 7
 	JudgeStatusWA         JudgeStatus = 9
 	JudgeStatusTLE        JudgeStatus = 10

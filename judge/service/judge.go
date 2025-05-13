@@ -192,7 +192,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if err != nil {
 		return err
 	}
-	if compileStatus != foundationjudge.JudgeStatusAccept {
+	if compileStatus != foundationjudge.JudgeStatusAC {
 		err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, compileStatus)
 		if err != nil {
 			metapanic.ProcessError(err)
@@ -457,7 +457,7 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]st
 			return nil, errorMessage, foundationjudge.JudgeStatusCE, nil
 		}
 	}
-	return responseData.FileIds, errorMessage, foundationjudge.JudgeStatusAccept, nil
+	return responseData.FileIds, errorMessage, foundationjudge.JudgeStatusAC, nil
 }
 
 func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.JudgeJob, timeLimit int, memoryLimit int, execFileId map[string]string) error {
@@ -507,7 +507,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		metapanic.ProcessError(err)
 	}
 
-	finalStatus := foundationjudge.JudgeStatusAccept
+	finalStatus := foundationjudge.JudgeStatusAC
 	sumTime := 0
 	sumMemory := 0
 
@@ -743,7 +743,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			if rightOutContent == ansContent {
 				task.Score = taskConfig.Score
 				finalScore += taskConfig.Score
-				task.Status = foundationjudge.JudgeStatusAccept
+				task.Status = foundationjudge.JudgeStatusAC
 			} else {
 				task.Status = foundationjudge.JudgeStatusPE
 			}

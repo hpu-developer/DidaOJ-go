@@ -48,6 +48,17 @@ type Problem struct {
 	JudgeMd5    *string   `json:"judge_md5,omitempty" bson:"judge_md5,omitempty"` // 判题数据的Md5标识
 }
 
+type ProblemViewTitle struct {
+	Id    string `json:"id" bson:"_id"`
+	Title string `json:"title" bson:"title"`
+}
+
+type ProblemViewAttempt struct {
+	Id      string `json:"id" bson:"_id"`
+	Accept  int    `json:"accept" bson:"accept"`
+	Attempt int    `json:"attempt" bson:"attempt"`
+}
+
 type ProblemBuilder struct {
 	item *Problem
 }

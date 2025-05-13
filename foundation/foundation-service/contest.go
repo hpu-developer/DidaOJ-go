@@ -21,7 +21,43 @@ func GetContestService() *ContestService {
 }
 
 func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmodel.Contest, error) {
-	return foundationdao.GetContestDao().GetContest(ctx, id)
+	contest, err := foundationdao.GetContestDao().GetContest(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if contest == nil {
+		return nil, nil
+	}
+	contestProblems := map[string]*foundationmodel.ContestProblem{}
+	for _, problem := range contest.Problems {
+		contestProblems[problem.ProblemId] = problem
+	}
+	var problemIds []string
+	for _, problem := range contest.Problems {
+		problemIds = append(problemIds, problem.ProblemId)
+		// 隐藏题目Id
+		problem.ProblemId = ""
+	}
+	problems, err := foundationdao.GetProblemDao().GetProblemListTitle(ctx, problemIds)
+	if err != nil {
+		return nil, err
+	}
+	for _, problem := range problems {
+		if contestProblem, ok := contestProblems[problem.Id]; ok {
+			contestProblem.Title = &problem.Title
+		}
+	}
+	judgeAccepts, err := foundationdao.GetJudgeJobDao().GetProblemViewAttempt(ctx, id, problemIds)
+	if err != nil {
+		return nil, err
+	}
+	for _, judgeAccept := range judgeAccepts {
+		if contestProblem, ok := contestProblems[judgeAccept.Id]; ok {
+			contestProblem.Accept = judgeAccept.Accept
+			contestProblem.Attempt = judgeAccept.Attempt
+		}
+	}
+	return contest, err
 }
 
 func (s *ContestService) GetContestList(ctx context.Context, page int, pageSize int) ([]*foundationmodel.Contest, int, error) {

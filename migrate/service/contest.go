@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	metamysql "meta/meta-mysql"
 	"sort"
+	"strconv"
 	"time"
 
 	foundationdao "foundation/foundation-dao"
@@ -79,7 +80,7 @@ func (VhojContest) TableName() string {
 
 type VhojContestProblem struct {
 	ContestID int    `gorm:"column:C_CONTEST_ID"`
-	ProblemID int    `gorm:"column:C_PROBLEM_ID"`
+	ProblemID string `gorm:"column:C_PROBLEM_ID"`
 	Num       string `gorm:"column:C_NUM"`
 }
 
@@ -187,7 +188,7 @@ func (s *MigrateContestService) processJolContest(ctx context.Context) ([]*found
 				foundationmodel.NewContestProblemBuilder().
 					ProblemId(newProblemId).
 					Score(problem.Scores).
-					Sort(problem.Num-1).
+					Sort(problem.Num).
 					Build(),
 			)
 		}
@@ -258,17 +259,21 @@ func (s *MigrateContestService) processVhojContest(ctx context.Context) ([]*foun
 				return nil, metaerror.Wrap(err, "query problems failed")
 			}
 
-			var newProblem string
+			var newProblemId string
 
 			if vhojProblem.OriginOj == "HPU" {
-				newProblem = GetMigrateProblemService().GetNewProblemId(problem.ProblemID)
+				hpuId, err := strconv.Atoi(vhojProblem.OriginProb)
+				if err != nil {
+					return nil, metaerror.Wrap(err, "parse hpu id failed")
+				}
+				newProblemId = GetMigrateProblemService().GetNewProblemId(hpuId)
 			} else {
-				newProblem = fmt.Sprintf("%s-%s", vhojProblem.OriginOj, vhojProblem.OriginProb)
+				newProblemId = fmt.Sprintf("%s-%s", vhojProblem.OriginOj, vhojProblem.OriginProb)
 			}
 
 			finalContest.Problems = append(finalContest.Problems,
 				foundationmodel.NewContestProblemBuilder().
-					ProblemId(newProblem).
+					ProblemId(newProblemId).
 					Sort(i).
 					Build(),
 			)

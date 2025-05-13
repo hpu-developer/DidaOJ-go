@@ -67,7 +67,7 @@ func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmo
 		problemAttempt := bson.M{
 			"attempt": 1,
 		}
-		if judgeJob.Status == foundationjudge.JudgeStatusAccept {
+		if judgeJob.Status == foundationjudge.JudgeStatusAC {
 			problemAttempt["accept"] = 1
 		}
 		_, err = GetProblemDao().collection.UpdateOne(sc,
@@ -78,7 +78,7 @@ func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmo
 		userAttempt := bson.M{
 			"attempt": 1,
 		}
-		if judgeJob.Status == foundationjudge.JudgeStatusAccept {
+		if judgeJob.Status == foundationjudge.JudgeStatusAC {
 			userAttempt["accept"] = 1
 		}
 		_, err = GetUserDao().collection.UpdateOne(sc,
@@ -347,7 +347,7 @@ func (d *JudgeJobDao) MarkJudgeJobJudgeFinalStatus(ctx context.Context, id int,
 		return nil
 	}
 
-	if status == foundationjudge.JudgeStatusAccept {
+	if status == foundationjudge.JudgeStatusAC {
 		session, err := d.collection.Database().Client().StartSession()
 		if err != nil {
 			return metaerror.Wrap(err, "failed to start mongo session")
@@ -481,7 +481,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 			}
 			ids = append(ids, doc.ID)
 
-			if doc.Status == foundationjudge.JudgeStatusAccept {
+			if doc.Status == foundationjudge.JudgeStatusAC {
 				problemAcceptDelta[doc.ProblemID]--
 				userAcceptDelta[doc.Author]--
 			}
@@ -546,4 +546,55 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 		return metaerror.Wrap(err, "failed to rejudge submissions in transaction")
 	}
 	return nil
+}
+
+func (d *JudgeJobDao) GetProblemViewAttempt(
+	ctx context.Context,
+	contestId int,
+	problemIds []string,
+) ([]*foundationmodel.ProblemViewAttempt, error) {
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.D{
+			{"contest_id", contestId},
+			{"problem_id", bson.D{{"$in", problemIds}}},
+		}}},
+		{{"$group", bson.D{
+			{"_id", "$problem_id"}, // 关键修正
+			{"attempt", bson.D{{"$sum", 1}}},
+			{"accept", bson.D{{"$sum", bson.D{
+				{"$cond", bson.A{
+					bson.D{{"$eq", bson.A{"$status", foundationjudge.JudgeStatusAC}}},
+					1,
+					0,
+				}},
+			}}}},
+		}}},
+	}
+	cursor, err := d.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(cursor, ctx)
+	var results []*foundationmodel.ProblemViewAttempt
+	for cursor.Next(ctx) {
+		var r struct {
+			Id      string `bson:"_id"`
+			Attempt int    `bson:"attempt"`
+			Accept  int    `bson:"accept"`
+		}
+		if err := cursor.Decode(&r); err != nil {
+			return nil, err
+		}
+		results = append(results, &foundationmodel.ProblemViewAttempt{
+			Id:      r.Id,
+			Attempt: r.Attempt,
+			Accept:  r.Accept,
+		})
+	}
+	return results, nil
 }
