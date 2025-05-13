@@ -154,7 +154,7 @@ func (c *JudgeController) PostRejudgeRecently(ctx *gin.Context) {
 		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	ok, err := foundationservice.GetUserService().CheckUserAuths(ctx, userId, []string{"i-manage-judge"})
+	ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, userId, foundationauth.AuthTypeManageJudge)
 	if err != nil {
 		metapanic.ProcessError(err)
 		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)

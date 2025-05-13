@@ -5,6 +5,7 @@ import (
 	"foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	"meta/singleton"
+	"web/request"
 )
 
 type ProblemService struct {
@@ -22,6 +23,10 @@ func GetProblemService() *ProblemService {
 
 func (s *ProblemService) GetProblem(ctx context.Context, id string) (*foundationmodel.Problem, error) {
 	return foundationdao.GetProblemDao().GetProblem(ctx, id)
+}
+
+func (s *ProblemService) HasProblem(ctx context.Context, id string) (bool, error) {
+	return foundationdao.GetProblemDao().HasProblem(ctx, id)
 }
 
 func (s *ProblemService) GetProblemList(ctx context.Context, title string, tag string, page int, pageSize int) ([]*foundationmodel.Problem, int, error) {
@@ -70,4 +75,8 @@ func (s *ProblemService) GetProblemTagList(ctx context.Context, maxCount int) ([
 
 func (s *ProblemService) GetProblemTagByIds(ctx context.Context, ids []int) ([]*foundationmodel.ProblemTag, error) {
 	return foundationdao.GetProblemTagDao().GetProblemTagByIds(ctx, ids)
+}
+
+func (s *ProblemService) PostEdit(ctx context.Context, userId int, requestData *request.ProblemEdit) error {
+	return foundationdao.GetProblemDao().PostEdit(ctx, userId, requestData)
 }

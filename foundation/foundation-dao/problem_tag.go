@@ -187,3 +187,36 @@ func (d *ProblemTagDao) SearchTags(ctx context.Context, tag string) ([]int, erro
 	}
 	return result, nil
 }
+
+func (d *ProblemTagDao) InsertTag(ctx context.Context, tag *foundationmodel.ProblemTag) error {
+	mongoSubsystem := metamongo.GetSubsystem()
+	client := mongoSubsystem.GetClient()
+	sess, err := client.StartSession()
+	if err != nil {
+		return err
+	}
+	defer sess.EndSession(ctx)
+	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		seq, err := GetCounterDao().GetNextSequence(sc, "problem_tag_id")
+		if err != nil {
+			return nil, err
+		}
+		tag.Id = int(seq)
+		_, err = d.collection.InsertOne(sc, tag)
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	})
+	if mongo.IsDuplicateKeyError(err) {
+		err := d.collection.FindOne(ctx, bson.M{"name": tag.Name}).Decode(tag)
+		if err != nil {
+			return metaerror.Wrap(err, "find tag error, name:%s", tag.Name)
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}

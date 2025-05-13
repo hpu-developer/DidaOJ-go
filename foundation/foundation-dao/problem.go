@@ -10,7 +10,9 @@ import (
 	metaerror "meta/meta-error"
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
+	metatime "meta/meta-time"
 	"meta/singleton"
+	"web/request"
 )
 
 type ProblemDao struct {
@@ -72,6 +74,20 @@ func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *fou
 		return metaerror.Wrap(err, "failed to save tapd subscription")
 	}
 	return nil
+}
+
+func (d *ProblemDao) HasProblem(ctx context.Context, id string) (bool, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	count, err := d.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, metaerror.Wrap(err, "failed to count documents")
+	}
+	if count == 0 {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (d *ProblemDao) GetProblem(ctx context.Context, id string) (*foundationmodel.Problem, error) {
@@ -196,6 +212,48 @@ func (d *ProblemDao) UpdateProblems(ctx context.Context, tags []*foundationmodel
 	_, err := d.collection.BulkWrite(ctx, models, bulkOptions)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to perform bulk update")
+	}
+	return nil
+}
+
+func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.ProblemEdit) error {
+	session, err := d.collection.Database().Client().StartSession()
+	if err != nil {
+		return metaerror.Wrap(err, "failed to start mongo session")
+	}
+	defer session.EndSession(ctx)
+
+	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+
+		var tagIds []int
+		for _, tagName := range data.Tags {
+			tag := foundationmodel.NewProblemTagBuilder().Name(tagName).Build()
+			err := GetProblemTagDao().InsertTag(sessCtx, tag)
+			if err != nil {
+				return nil, err
+			}
+			tagIds = append(tagIds, tag.Id)
+		}
+		nowTime := metatime.GetTimeNow()
+		_, err = d.collection.UpdateOne(sessCtx, bson.M{"_id": data.Id}, bson.M{
+			"$set": bson.M{
+				"title":        data.Title,
+				"description":  data.Description,
+				"tags":         tagIds,
+				"update_time":  nowTime,
+				"time_limit":   data.TimeLimit,
+				"memory_limit": data.MemoryLimit,
+				"source":       data.Source,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	})
+
+	if err != nil {
+		return metaerror.Wrap(err, "failed to rejudge submissions in transaction")
 	}
 	return nil
 }

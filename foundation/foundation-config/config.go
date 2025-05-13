@@ -2,6 +2,7 @@ package foundationconfig
 
 import (
 	feishuchat "foundation/feishu-chat"
+	foundationauth "foundation/foundation-auth"
 	metafeishu "meta/meta-feishu"
 )
 
@@ -12,7 +13,7 @@ type Config struct {
 		PasswordSalt string `yaml:"password-salt"` //用户密码盐值
 	} `yaml:"auth"`
 
-	Roles map[string][]string `yaml:"roles"` // 角色
+	Roles map[string][]foundationauth.AuthType `yaml:"roles"` // 角色
 
 	Feishu struct {
 		NotifyRobot string                          `yaml:"notify-robot"` // 飞书通知机器人

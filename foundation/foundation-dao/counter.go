@@ -83,3 +83,15 @@ func (d *CounterDao) GetNextSequence(ctx context.Context, key string) (int, erro
 	}
 	return result.Seq, nil
 }
+
+func (d *CounterDao) SetSequence(ctx context.Context, key string, seq int) error {
+	filter := bson.M{"_id": key}
+	update := bson.M{
+		"$set": bson.M{"seq": seq},
+	}
+	_, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+	return nil
+}

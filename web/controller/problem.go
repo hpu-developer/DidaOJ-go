@@ -8,10 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
+	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
 	"meta/response"
 	"strconv"
 	"time"
+	"web/request"
 )
 
 type ProblemController struct {
@@ -122,4 +124,54 @@ func (c *ProblemController) GetTagList(ctx *gin.Context) {
 		List:       list,
 	}
 	response.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
+func (c *ProblemController) PostEdit(ctx *gin.Context) {
+	var requestData request.ProblemEdit
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if requestData.Title == "" {
+		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if requestData.TimeLimit <= 0 || requestData.MemoryLimit <= 0 {
+		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, userId, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		metapanic.ProcessError(err)
+		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+
+	hasProblem, err := foundationservice.GetProblemService().HasProblem(ctx, requestData.Id)
+	if err != nil {
+		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if !hasProblem {
+		response.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+
+	err = foundationservice.GetProblemService().PostEdit(ctx, userId, &requestData)
+	if err != nil {
+		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	response.NewResponse(ctx, metaerrorcode.Success, nil)
 }

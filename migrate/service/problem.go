@@ -138,6 +138,10 @@ func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error 
 		if err != nil {
 			return err
 		}
+		err = foundationdao.GetCounterDao().SetSequence(ctx, "problem_tag_id", len(mongoTags))
+		if err != nil {
+			return err
+		}
 		slog.Info("update problem tags success")
 	}
 
