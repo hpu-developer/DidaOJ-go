@@ -117,6 +117,7 @@ func (d *ProblemDao) GetProblemListTitle(ctx context.Context, ids []string) ([]*
 }
 
 func (d *ProblemDao) GetProblemList(ctx context.Context,
+	title string, tags []int,
 	page int,
 	pageSize int,
 ) ([]*foundationmodel.Problem,
@@ -124,6 +125,17 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 	error,
 ) {
 	filter := bson.M{}
+	if title != "" {
+		filter["title"] = bson.M{
+			"$regex":   title,
+			"$options": "i", // 不区分大小写
+		}
+	}
+	if len(tags) > 0 {
+		filter["tags"] = bson.M{
+			"$in": tags,
+		}
+	}
 	limit := int64(pageSize)
 	skip := int64((page - 1) * pageSize)
 

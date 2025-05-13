@@ -158,3 +158,32 @@ func (d *ProblemTagDao) GetProblemTagByIds(ctx context.Context, ids []int) ([]*f
 	}
 	return tagList, nil
 }
+
+func (d *ProblemTagDao) SearchTags(ctx context.Context, tag string) ([]int, error) {
+	filter := bson.M{
+		"name": bson.M{
+			"$regex":   tag,
+			"$options": "i", // 不区分大小写
+		},
+	}
+	findOptions := options.Find().SetProjection(bson.M{"_id": 1})
+	cursor, err := d.collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find user account info error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(err, "close cursor error")
+		}
+	}(cursor, ctx)
+	var result []int
+	for cursor.Next(ctx) {
+		var problems foundationmodel.ProblemTag
+		if err := cursor.Decode(&problems); err != nil {
+			return nil, metaerror.Wrap(err, "decode user account info error")
+		}
+		result = append(result, problems.Id)
+	}
+	return result, nil
+}

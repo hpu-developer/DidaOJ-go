@@ -54,6 +54,8 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 
 func (c *ProblemController) GetList(ctx *gin.Context) {
 	problemService := foundationservice.GetProblemService()
+	title := ctx.Query("title")
+	tag := ctx.Query("tag")
 	pageStr := ctx.DefaultQuery("page", "1")
 	pageSizeStr := ctx.DefaultQuery("page_size", "10")
 	page, err := strconv.Atoi(pageStr)
@@ -75,9 +77,9 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err == nil {
-		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, page, pageSize)
+		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, title, tag, page, pageSize)
 	} else {
-		list, totalCount, err = problemService.GetProblemList(ctx, page, pageSize)
+		list, totalCount, err = problemService.GetProblemList(ctx, title, tag, page, pageSize)
 	}
 	if err != nil {
 		response.NewResponseError(ctx, err)
