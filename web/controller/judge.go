@@ -10,8 +10,8 @@ import (
 	metacontroller "meta/controller"
 	"meta/error-code"
 	metapanic "meta/meta-panic"
+	"meta/meta-response"
 	metatime "meta/meta-time"
-	"meta/response"
 	"strconv"
 	"time"
 	"web/request"
@@ -21,78 +21,28 @@ type JudgeController struct {
 	metacontroller.Controller
 }
 
-func (c *JudgeController) PostApprove(ctx *gin.Context) {
-	var judgeApprove request.JudgeApprove
-	err := ctx.ShouldBindJSON(&judgeApprove)
-	if err != nil {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	problemId := judgeApprove.ProblemId
-	language := judgeApprove.Language
-	code := judgeApprove.Code
-	if problemId == "" || int(language) < 0 || code == "" {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	userId, err := foundationauth.GetUserIdFromContext(ctx)
-	if err != nil {
-		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
-		return
-	}
-	problem, err := foundationservice.GetProblemService().GetProblem(ctx, problemId)
-	if err != nil {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	if problem == nil {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-
-	judgeService := foundationservice.GetJudgeService()
-
-	nowTime := metatime.GetTimeNow()
-	codeLength := len(code)
-	judgeJob := foundationmodel.NewJudgeJobBuilder().
-		ProblemId(problemId).
-		Author(userId).
-		ApproveTime(nowTime).
-		Language(language).
-		Code(code).
-		CodeLength(codeLength).
-		Status(foundationjudge.JudgeStatusInit).
-		Build()
-	err = judgeService.InsertJudgeJob(ctx, judgeJob)
-	if err != nil {
-		response.NewResponseError(ctx, err)
-		return
-	}
-	response.NewResponse(ctx, metaerrorcode.Success, judgeJob)
-}
-
 func (c *JudgeController) Get(ctx *gin.Context) {
 	judgeService := foundationservice.GetJudgeService()
 	idStr := ctx.Query("id")
 	if idStr == "" {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	judgeJob, err := judgeService.GetJudge(ctx, id)
 	if err != nil {
-		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	if judgeJob == nil {
-		response.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	response.NewResponse(ctx, metaerrorcode.Success, judgeJob)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, judgeJob)
 }
 
 func (c *JudgeController) GetList(ctx *gin.Context) {
@@ -101,16 +51,16 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 	pageSizeStr := ctx.DefaultQuery("page_size", "10")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	pageSize, err := strconv.Atoi(pageSizeStr)
 	if err != nil {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	if pageSize != 50 && pageSize != 100 {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	problemId := ctx.Query("problem_id")
@@ -133,7 +83,7 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 	}
 	list, totalCount, err := judgeService.GetJudgeList(ctx, problemId, username, language, status, page, pageSize)
 	if err != nil {
-		response.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	responseData := struct {
@@ -145,31 +95,81 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		TotalCount: totalCount,
 		List:       list,
 	}
-	response.NewResponse(ctx, metaerrorcode.Success, responseData)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
+func (c *JudgeController) PostApprove(ctx *gin.Context) {
+	var judgeApprove request.JudgeApprove
+	err := ctx.ShouldBindJSON(&judgeApprove)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	problemId := judgeApprove.ProblemId
+	language := judgeApprove.Language
+	code := judgeApprove.Code
+	if problemId == "" || int(language) < 0 || code == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	problem, err := foundationservice.GetProblemService().GetProblem(ctx, problemId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if problem == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	judgeService := foundationservice.GetJudgeService()
+
+	nowTime := metatime.GetTimeNow()
+	codeLength := len(code)
+	judgeJob := foundationmodel.NewJudgeJobBuilder().
+		ProblemId(problemId).
+		Author(userId).
+		ApproveTime(nowTime).
+		Language(language).
+		Code(code).
+		CodeLength(codeLength).
+		Status(foundationjudge.JudgeStatusInit).
+		Build()
+	err = judgeService.InsertJudgeJob(ctx, judgeJob)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, judgeJob)
 }
 
 func (c *JudgeController) PostRejudgeRecently(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
-		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, userId, foundationauth.AuthTypeManageJudge)
+	ok, err := foundationservice.GetUserService().CheckUserAuthByUserId(ctx, userId, foundationauth.AuthTypeManageJudge)
 	if err != nil {
 		metapanic.ProcessError(err)
-		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
 	if !ok {
-		response.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
 
 	err = foundationservice.GetJudgeService().RejudgeRecently(ctx)
 	if err != nil {
-		response.NewResponseError(ctx, err)
+		metaresponse.NewResponseError(ctx, err)
 		return
 	}
 
-	response.NewResponse(ctx, metaerrorcode.Success)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }

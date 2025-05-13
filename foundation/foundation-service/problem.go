@@ -22,7 +22,47 @@ func GetProblemService() *ProblemService {
 }
 
 func (s *ProblemService) GetProblem(ctx context.Context, id string) (*foundationmodel.Problem, error) {
-	return foundationdao.GetProblemDao().GetProblem(ctx, id)
+	problem, err := foundationdao.GetProblemDao().GetProblem(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if problem == nil {
+		return nil, nil
+	}
+	if problem.CreatorId > 0 {
+		user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, problem.CreatorId)
+		if err != nil {
+			return nil, err
+		}
+		if user == nil {
+			return nil, nil
+		}
+		problem.CreatorUsername = &user.Username
+		problem.CreatorNickname = &user.Nickname
+	}
+	return problem, nil
+}
+
+func (s *ProblemService) GetProblemJudge(ctx context.Context, id string) (*foundationmodel.Problem, error) {
+	problem, err := foundationdao.GetProblemDao().GetProblemJudge(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if problem == nil {
+		return nil, nil
+	}
+	if problem.CreatorId > 0 {
+		user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, problem.CreatorId)
+		if err != nil {
+			return nil, err
+		}
+		if user == nil {
+			return nil, nil
+		}
+		problem.CreatorUsername = &user.Username
+		problem.CreatorNickname = &user.Nickname
+	}
+	return problem, nil
 }
 
 func (s *ProblemService) HasProblem(ctx context.Context, id string) (bool, error) {

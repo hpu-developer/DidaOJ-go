@@ -4,9 +4,9 @@ import (
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
+	"meta/meta-response"
 	"meta/meta-time"
 	"meta/module"
-	"meta/response"
 	webconfig "web/config"
 )
 
@@ -23,7 +23,7 @@ type HomeData struct {
 
 func (c *HomeController) Get(ctx *gin.Context) {
 	////获取当前时间
-	response.NewResponse(
+	metaresponse.NewResponse(
 		ctx, metaerrorcode.Success, HomeData{
 			Port:    webconfig.GetHttpPort(),
 			Time:    metatime.GetTimeNowString(),

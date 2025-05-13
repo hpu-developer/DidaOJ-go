@@ -44,6 +44,8 @@ type judgeDataDownloadEntry struct {
 type JudgeService struct {
 	runningTasks      atomic.Int32
 	judgeDataDownload sync.Map
+
+	s3Client *s3.S3
 }
 
 var singletonJudgeService = singleton.Singleton[JudgeService]{}
@@ -51,14 +53,30 @@ var singletonJudgeService = singleton.Singleton[JudgeService]{}
 func GetJudgeService() *JudgeService {
 	return singletonJudgeService.GetInstance(
 		func() *JudgeService {
-			return &JudgeService{}
+			s := &JudgeService{}
+			return s
 		},
 	)
 }
 
 func (s *JudgeService) Start() error {
 
-	err := s.cleanGoJudge()
+	// 初始化 R2 连接（这里用 AWS SDK）
+	r2Session, err := session.NewSession(&aws.Config{
+		Region:           aws.String("auto"),                           // R2一般写 auto
+		Endpoint:         aws.String(config.GetConfig().JudgeData.Url), // 替换成你的 R2 Endpoint
+		S3ForcePathStyle: aws.Bool(true),                               // R2要求这个必须 true
+		Credentials: credentials.NewStaticCredentials(config.GetConfig().JudgeData.Key,
+			config.GetConfig().JudgeData.Secret,
+			config.GetConfig().JudgeData.Token),
+	})
+	s.s3Client = s3.New(r2Session)
+
+	if err != nil {
+		return metaerror.Wrap(err, "failed to create session")
+	}
+
+	err = s.cleanGoJudge()
 	if err != nil {
 		return err
 	}
@@ -235,21 +253,6 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string) 
 	judgeDataDir := path.Join(".judge_data", problemId)
 	err := os.RemoveAll(judgeDataDir)
 
-	// 初始化 R2 连接（这里用 AWS SDK）
-	sess, err := session.NewSession(&aws.Config{
-		Region:           aws.String("auto"),                           // R2一般写 auto
-		Endpoint:         aws.String(config.GetConfig().JudgeData.Url), // 替换成你的 R2 Endpoint
-		S3ForcePathStyle: aws.Bool(true),                               // R2要求这个必须 true
-		Credentials: credentials.NewStaticCredentials(config.GetConfig().JudgeData.Key,
-			config.GetConfig().JudgeData.Secret,
-			config.GetConfig().JudgeData.Token),
-	})
-	if err != nil {
-		return metaerror.Wrap(err, "failed to create session")
-	}
-
-	s3Client := s3.New(sess)
-
 	// 1. 列出 problemId 目录下的所有对象
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String("didaoj-judge"),
@@ -260,13 +263,13 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string) 
 	var mu sync.Mutex
 	var downloadErr error
 
-	err = s3Client.ListObjectsV2PagesWithContext(ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+	err = s.s3Client.ListObjectsV2PagesWithContext(ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
 		for _, obj := range page.Contents {
 			wg.Add(1)
 			go func(obj *s3.Object) {
 				defer wg.Done()
 				localPath := path.Join(".judge_data", *obj.Key)
-				err := s.downloadObject(ctx, s3Client, "didaoj-judge", *obj.Key, localPath)
+				err := s.downloadObject(ctx, s.s3Client, "didaoj-judge", *obj.Key, localPath)
 				if err != nil {
 					mu.Lock()
 					if downloadErr == nil {

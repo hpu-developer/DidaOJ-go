@@ -3,6 +3,7 @@ package main
 import (
 	foundationflag "foundation/foundation-flag"
 	foundationinit "foundation/foundation-init"
+	cfr2 "meta/cf-r2"
 	"meta/engine"
 	"meta/meta-http"
 	metamogo "meta/meta-mongo"
@@ -43,6 +44,16 @@ func InitPre() error {
 			metahttp.GetAllowedOrigins = config.GetAllowedOrigins
 			httpSubsystem.ProcessGin = router.RegisterRoutes
 			return httpSubsystem
+		},
+	)
+
+	engine.RegisterSubsystem(
+		func() subsystem.Interface {
+			cfr2Subsystem := &cfr2.Subsystem{}
+			cfr2Subsystem.GetConfig = func() map[string]*cfr2.Config {
+				return config.GetCfr2Config()
+			}
+			return cfr2Subsystem
 		},
 	)
 

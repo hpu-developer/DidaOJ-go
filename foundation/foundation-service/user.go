@@ -115,7 +115,22 @@ func (s *UserService) GetTokenByUserId(userId int, secret []byte) (*string, erro
 	return token, nil
 }
 
-func (s *UserService) CheckUserAuth(ctx context.Context, userId int, auth foundationauth.AuthType) (bool, error) {
+func (s *UserService) CheckUserAuth(ctx *gin.Context, auth foundationauth.AuthType) (int, bool, error) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		return 0, false, nil
+	}
+	ok, err := s.CheckUserAuthByUserId(ctx, userId, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		return 0, false, err
+	}
+	if !ok {
+		return 0, false, nil
+	}
+	return userId, true, nil
+}
+
+func (s *UserService) CheckUserAuthByUserId(ctx context.Context, userId int, auth foundationauth.AuthType) (bool, error) {
 	userRoles, err := foundationdao.GetUserDao().GetUserRoles(ctx, userId)
 	if err != nil {
 		return false, err
@@ -124,7 +139,7 @@ func (s *UserService) CheckUserAuth(ctx context.Context, userId int, auth founda
 	return ok, nil
 }
 
-func (s *UserService) CheckUserAuths(ctx context.Context, userId int, auths []foundationauth.AuthType) (bool, error) {
+func (s *UserService) CheckUserAuthsByUserId(ctx context.Context, userId int, auths []foundationauth.AuthType) (bool, error) {
 	userRoles, err := foundationdao.GetUserDao().GetUserRoles(ctx, userId)
 	if err != nil {
 		return false, err

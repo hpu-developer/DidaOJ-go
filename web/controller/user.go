@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
-	"meta/response"
+	"meta/meta-response"
 	weberrorcode "web/error-code"
 	"web/request"
 )
@@ -19,39 +19,39 @@ type UserController struct {
 func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
-		response.NewResponseError(ctx, err, nil)
+		metaresponse.NewResponseError(ctx, err, nil)
 		return
 	}
 	loginResponse, err := foundationservice.GetUserService().GetUserLoginResponse(ctx, userId)
 	if err != nil {
-		response.NewResponseError(ctx, err, nil)
+		metaresponse.NewResponseError(ctx, err, nil)
 		return
 	}
 	if loginResponse == nil {
-		response.NewResponse(ctx, weberrorcode.UserNotMatch, nil)
+		metaresponse.NewResponse(ctx, weberrorcode.UserNotMatch, nil)
 		return
 	}
-	response.NewResponse(ctx, metaerrorcode.Success, loginResponse)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, loginResponse)
 }
 
 func (c *UserController) PostLogin(ctx *gin.Context) {
 	var userLoginRequest request.UserLogin
 	if err := ctx.ShouldBindJSON(&userLoginRequest); err != nil {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	if userLoginRequest.Username == "" || userLoginRequest.Password == "" {
-		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	loginResponse, err := foundationservice.GetUserService().Login(ctx, userLoginRequest.Username, userLoginRequest.Password)
 	if err != nil {
-		response.NewResponseError(ctx, err, nil)
+		metaresponse.NewResponseError(ctx, err, nil)
 		return
 	}
 	if loginResponse == nil {
-		response.NewResponse(ctx, weberrorcode.UserNotMatch, nil)
+		metaresponse.NewResponse(ctx, weberrorcode.UserNotMatch, nil)
 		return
 	}
-	response.NewResponse(ctx, metaerrorcode.Success, loginResponse)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, loginResponse)
 }

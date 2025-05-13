@@ -7,7 +7,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"log/slog"
 	"meta/auth"
-	"meta/response"
+	"meta/meta-response"
 	"net/http"
 )
 
@@ -36,7 +36,7 @@ func TokenAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.Request.Header.Get("X-Token")
 		if token == "" {
-			response.NewResponse(c, http.StatusUnauthorized, nil)
+			metaresponse.NewResponse(c, http.StatusUnauthorized, nil)
 			c.Abort()
 			return
 		}
@@ -49,12 +49,12 @@ func TokenAuthMiddleware() gin.HandlerFunc {
 			},
 		)
 		if err != nil {
-			response.NewResponse(c, http.StatusUnauthorized, nil)
+			metaresponse.NewResponse(c, http.StatusUnauthorized, nil)
 			c.Abort()
 			return
 		}
 		if !jwtClaims.IsValid() {
-			response.NewResponse(c, http.StatusUnauthorized, nil)
+			metaresponse.NewResponse(c, http.StatusUnauthorized, nil)
 			c.Abort()
 			return
 		}
