@@ -55,12 +55,28 @@ func (d *ContestDao) UpdateContest(ctx context.Context, key string, contest *fou
 	return nil
 }
 
-func (d *ContestDao) GetContest(ctx context.Context, key string) (*foundationmodel.Contest, error) {
+func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.Contest, error) {
 	filter := bson.M{
-		"_id": key,
+		"_id": id,
 	}
+	opts := options.FindOne().
+		SetProjection(bson.M{
+			"_id":          1,
+			"title":        1,
+			"start_time":   1,
+			"end_time":     1,
+			"owner_id":     1,
+			"create_time":  1,
+			"problems":     1,
+			"auth":         1,
+			"type":         1,
+			"score_type":   1,
+			"always_lock":  1,
+			"descriptions": 1,
+			"notification": 1,
+		})
 	var contest foundationmodel.Contest
-	if err := d.collection.FindOne(ctx, filter).Decode(&contest); err != nil {
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}

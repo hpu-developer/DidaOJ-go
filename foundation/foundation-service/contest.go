@@ -20,7 +20,7 @@ func GetContestService() *ContestService {
 	)
 }
 
-func (s *ContestService) GetContest(ctx context.Context, id string) (*foundationmodel.Contest, error) {
+func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmodel.Contest, error) {
 	return foundationdao.GetContestDao().GetContest(ctx, id)
 }
 

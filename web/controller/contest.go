@@ -21,8 +21,13 @@ type ContestController struct {
 
 func (c *ContestController) Get(ctx *gin.Context) {
 	contestService := foundationservice.GetContestService()
-	id := ctx.Query("id")
-	if id == "" {
+	idStr := ctx.Query("id")
+	if idStr == "" {
+		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
 		response.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -106,7 +111,7 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 
 	contest := foundationmodel.NewContestBuilder().
 		Title(requestData.Title).
-		Description(requestData.Description).
+		Descriptions(requestData.Descriptions).
 		StartTime(*startTime).
 		EndTime(*endTime).
 		OwnerId(userId).

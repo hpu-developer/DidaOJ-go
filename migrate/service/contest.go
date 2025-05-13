@@ -161,9 +161,18 @@ func (s *MigrateContestService) processJolContest(ctx context.Context) ([]*found
 			return nil, err
 		}
 
+		var descriptions []*foundationmodel.ContestDescription
+		if p.Description != "" {
+			descriptions = append(descriptions, foundationmodel.NewContestDescriptionBuilder().
+				Title("比赛描述").
+				Content(p.Description).
+				Build(),
+			)
+		}
+
 		finalContest := foundationmodel.NewContestBuilder().
 			Title(p.Title).
-			Description(p.Description).
+			Descriptions(descriptions).
 			Notification(p.Notification).
 			StartTime(p.StartTime).
 			EndTime(p.EndTime).
@@ -218,9 +227,18 @@ func (s *MigrateContestService) processVhojContest(ctx context.Context) ([]*foun
 			return nil, err
 		}
 
+		var descriptions []*foundationmodel.ContestDescription
+		if p.Description != "" {
+			descriptions = append(descriptions, foundationmodel.NewContestDescriptionBuilder().
+				Title("比赛描述").
+				Content(p.Description).
+				Build(),
+			)
+		}
+
 		finalContest := foundationmodel.NewContestBuilder().
 			Title(p.Title).
-			Description(p.Description).
+			Descriptions(descriptions).
 			Notification(p.Announcement).
 			StartTime(p.BeginTime).
 			EndTime(p.EndTime).
