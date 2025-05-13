@@ -286,7 +286,7 @@ func (s *MigrateProblemService) processVhojProblem(ctx context.Context) error {
 			CreatorNickname(vhojDescription.Author).
 			TimeLimit(p.TimeLimit).
 			MemoryLimit(p.MemoryLimit).
-			JudgeType(foundationmodel.JudgeTypeRemote).
+			JudgeType(foundationmodel.JudgeTypeNormal).
 			Accept(0).
 			Attempt(0).
 			InsertTime(p.TriggerTime).

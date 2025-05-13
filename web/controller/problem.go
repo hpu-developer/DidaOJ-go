@@ -34,7 +34,22 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 		response.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	response.NewResponse(ctx, metaerrorcode.Success, problem)
+	var tags []*foundationmodel.ProblemTag
+	if problem.Tags != nil {
+		tags, err = problemService.GetProblemTagByIds(ctx, problem.Tags)
+		if err != nil {
+			response.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+	}
+	responseData := struct {
+		Problem *foundationmodel.Problem      `json:"problem"`
+		Tags    []*foundationmodel.ProblemTag `json:"tags"`
+	}{
+		Problem: problem,
+		Tags:    tags,
+	}
+	response.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
 func (c *ProblemController) GetList(ctx *gin.Context) {

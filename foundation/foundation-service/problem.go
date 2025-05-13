@@ -48,3 +48,7 @@ func (s *ProblemService) GetProblemListWithUser(ctx context.Context, userId int,
 func (s *ProblemService) GetProblemTagList(ctx context.Context, maxCount int) ([]*foundationmodel.ProblemTag, int, error) {
 	return foundationdao.GetProblemTagDao().GetProblemTagList(ctx, maxCount)
 }
+
+func (s *ProblemService) GetProblemTagByIds(ctx context.Context, ids []int) ([]*foundationmodel.ProblemTag, error) {
+	return foundationdao.GetProblemTagDao().GetProblemTagByIds(ctx, ids)
+}

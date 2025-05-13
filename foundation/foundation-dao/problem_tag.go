@@ -130,3 +130,31 @@ func (d *ProblemTagDao) UpdateProblemTags(ctx context.Context, tags []*foundatio
 	}
 	return nil
 }
+
+func (d *ProblemTagDao) GetProblemTagByIds(ctx context.Context, ids []int) ([]*foundationmodel.ProblemTag, error) {
+	filter := bson.M{
+		"_id": bson.M{
+			"$in": ids,
+		},
+	}
+	findOptions := options.Find().
+		SetProjection(bson.M{
+			"update_time": 0,
+		}).
+		SetSort(bson.D{{Key: "update_time", Value: -1}})
+	cursor, err := d.collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find ProblemTag error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(err)
+		}
+	}(cursor, ctx)
+	var tagList []*foundationmodel.ProblemTag
+	if err = cursor.All(ctx, &tagList); err != nil {
+		return nil, metaerror.Wrap(err, "decode ProblemTag error")
+	}
+	return tagList, nil
+}
