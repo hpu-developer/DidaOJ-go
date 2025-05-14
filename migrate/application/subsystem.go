@@ -44,11 +44,10 @@ func (s *Subsystem) startSubSystem() error {
 		return nil
 	}
 
-	// 问题已手动修改了md5，因此不再走本迁移逻辑
-	//err = service.GetMigrateProblemService().Start()
-	//if err != nil {
-	//	return err
-	//}
+	err = service.GetMigrateProblemService().Start()
+	if err != nil {
+		return err
+	}
 
 	err = service.GetMigrateUserService().Start()
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
+	metatype "meta/meta-type"
 	"meta/singleton"
 	"web/request"
 )
@@ -224,6 +225,31 @@ func (d *ProblemDao) UpdateProblems(ctx context.Context, tags []*foundationmodel
 		}
 		update := bson.M{
 			"$set": tab,
+		}
+		updateModel := mongo.NewUpdateManyModel().
+			SetFilter(filter).
+			SetUpdate(update).
+			SetUpsert(true)
+		models = append(models, updateModel)
+	}
+	bulkOptions := options.BulkWrite().SetOrdered(false) // 设置是否按顺序执行
+	_, err := d.collection.BulkWrite(ctx, models, bulkOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to perform bulk update")
+	}
+	return nil
+}
+
+func (d *ProblemDao) UpdateProblemsExcludeJudgeMd5(ctx context.Context, problems []*foundationmodel.Problem) error {
+	var models []mongo.WriteModel
+	for _, problem := range problems {
+		setFields := metatype.StructToMapExclude(problem, "judge_md5")
+		filter := bson.D{
+			{"_id", problem.Id},
+		}
+		update := bson.M{
+			"$set":         setFields,
+			"$setOnInsert": bson.M{"judge_md5": problem.JudgeMd5},
 		}
 		updateModel := mongo.NewUpdateManyModel().
 			SetFilter(filter).
