@@ -779,8 +779,14 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		}
 	}
 
-	finalTime := sumTime / taskCount
-	finalMemory := sumMemory / taskCount
+	var finalTime, finalMemory int
+
+	if finalStatus == foundationjudge.JudgeStatusAC ||
+		finalStatus == foundationjudge.JudgeStatusWA ||
+		finalStatus == foundationjudge.JudgeStatusPE {
+		finalTime = sumTime / taskCount
+		finalMemory = sumMemory / taskCount
+	}
 
 	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(ctx, job.Id,
 		finalStatus,
