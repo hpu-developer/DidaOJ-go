@@ -460,6 +460,7 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]st
 		}
 		errorMessage += responseData.Files.Stdout
 	}
+	errorMessage = metastring.GetTextEllipsis(errorMessage, 1000)
 	if responseData.Status != gojudge.StatusAccepted {
 		if responseData.Status != gojudge.StatusNonzeroExit {
 			slog.Warn("compile error", "job", job.Id, "responseData", responseData)
@@ -717,7 +718,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 				slog.Warn("status error", "job", job.Id, "responseData", responseData)
 				task.Status = foundationjudge.JudgeStatusJudgeFail
 			}
-			task.WaHint = responseData.Files.Stdout + responseData.Files.Stderr
+			task.WaHint = metastring.GetTextEllipsis(responseData.Files.Stderr, 1000)
 			finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
 			if markErr != nil {
@@ -754,7 +755,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		}
 		if WaHint != "" {
 			task.Status = foundationjudge.JudgeStatusWA
-			task.WaHint = WaHint
+			task.WaHint = metastring.GetTextEllipsis(WaHint, 1000)
 		} else {
 			//各自删除1个最后的换行符，避免\n与测试数据带来没必要的误差
 			if len(rightOutContent) > 0 && rightOutContent[len(rightOutContent)-1] == '\n' {
