@@ -240,16 +240,19 @@ func (d *ProblemDao) UpdateProblems(ctx context.Context, tags []*foundationmodel
 	return nil
 }
 
-func (d *ProblemDao) UpdateProblemsExcludeJudgeMd5(ctx context.Context, problems []*foundationmodel.Problem) error {
+func (d *ProblemDao) UpdateProblemsExcludeManualEdit(ctx context.Context, problems []*foundationmodel.Problem) error {
 	var models []mongo.WriteModel
 	for _, problem := range problems {
-		setFields := metatype.StructToMapExclude(problem, "judge_md5")
+		setFields := metatype.StructToMapExclude(problem, "description", "judge_md5")
 		filter := bson.D{
 			{"_id", problem.Id},
 		}
 		update := bson.M{
-			"$set":         setFields,
-			"$setOnInsert": bson.M{"judge_md5": problem.JudgeMd5},
+			"$set": setFields,
+			"$setOnInsert": bson.M{
+				"description": problem.Description,
+				"judge_md5":   problem.JudgeMd5,
+			},
 		}
 		updateModel := mongo.NewUpdateManyModel().
 			SetFilter(filter).

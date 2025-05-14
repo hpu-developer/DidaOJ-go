@@ -205,7 +205,7 @@ func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error 
 
 	// 插入 MongoDB
 	if len(problemDocs) > 0 {
-		err := foundationdao.GetProblemDao().UpdateProblemsExcludeJudgeMd5(ctx, problemDocs)
+		err := foundationdao.GetProblemDao().UpdateProblemsExcludeManualEdit(ctx, problemDocs)
 		if err != nil {
 			return err
 		}
@@ -300,7 +300,7 @@ func (s *MigrateProblemService) processVhojProblem(ctx context.Context) error {
 
 	// 插入 MongoDB
 	if len(problemDocs) > 0 {
-		err := foundationdao.GetProblemDao().UpdateProblemsExcludeJudgeMd5(ctx, problemDocs)
+		err := foundationdao.GetProblemDao().UpdateProblemsExcludeManualEdit(ctx, problemDocs)
 		if err != nil {
 			return err
 		}

@@ -8,7 +8,7 @@ import (
 	"meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
-	"migrate/migrate"
+	"migrate/type"
 	"sort"
 	"strconv"
 	"time"
@@ -177,10 +177,10 @@ func (s *MigrateJudgeJobService) processCodeojJudgeJob(ctx context.Context) ([]*
 				ProblemId(newProblemId).
 				Author(userId).
 				ApproveTime(row.InsertTime).
-				Language(migrate.GetJudgeLanguageByCodeOJ(row.Language)).
+				Language(migratetype.GetJudgeLanguageByCodeOJ(row.Language)).
 				Code(row.Code).
 				CodeLength(row.Length).
-				Status(migrate.GetJudgeStatusByCodeOJ(row.Result)).
+				Status(migratetype.GetJudgeStatusByCodeOJ(row.Result)).
 				Score(row.Score).
 				JudgeTime(row.JudgeTime).
 				Judger(row.Judger).
@@ -214,6 +214,7 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 			Select("s.solution_id, s.problem_id, s.user_id, s.time, s.memory, s.in_date, s.result, s.language, s.contest_id, s.num, s.code_length, s.judgetime, s.judger, c.source, pr.pr").
 			Joins("LEFT JOIN source_code c ON s.solution_id = c.solution_id").
 			Joins("LEFT JOIN source_code_pr pr ON s.solution_id = pr.solution_id").
+			Where("s.problem_id > 0").
 			Limit(batchSize).
 			Offset(offset).
 			Scan(&rows).Error
@@ -237,10 +238,10 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 				ProblemId(newProblemId).
 				Author(userId).
 				ApproveTime(row.InDate).
-				Language(migrate.GetJudgeLanguageByCodeOJ(row.Language)).
+				Language(migratetype.GetJudgeLanguageByCodeOJ(row.Language)).
 				Code(row.Code).
 				CodeLength(row.CodeLength).
-				Status(migrate.GetJudgeStatusByCodeOJ(row.Result)).
+				Status(migratetype.GetJudgeStatusByCodeOJ(row.Result)).
 				JudgeTime(row.JudgeTime).
 				Judger(row.Judger).
 				Build()
@@ -306,8 +307,8 @@ func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*fo
 			CompileMessage(&row.AdditionalInfo).
 			RemoteJudgeId(&row.RealRunId).
 			RemoteAccountId(&row.RemoteAccountId).
-			Language(migrate.GetJudgeLanguageByVhoj(row.LanguageCanonical)).
-			Status(migrate.GetJudgeStatusByVhoj(row.StatusCanonical)).
+			Language(migratetype.GetJudgeLanguageByVhoj(row.LanguageCanonical)).
+			Status(migratetype.GetJudgeStatusByVhoj(row.StatusCanonical)).
 			RemoteLanguage(&row.Language).
 			JudgeTime(&row.RemoteSubmitTime).
 			Judger("didaoj").

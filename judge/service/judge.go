@@ -518,9 +518,12 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			return metaerror.Wrap(err, "failed to read judge data dir")
 		}
 		var outFileNames []string
+		hasInFiles := make(map[string]bool)
 		for _, file := range files {
 			if strings.HasSuffix(file.Name(), ".out") {
 				outFileNames = append(outFileNames, metapath.GetBaseName(file.Name()))
+			} else if strings.HasSuffix(file.Name(), ".in") {
+				hasInFiles[metapath.GetBaseName(file.Name())] = true
 			}
 		}
 		sort.Slice(outFileNames, func(i, j int) bool {
@@ -535,9 +538,11 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			}
 			judgeTaskConfig := &foundationjudge.JudgeTaskConfig{
 				Key:      file,
-				InFile:   file + ".in",
 				OutFile:  file + ".out",
 				OutLimit: outFile.Size() * 2,
+			}
+			if hasInFiles[file] {
+				judgeTaskConfig.InFile = file + ".in"
 			}
 			if i == len(outFileNames)-1 {
 				judgeTaskConfig.Score = totalScore - averageScore*(len(outFileNames)-1)
@@ -585,13 +590,18 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			Build()
 
 		runUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "run")
-		inContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.InFile))
-		if err != nil {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-			if markErr != nil {
-				metapanic.ProcessError(markErr)
+
+		var inContent string
+
+		if taskConfig.InFile != "" {
+			inContent, err = metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.InFile))
+			if err != nil {
+				markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+				if markErr != nil {
+					metapanic.ProcessError(markErr)
+				}
+				return err
 			}
-			return err
 		}
 
 		var args []string
