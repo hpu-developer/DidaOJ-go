@@ -637,7 +637,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 					"env":  []string{"PATH=/usr/bin:/bin"},
 					"files": []map[string]interface{}{
 						{"content": inContent},
-						{"name": "stdout", "max": 10240},
+						{"name": "stdout", "max": 102400},
 						{"name": "stderr", "max": 10240},
 					},
 					"cpuLimit":    cpuLimit,
