@@ -534,27 +534,30 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		memoryLimit = memoryLimit + 1024*1024*64
 	}
 
-	taskConfigs := []struct {
-		File  string
-		Score int
-	}{}
+	var taskConfigs []*foundationjudge.JudgeTaskConfig
 
 	if enableRule {
 
 	} else {
+		// 如果没读取到rule.yaml文件，则使用默认的规则
+
 		totalScore := 100
 		averageScore := totalScore / len(Files)
 		for i, file := range Files {
 			if i == len(Files)-1 {
-				taskConfigs = append(taskConfigs, struct {
-					File  string
-					Score int
-				}{File: file, Score: totalScore - averageScore*(len(Files)-1)})
+				taskConfigs = append(taskConfigs, &foundationjudge.JudgeTaskConfig{
+					Key:     file,
+					InFile:  file + ".in",
+					OutFile: file + ".out",
+					Score:   totalScore - averageScore*(len(Files)-1),
+				})
 			} else {
-				taskConfigs = append(taskConfigs, struct {
-					File  string
-					Score int
-				}{File: file, Score: averageScore})
+				taskConfigs = append(taskConfigs, &foundationjudge.JudgeTaskConfig{
+					Key:     file,
+					InFile:  file + ".in",
+					OutFile: file + ".out",
+					Score:   averageScore,
+				})
 			}
 		}
 	}
@@ -562,9 +565,9 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 	finalScore := 0
 
 	for _, taskConfig := range taskConfigs {
-		file := taskConfig.File
+		key := taskConfig.Key
 		task := foundationmodel.NewJudgeTaskBuilder().
-			TaskId(file).
+			TaskId(key).
 			Status(foundationjudge.JudgeStatusJudgeFail).
 			Time(0).
 			Memory(0).
