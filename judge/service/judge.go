@@ -717,6 +717,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 				slog.Warn("status error", "job", job.Id, "responseData", responseData)
 				task.Status = foundationjudge.JudgeStatusJudgeFail
 			}
+			task.WaHint = responseData.Files.Stdout + responseData.Files.Stderr
 			finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
 			if markErr != nil {

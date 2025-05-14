@@ -13,9 +13,9 @@ const (
 	JudgeStatusRunning    JudgeStatus = 5
 	JudgeStatusAC         JudgeStatus = 6
 	JudgeStatusPE         JudgeStatus = 7
-	JudgeStatusWA         JudgeStatus = 9
-	JudgeStatusTLE        JudgeStatus = 10
-	JudgeStatusMLE        JudgeStatus = 9
+	JudgeStatusWA         JudgeStatus = 8
+	JudgeStatusTLE        JudgeStatus = 9
+	JudgeStatusMLE        JudgeStatus = 10
 	JudgeStatusOLE        JudgeStatus = 11
 	JudgeStatusRE         JudgeStatus = 12
 	JudgeStatusCE         JudgeStatus = 13
