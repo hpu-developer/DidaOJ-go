@@ -148,6 +148,44 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, judgeJob)
 }
 
+func (c *JudgeController) PostRejudge(ctx *gin.Context) {
+	var requestData struct {
+		Id int `json:"id"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id := requestData.Id
+	if id <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	ok, err := foundationservice.GetUserService().CheckUserAuthByUserId(ctx, userId, foundationauth.AuthTypeManageJudge)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+
+	err = foundationservice.GetJudgeService().RejudgeJob(ctx, id)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
 func (c *JudgeController) PostRejudgeRecently(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {

@@ -88,3 +88,7 @@ func (s *JudgeService) InsertJudgeJob(ctx context.Context, judgeJob *foundationm
 func (s *JudgeService) RejudgeRecently(ctx context.Context) error {
 	return foundationdao.GetJudgeJobDao().RejudgeRecently(ctx)
 }
+
+func (s *JudgeService) RejudgeJob(ctx context.Context, id int) error {
+	return foundationdao.GetJudgeJobDao().RejudgeJob(ctx, id)
+}

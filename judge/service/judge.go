@@ -755,6 +755,13 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			task.Status = foundationjudge.JudgeStatusWA
 			task.WaHint = WaHint
 		} else {
+			//各自删除1个最后的换行符，避免\n与测试数据带来没必要的误差
+			if len(rightOutContent) > 0 && rightOutContent[len(rightOutContent)-1] == '\n' {
+				rightOutContent = rightOutContent[:len(rightOutContent)-1]
+			}
+			if len(ansContent) > 0 && ansContent[len(ansContent)-1] == '\n' {
+				ansContent = ansContent[:len(ansContent)-1]
+			}
 			if rightOutContent == ansContent {
 				task.Score = taskConfig.Score
 				finalScore += taskConfig.Score
