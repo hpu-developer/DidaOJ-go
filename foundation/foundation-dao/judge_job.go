@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"log/slog"
 	metaerror "meta/meta-error"
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
@@ -703,120 +704,141 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 }
 
 func (d *JudgeJobDao) RejudgeAll(ctx context.Context) error {
+	const pageSize = 1000
+	var lastID int
 
-	session, err := d.collection.Database().Client().StartSession()
-	if err != nil {
-		return metaerror.Wrap(err, "failed to start mongo session")
-	}
-	defer session.EndSession(ctx)
-
-	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
-		findFilter := bson.D{
-			{"origin_oj", bson.M{"$exists": false}},
-			{"$or", bson.A{
-				bson.M{"origin_oj": ""},
-				bson.M{"origin_oj": nil},
-			}},
-		}
-		// 1. 查找所有提交
-		findOpts := options.Find().
-			SetSort(bson.D{{"_id", -1}}).
-			SetProjection(bson.M{
-				"_id":        1,
-				"problem_id": 1,
-				"author":     1,
-				"status":     1,
-			})
-		cursor, err := d.collection.Find(sessCtx, findFilter, findOpts)
+	for {
+		session, err := d.collection.Database().Client().StartSession()
 		if err != nil {
-			return nil, metaerror.Wrap(err, "failed to find recent submissions")
+			return metaerror.Wrap(err, "failed to start mongo session")
 		}
-		defer func(cursor *mongo.Cursor, ctx context.Context) {
-			err := cursor.Close(ctx)
+
+		defer session.EndSession(ctx)
+
+		_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+			// 构造分页 filter（根据 lastID）
+			findFilter := bson.M{
+				"origin_oj": bson.M{"$exists": false},
+				"$or": bson.A{
+					bson.M{"origin_oj": ""},
+					bson.M{"origin_oj": nil},
+				},
+			}
+			if lastID > 0 {
+				findFilter["_id"] = bson.M{"$gt": lastID}
+			}
+
+			findOpts := options.Find().
+				SetSort(bson.D{{"_id", 1}}).
+				SetLimit(pageSize).
+				SetProjection(bson.M{
+					"_id":        1,
+					"problem_id": 1,
+					"author":     1,
+					"status":     1,
+				})
+
+			cursor, err := d.collection.Find(sessCtx, findFilter, findOpts)
 			if err != nil {
-				metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+				return nil, metaerror.Wrap(err, "failed to find submissions")
 			}
-		}(cursor, sessCtx)
+			defer func(cursor *mongo.Cursor, ctx context.Context) {
+				err := cursor.Close(ctx)
+				if err != nil {
+					metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+				}
+			}(cursor, sessCtx)
 
-		var ids []int
-		problemAcceptDelta := map[string]int{} // problem_id => acceptDelta
-		userAcceptDelta := map[int]int{}       // user_id => acceptDelta
+			var (
+				ids                []int
+				problemAcceptDelta = map[string]int{}
+				userAcceptDelta    = map[int]int{}
+				lastDocID          int
+			)
 
-		for cursor.Next(sessCtx) {
-			var doc struct {
-				ID        int                         `bson:"_id"`
-				ProblemID string                      `bson:"problem_id"`
-				Author    int                         `bson:"author"`
-				Status    foundationjudge.JudgeStatus `bson:"status"`
-			}
-			if err := cursor.Decode(&doc); err != nil {
-				return nil, metaerror.Wrap(err, "failed to decode document")
-			}
-			ids = append(ids, doc.ID)
+			for cursor.Next(sessCtx) {
+				var doc struct {
+					ID        int                         `bson:"_id"`
+					ProblemID string                      `bson:"problem_id"`
+					Author    int                         `bson:"author"`
+					Status    foundationjudge.JudgeStatus `bson:"status"`
+				}
+				if err := cursor.Decode(&doc); err != nil {
+					return nil, metaerror.Wrap(err, "decode error")
+				}
+				ids = append(ids, doc.ID)
+				lastDocID = doc.ID // 保留最后一项的 ID
 
-			if doc.Status == foundationjudge.JudgeStatusAC {
-				problemAcceptDelta[doc.ProblemID]--
-				userAcceptDelta[doc.Author]--
+				if doc.Status == foundationjudge.JudgeStatusAC {
+					problemAcceptDelta[doc.ProblemID]--
+					userAcceptDelta[doc.Author]--
+				}
 			}
-		}
-		if err := cursor.Err(); err != nil {
-			return nil, metaerror.Wrap(err, "cursor error")
-		}
-		if len(ids) == 0 {
+
+			if err := cursor.Err(); err != nil {
+				return nil, metaerror.Wrap(err, "cursor error")
+			}
+			if len(ids) == 0 {
+				return nil, mongo.ErrNoDocuments
+			}
+
+			// 批量更新 JudgeJob
+			filter := bson.M{"_id": bson.M{"$in": ids}}
+			update := bson.M{
+				"$set": bson.M{
+					"status": foundationjudge.JudgeStatusRejudge,
+				},
+				"$unset": bson.M{
+					"score":           "",
+					"time":            "",
+					"memory":          "",
+					"compile_message": "",
+					"task":            "",
+					"task_current":    "",
+					"task_total":      "",
+				},
+			}
+			if _, err := d.collection.UpdateMany(sessCtx, filter, update); err != nil {
+				return nil, metaerror.Wrap(err, "failed to update submissions")
+			}
+
+			// 更新 Problem 表
+			if len(problemAcceptDelta) > 0 {
+				var models []mongo.WriteModel
+				for pid, delta := range problemAcceptDelta {
+					models = append(models, mongo.NewUpdateOneModel().
+						SetFilter(bson.M{"_id": pid}).
+						SetUpdate(bson.M{"$inc": bson.M{"accept": delta}}))
+				}
+				if _, err := GetProblemDao().collection.BulkWrite(sessCtx, models); err != nil {
+					return nil, metaerror.Wrap(err, "update problem fail")
+				}
+			}
+
+			// 更新 User 表
+			if len(userAcceptDelta) > 0 {
+				var models []mongo.WriteModel
+				for uid, delta := range userAcceptDelta {
+					models = append(models, mongo.NewUpdateOneModel().
+						SetFilter(bson.M{"_id": uid}).
+						SetUpdate(bson.M{"$inc": bson.M{"accept": delta}}))
+				}
+				if _, err := GetUserDao().collection.BulkWrite(sessCtx, models); err != nil {
+					return nil, metaerror.Wrap(err, "update user fail")
+				}
+			}
+
+			// 成功处理一页
+			lastID = lastDocID
+			slog.Info("RejudgePage success", "count", len(ids), "lastID", lastID)
 			return nil, nil
+		})
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			break
 		}
-
-		// 2. 批量更新提交状态
-		filter := bson.M{"_id": bson.M{"$in": ids}}
-		update := bson.M{
-			"$set": bson.M{
-				"status": foundationjudge.JudgeStatusRejudge,
-			},
-			"$unset": bson.M{
-				"score":           "",
-				"time":            "",
-				"memory":          "",
-				"compile_message": "",
-				"task":            "",
-				"task_current":    "",
-				"task_total":      "",
-			},
-		}
-		_, err = d.collection.UpdateMany(sessCtx, filter, update)
 		if err != nil {
-			return nil, metaerror.Wrap(err, "failed to update submissions")
+			return metaerror.Wrap(err, "transaction failed")
 		}
-
-		// 3. 批量更新 Problem 表的 accept 计数
-		for pid, acceptDelta := range problemAcceptDelta {
-			_, err := GetProblemDao().collection.UpdateOne(sessCtx,
-				bson.M{"_id": pid},
-				bson.M{"$inc": bson.M{
-					"accept": acceptDelta,
-				}},
-			)
-			if err != nil {
-				return nil, metaerror.Wrap(err, "failed to update problem accept count for problem %s", pid)
-			}
-		}
-
-		// 4. 批量更新 UserId 表的 accept 计数
-		for uid, acceptDelta := range userAcceptDelta {
-			_, err := GetUserDao().collection.UpdateOne(sessCtx,
-				bson.M{"_id": uid},
-				bson.M{"$inc": bson.M{
-					"accept": acceptDelta,
-				}},
-			)
-			if err != nil {
-				return nil, metaerror.Wrap(err, "failed to update user accept count for user %d", uid)
-			}
-		}
-
-		return nil, nil
-	})
-	if err != nil {
-		return metaerror.Wrap(err, "failed to rejudge submissions in transaction")
 	}
 	return nil
 }
