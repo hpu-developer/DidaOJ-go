@@ -8,6 +8,7 @@ import (
 	foundationdao "foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	"gopkg.in/yaml.v3"
 	"io"
 	"judge/config"
 	gojudge "judge/go-judge"
@@ -144,7 +145,15 @@ func (s *JudgeService) handleStart() error {
 	if err != nil {
 		return metaerror.Wrap(err, "failed to get judge job list")
 	}
-	s.runningTasks.Add(int32(len(jobs)))
+	jobsCount := len(jobs)
+	if jobsCount == 0 {
+		return nil
+	}
+
+	slog.Info("get judge job list", "count", jobsCount, "maxJob", maxJob)
+
+	s.runningTasks.Add(int32(jobsCount))
+
 	for _, job := range jobs {
 		routine.SafeGo(fmt.Sprintf("RunningJudgeJob_%d", job.Id), func() error {
 			defer func() {
@@ -360,7 +369,10 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]st
 		copyOutCached = []string{"a"}
 		break
 	case foundationjudge.JudgeLanguageCpp:
-		args = []string{"g++", "-fno-asm", "-fmax-errors=10", "-Wall", "--static", "-DONLINE_JUDGE", "-o", "a", "a.cc"}
+		args = []string{"g++", "-fno-asm", "-fmax-errors=10", "-Wall", "--static",
+			"-DONLINE_JUDGE", "-Wno-sign-compare",
+			"-o", "a", "a.cc",
+		}
 		copyIns = map[string]interface{}{
 			"a.cc": map[string]interface{}{
 				"content": job.Code,
@@ -486,38 +498,62 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 	defer e.mu.Unlock()
 
 	judgeDataDir := path.Join(".judge_data", problemId, md5)
-	files, err := os.ReadDir(judgeDataDir)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to read judge data dir")
-	}
-	// TODO获取rule.yaml文件
-
-	enableRule := false
-
-	hasInFiles := make(map[string]bool)
-	var Files []string
-
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), ".in") {
-			hasInFiles[metapath.GetBaseName(file.Name())] = true
-		} else if strings.HasSuffix(file.Name(), ".out") {
-			Files = append(Files, metapath.GetBaseName(file.Name()))
-		}
-	}
-	if len(Files) == 0 {
-		return metaerror.New("no test data found")
-	}
 
 	taskCount := 0
-	sort.Slice(Files, func(i, j int) bool {
-		return Files[i] < Files[j]
-	})
-	for _, file := range Files {
-		if !hasInFiles[file] {
-			continue
+
+	var jobConfig foundationjudge.JudgeJobConfig
+
+	// 获取rule.yaml文件并解析
+	ruleFilePath := path.Join(judgeDataDir, "rule.yaml")
+	yamlFile, err := os.ReadFile(ruleFilePath)
+	if err == nil {
+		err = yaml.Unmarshal(yamlFile, &jobConfig)
+		if err != nil {
+			return metaerror.Wrap(err, "Unmarshal config file error")
 		}
-		taskCount++
+	} else {
+		// 如果没有rule.yaml文件，则根据文件生成Config信息
+		files, err := os.ReadDir(judgeDataDir)
+		if err != nil {
+			return metaerror.Wrap(err, "failed to read judge data dir")
+		}
+		var outFileNames []string
+		for _, file := range files {
+			if strings.HasSuffix(file.Name(), ".out") {
+				outFileNames = append(outFileNames, metapath.GetBaseName(file.Name()))
+			}
+		}
+		sort.Slice(outFileNames, func(i, j int) bool {
+			return outFileNames[i] < outFileNames[j]
+		})
+		totalScore := 100
+		averageScore := totalScore / len(outFileNames)
+		for i, file := range outFileNames {
+			outFile, err := os.Stat(path.Join(judgeDataDir, file+".out"))
+			if err != nil {
+				continue
+			}
+			judgeTaskConfig := &foundationjudge.JudgeTaskConfig{
+				Key:      file,
+				InFile:   file + ".in",
+				OutFile:  file + ".out",
+				OutLimit: outFile.Size() * 2,
+			}
+			if i == len(outFileNames)-1 {
+				judgeTaskConfig.Score = totalScore - averageScore*(len(outFileNames)-1)
+			} else {
+				judgeTaskConfig.Score = averageScore
+			}
+			jobConfig.Tasks = append(jobConfig.Tasks, judgeTaskConfig)
+		}
 	}
+
+	taskCount = len(jobConfig.Tasks)
+
+	if taskCount == 0 {
+		return metaerror.New("no job task found")
+	}
+
 	err = foundationdao.GetJudgeJobDao().MarkJudgeJobTaskTotal(ctx, job.Id, taskCount)
 	if err != nil {
 		metapanic.ProcessError(err)
@@ -534,37 +570,9 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		memoryLimit = memoryLimit + 1024*1024*64
 	}
 
-	var taskConfigs []*foundationjudge.JudgeTaskConfig
-
-	if enableRule {
-
-	} else {
-		// 如果没读取到rule.yaml文件，则使用默认的规则
-
-		totalScore := 100
-		averageScore := totalScore / len(Files)
-		for i, file := range Files {
-			if i == len(Files)-1 {
-				taskConfigs = append(taskConfigs, &foundationjudge.JudgeTaskConfig{
-					Key:     file,
-					InFile:  file + ".in",
-					OutFile: file + ".out",
-					Score:   totalScore - averageScore*(len(Files)-1),
-				})
-			} else {
-				taskConfigs = append(taskConfigs, &foundationjudge.JudgeTaskConfig{
-					Key:     file,
-					InFile:  file + ".in",
-					OutFile: file + ".out",
-					Score:   averageScore,
-				})
-			}
-		}
-	}
-
 	finalScore := 0
 
-	for _, taskConfig := range taskConfigs {
+	for _, taskConfig := range jobConfig.Tasks {
 		key := taskConfig.Key
 		task := foundationmodel.NewJudgeTaskBuilder().
 			TaskId(key).
@@ -577,7 +585,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			Build()
 
 		runUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "run")
-		inContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, file+".in"))
+		inContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.InFile))
 		if err != nil {
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
 			if markErr != nil {
@@ -640,7 +648,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 					"env":  []string{"PATH=/usr/bin:/bin"},
 					"files": []map[string]interface{}{
 						{"content": inContent},
-						{"name": "stdout", "max": 102400},
+						{"name": "stdout", "max": taskConfig.OutLimit},
 						{"name": "stderr", "max": 10240},
 					},
 					"cpuLimit":    cpuLimit,
@@ -729,7 +737,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			}
 			continue
 		}
-		rightOutContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, file+".out"))
+		rightOutContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.OutFile))
 		if err != nil {
 			return err
 		}
@@ -760,13 +768,9 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			task.Status = foundationjudge.JudgeStatusWA
 			task.WaHint = metastring.GetTextEllipsis(WaHint, 1000)
 		} else {
-			//各自删除1个最后的换行符，避免\n与测试数据带来没必要的误差
-			if len(rightOutContent) > 0 && rightOutContent[len(rightOutContent)-1] == '\n' {
-				rightOutContent = rightOutContent[:len(rightOutContent)-1]
-			}
-			if len(ansContent) > 0 && ansContent[len(ansContent)-1] == '\n' {
-				ansContent = ansContent[:len(ansContent)-1]
-			}
+			//各自删除最后的换行符，避免最后的换行与测试数据不同带来没必要的误差
+			rightOutContent = strings.TrimSuffix(rightOutContent, "\n")
+			ansContent = strings.TrimSuffix(ansContent, "\n")
 			if rightOutContent == ansContent {
 				task.Score = taskConfig.Score
 				finalScore += taskConfig.Score

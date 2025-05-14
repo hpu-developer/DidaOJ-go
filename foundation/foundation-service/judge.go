@@ -92,3 +92,7 @@ func (s *JudgeService) RejudgeRecently(ctx context.Context) error {
 func (s *JudgeService) RejudgeJob(ctx context.Context, id int) error {
 	return foundationdao.GetJudgeJobDao().RejudgeJob(ctx, id)
 }
+
+func (s *JudgeService) RejudgeAll(ctx context.Context) error {
+	return foundationdao.GetJudgeJobDao().RejudgeAll(ctx)
+}

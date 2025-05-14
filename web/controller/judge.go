@@ -7,6 +7,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
 	"github.com/gin-gonic/gin"
+	"log/slog"
 	metacontroller "meta/controller"
 	"meta/error-code"
 	metapanic "meta/meta-panic"
@@ -178,6 +179,34 @@ func (c *JudgeController) PostRejudge(ctx *gin.Context) {
 	}
 
 	err = foundationservice.GetJudgeService().RejudgeJob(ctx, id)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
+func (c *JudgeController) PostRejudgeAll(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	ok, err := foundationservice.GetUserService().CheckUserAuthByUserId(ctx, userId, foundationauth.AuthTypeManageJudge)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+
+	slog.Warn("Rejudge all judge jobs", "userId", userId)
+
+	err = foundationservice.GetJudgeService().RejudgeAll(ctx)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
@@ -304,7 +305,51 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		return
 	}
 
-	// TODO 校验压缩包
+	// 如果包含文件夹，认为失败
+	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			// 跳过根目录本身
+			if path != unzipDir {
+				return metaerror.New("<UNK>: " + path + " is not a directory")
+			}
+			return nil
+		}
+		return nil
+	})
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError)
+		return
+	}
+
+	// 把所有文件的换行改为Linux格式
+	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return metaerror.Wrap(err, "<UNK>: "+path+" is not readable")
+		}
+		// 将 CRLF (\r\n) 和 CR (\r) 替换为 LF (\n)
+		normalized := bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+		normalized = bytes.ReplaceAll(normalized, []byte("\r"), []byte("\n"))
+		// 写回文件
+		err = os.WriteFile(path, normalized, 0644)
+		if err != nil {
+			return fmt.Errorf("写入文件失败: %s, %w", path, err)
+		}
+		return nil
+	})
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
 
 	var files []string
 	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
@@ -359,15 +404,17 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 				metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
 			}
 		}(file)
+		slog.Info("put object start", "key", key)
 		_, err = r2Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
 			Bucket: aws.String("didaoj-judge"),
 			Key:    aws.String(key),
 			Body:   file,
 		})
 		if err != nil {
+			slog.Info("put object error", "key", key)
 			return metaerror.Wrap(err, "put object error, key:%s", key)
 		}
-
+		slog.Info("put object success", "key", key)
 		return nil
 	})
 	if err != nil {
