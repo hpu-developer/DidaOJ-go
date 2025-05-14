@@ -284,6 +284,11 @@ func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*fo
 
 		var newProblemId string
 		if row.OriginOj == "HPU" {
+			row.OriginOj = ""
+			row.OriginProb = ""
+			row.RealRunId = ""
+			row.RemoteAccountId = ""
+			row.Language = ""
 			hpuId, err := strconv.Atoi(row.OriginProb)
 			if err != nil {
 				return nil, metaerror.Wrap(err, "parse hpu id failed")
