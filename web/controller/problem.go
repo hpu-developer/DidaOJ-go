@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationmodel "foundation/foundation-model"
@@ -8,12 +9,19 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
+	"log/slog"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
 	"meta/error-code"
+	metaerror "meta/meta-error"
+	metamd5 "meta/meta-md5"
 	metapanic "meta/meta-panic"
 	"meta/meta-response"
 	metatime "meta/meta-time"
+	metazip "meta/meta-zip"
+	"os"
+	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -131,12 +139,22 @@ func (c *ProblemController) GetTagList(ctx *gin.Context) {
 }
 
 func (c *ProblemController) GetJudge(ctx *gin.Context) {
-	problemService := foundationservice.GetProblemService()
 	id := ctx.Query("id")
 	if id == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	_, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	problemService := foundationservice.GetProblemService()
 	problem, err := problemService.GetProblemJudge(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
@@ -153,11 +171,8 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-
 	problemId := problem.Id
-
-	prefixKey := problemId + "/"
-
+	prefixKey := filepath.ToSlash(problemId + "/")
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String("didaoj-judge"),
 		Prefix: aws.String(prefixKey),
@@ -181,8 +196,211 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 		Judges:  judges,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
+	id := ctx.Query("id")
+	if id == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	key := ctx.Query("key")
+	if key == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 鉴权
+	_, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	// 获取题目信息
+	problemService := foundationservice.GetProblemService()
+	problem, err := problemService.GetProblemJudge(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if problem == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	// 获取 R2 客户端
+	r2Client := cfr2.GetSubsystem().GetClient("judge-data")
+	if r2Client == nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	// 生成预签名链接
+	objectKey := filepath.ToSlash(path.Join(id, key))
+	req, _ := r2Client.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String("didaoj-judge"),
+		Key:    aws.String(objectKey),
+	})
+	expire := 10 * time.Minute
+	urlStr, err := req.Presign(expire)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, urlStr)
+}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
+	id := ctx.PostForm("id")
+	if id == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	problemService := foundationservice.GetProblemService()
+	problem, err := problemService.GetProblemJudge(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if problem == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	file, err := ctx.FormFile("zip")
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError)
+		return
+	}
+	tempDir, err := os.MkdirTemp("", "didaoj-judge-data-*")
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+		return
+	}
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "<UNK>: "+path))
+		}
+	}(tempDir)
+	uploadedPath := filepath.Join(tempDir, file.Filename)
+	if err := ctx.SaveUploadedFile(file, uploadedPath); err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+		return
+	}
+	unzipDir := filepath.Join(tempDir, "unzipped")
+	if err := metazip.UzipFile(uploadedPath, unzipDir); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	// TODO 校验压缩包
+
+	var files []string
+	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		files = append(files, path)
+		return nil
+	})
+
+	judgeDataMd5, err := metamd5.MultiFileMD5(files)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	slog.Info("judge data md5", "md5", judgeDataMd5)
+
+	if problem.JudgeMd5 != nil && *problem.JudgeMd5 == judgeDataMd5 {
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+		return
+	}
+
+	// 上传r2
+	r2Client := cfr2.GetSubsystem().GetClient("judge-data")
+	if r2Client == nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	// 遍历解压目录并上传文件
+	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		relativePath, err := filepath.Rel(unzipDir, path)
+		if err != nil {
+			return err
+		}
+		key := filepath.ToSlash(filepath.Join(id, judgeDataMd5, relativePath))
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer func(file *os.File) {
+			err := file.Close()
+			if err != nil {
+				metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
+			}
+		}(file)
+		_, err = r2Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
+			Bucket: aws.String("didaoj-judge"),
+			Key:    aws.String(key),
+			Body:   file,
+		})
+		if err != nil {
+			return metaerror.Wrap(err, "put object error, key:%s", key)
+		}
+
+		return nil
+	})
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, fmt.Sprintf("上传失败: %v", err))
+		return
+	}
+	// 删除旧的路径
+	if problem.JudgeMd5 != nil {
+		prefix := filepath.ToSlash(path.Join(id, *problem.JudgeMd5))
+		input := &s3.ListObjectsV2Input{
+			Bucket: aws.String("didaoj-judge"),
+			Prefix: aws.String(prefix),
+		}
+		err = r2Client.ListObjectsV2PagesWithContext(ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+			for _, obj := range page.Contents {
+				_, err := r2Client.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
+					Bucket: aws.String("didaoj-judge"),
+					Key:    obj.Key,
+				})
+				if err != nil {
+					metapanic.ProcessError(metaerror.Wrap(err, "delete object error, key:%s", obj.Key))
+					return false
+				}
+			}
+			return true
+		})
+	}
+	err = problemService.UpdateJudgeMd5(ctx, id, judgeDataMd5)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
 }
 
 func (c *ProblemController) PostEdit(ctx *gin.Context) {

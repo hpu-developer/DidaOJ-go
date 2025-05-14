@@ -180,6 +180,9 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if problem == nil {
 		return metaerror.New("problem not found: %s", job.ProblemId)
 	}
+	if problem.JudgeMd5 == nil {
+		return metaerror.New("problem judge md5 is nil: %s", job.ProblemId)
+	}
 	err = s.updateJudgeData(ctx, problem.Id, *problem.JudgeMd5)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update judge data")
@@ -222,7 +225,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if err != nil {
 		metapanic.ProcessError(err)
 	}
-	err = s.runJudgeTask(ctx, job, problem.TimeLimit, problem.MemoryLimit, execFileIds)
+	err = s.runJudgeTask(ctx, job, *problem.JudgeMd5, problem.TimeLimit, problem.MemoryLimit, execFileIds)
 	return err
 }
 
@@ -237,15 +240,20 @@ func (s *JudgeService) updateJudgeData(ctx context.Context, problemId string, md
 	}()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	judgeMd5FilePath := path.Join(".judge_data", problemId, "md5.txt")
-	content, err := metastring.GetStringFromOpenFile(judgeMd5FilePath)
-	if err != nil || strings.TrimSpace(content) != strings.TrimSpace(md5) {
-		return s.downloadJudgeData(ctx, problemId)
+	judgeMd5FilePath := path.Join(".judge_data", problemId, md5)
+	// 判断 judgeMd5FilePath 是否存在
+	_, err := os.Stat(judgeMd5FilePath)
+	if err == nil {
+		// 文件存在，直接返回
+		return nil
+	} else if !os.IsNotExist(err) {
+		// 其他错误，返回报错
+		return metaerror.Wrap(err, "failed to stat judge md5 file")
 	}
-	return nil
+	return s.downloadJudgeData(ctx, problemId, md5)
 }
 
-func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string) error {
+func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, md5 string) error {
 
 	slog.Info("downloading judge data", "problemId", problemId)
 
@@ -463,7 +471,7 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]st
 	return responseData.FileIds, errorMessage, foundationjudge.JudgeStatusAC, nil
 }
 
-func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.JudgeJob, timeLimit int, memoryLimit int, execFileId map[string]string) error {
+func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.JudgeJob, md5 string, timeLimit int, memoryLimit int, execFileId map[string]string) error {
 	problemId := job.ProblemId
 	val, _ := s.judgeDataDownload.LoadOrStore(problemId, &judgeDataDownloadEntry{})
 	e := val.(*judgeDataDownloadEntry)
@@ -476,7 +484,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	judgeDataDir := path.Join(".judge_data", problemId)
+	judgeDataDir := path.Join(".judge_data", problemId, md5)
 	files, err := os.ReadDir(judgeDataDir)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to read judge data dir")
@@ -495,6 +503,10 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			Files = append(Files, metapath.GetBaseName(file.Name()))
 		}
 	}
+	if len(Files) == 0 {
+		return metaerror.New("no test data found")
+	}
+
 	taskCount := 0
 	sort.Slice(Files, func(i, j int) bool {
 		return Files[i] < Files[j]

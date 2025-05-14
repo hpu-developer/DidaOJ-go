@@ -120,3 +120,7 @@ func (s *ProblemService) GetProblemTagByIds(ctx context.Context, ids []int) ([]*
 func (s *ProblemService) PostEdit(ctx context.Context, userId int, requestData *request.ProblemEdit) error {
 	return foundationdao.GetProblemDao().PostEdit(ctx, userId, requestData)
 }
+
+func (s *ProblemService) UpdateJudgeMd5(ctx context.Context, id string, md5 string) error {
+	return foundationdao.GetProblemDao().UpdateJudgeMd5(ctx, id, md5)
+}

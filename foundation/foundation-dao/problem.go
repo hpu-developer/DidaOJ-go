@@ -109,11 +109,13 @@ func (d *ProblemDao) GetProblemJudge(ctx context.Context, id string) (*foundatio
 		"_id": id,
 	}
 	opts := options.FindOne().SetProjection(bson.M{
-		"_id":         1,
-		"title":       1,
-		"insert_time": 1,
-		"update_time": 1,
-		"creator_id":  1,
+		"_id":              1,
+		"title":            1,
+		"insert_time":      1,
+		"update_time":      1,
+		"creator_id":       1,
+		"creator_nickname": 1,
+		"judge_md5":        1,
 	})
 	var problem foundationmodel.Problem
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
@@ -275,6 +277,22 @@ func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.Problem
 
 	if err != nil {
 		return metaerror.Wrap(err, "failed to rejudge submissions in transaction")
+	}
+	return nil
+}
+
+func (d *ProblemDao) UpdateJudgeMd5(ctx context.Context, id string, md5 string) error {
+	filter := bson.M{
+		"_id": id,
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"judge_md5": md5,
+		},
+	}
+	_, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update judge md5")
 	}
 	return nil
 }
