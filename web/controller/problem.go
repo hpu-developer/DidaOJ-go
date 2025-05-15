@@ -29,6 +29,12 @@ import (
 	"web/request"
 )
 
+type ProblemJudgeData struct {
+	Key          string     `json:"key"`
+	Size         *int64     `json:"size"`
+	LastModified *time.Time `json:"last_modified"`
+}
+
 type ProblemController struct {
 	metacontroller.Controller
 }
@@ -165,7 +171,6 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	var judges []string
 
 	r2Client := cfr2.GetSubsystem().GetClient("judge-data")
 	if r2Client == nil {
@@ -178,9 +183,17 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 		Bucket: aws.String("didaoj-judge"),
 		Prefix: aws.String(prefixKey),
 	}
+
+	var judges []*ProblemJudgeData
+
 	err = r2Client.ListObjectsV2PagesWithContext(ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
 		for _, obj := range page.Contents {
-			judges = append(judges, strings.TrimPrefix(*obj.Key, prefixKey))
+			judgeData := &ProblemJudgeData{
+				Key:          strings.TrimPrefix(*obj.Key, prefixKey),
+				Size:         obj.Size,
+				LastModified: obj.LastModified,
+			}
+			judges = append(judges, judgeData)
 		}
 		return true
 	})
@@ -191,7 +204,7 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 
 	responseData := struct {
 		Problem *foundationmodel.Problem `json:"problem"`
-		Judges  []string                 `json:"judges"`
+		Judges  []*ProblemJudgeData      `json:"judges"`
 	}{
 		Problem: problem,
 		Judges:  judges,
@@ -486,11 +499,11 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
-	err = foundationservice.GetProblemService().PostEdit(ctx, userId, &requestData)
+	updateTime, err := foundationservice.GetProblemService().PostEdit(ctx, userId, &requestData)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, updateTime)
 }

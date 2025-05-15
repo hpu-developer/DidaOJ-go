@@ -5,6 +5,7 @@ import (
 	"foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	"meta/singleton"
+	"time"
 	"web/request"
 )
 
@@ -117,7 +118,7 @@ func (s *ProblemService) GetProblemTagByIds(ctx context.Context, ids []int) ([]*
 	return foundationdao.GetProblemTagDao().GetProblemTagByIds(ctx, ids)
 }
 
-func (s *ProblemService) PostEdit(ctx context.Context, userId int, requestData *request.ProblemEdit) error {
+func (s *ProblemService) PostEdit(ctx context.Context, userId int, requestData *request.ProblemEdit) (*time.Time, error) {
 	return foundationdao.GetProblemDao().PostEdit(ctx, userId, requestData)
 }
 

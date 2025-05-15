@@ -13,6 +13,7 @@ import (
 	metatime "meta/meta-time"
 	metatype "meta/meta-type"
 	"meta/singleton"
+	"time"
 	"web/request"
 )
 
@@ -268,13 +269,14 @@ func (d *ProblemDao) UpdateProblemsExcludeManualEdit(ctx context.Context, proble
 	return nil
 }
 
-func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.ProblemEdit) error {
+func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.ProblemEdit) (*time.Time, error) {
 	session, err := d.collection.Database().Client().StartSession()
 	if err != nil {
-		return metaerror.Wrap(err, "failed to start mongo session")
+		return nil, metaerror.Wrap(err, "failed to start mongo session")
 	}
 	defer session.EndSession(ctx)
 
+	nowTime := metatime.GetTimeNow()
 	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 
 		var tagIds []int
@@ -286,7 +288,6 @@ func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.Problem
 			}
 			tagIds = append(tagIds, tag.Id)
 		}
-		nowTime := metatime.GetTimeNow()
 		_, err = d.collection.UpdateOne(sessCtx, bson.M{"_id": data.Id}, bson.M{
 			"$set": bson.M{
 				"title":        data.Title,
@@ -303,11 +304,10 @@ func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.Problem
 		}
 		return nil, nil
 	})
-
 	if err != nil {
-		return metaerror.Wrap(err, "failed to rejudge submissions in transaction")
+		return nil, metaerror.Wrap(err, "failed to rejudge submissions in transaction")
 	}
-	return nil
+	return &nowTime, nil
 }
 
 func (d *ProblemDao) UpdateJudgeMd5(ctx context.Context, id string, md5 string) error {
