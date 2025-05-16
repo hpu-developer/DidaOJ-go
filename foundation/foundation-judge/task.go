@@ -13,5 +13,5 @@ type JudgeJobConfig struct {
 	SpecialJudge *struct {
 		Language string `json:"language"` // 程序语言（key）
 		Source   string `json:"source"`   // 程序代码
-	} `json:"special-judge"` // 特判
+	} `json:"special_judge" yaml:"special-judge"` // 特判
 }

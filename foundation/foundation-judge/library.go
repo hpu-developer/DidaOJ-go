@@ -143,3 +143,16 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 	}
 	return responseData.FileIds, errorMessage, JudgeStatusAC, nil
 }
+
+func DeleteFile(jobKey string, deleteFileUrl string) error {
+	client := &http.Client{}
+	request, err := http.NewRequest(http.MethodDelete, deleteFileUrl, nil)
+	if err != nil {
+		return err
+	}
+	_, err = client.Do(request)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to delete file")
+	}
+	return nil
+}

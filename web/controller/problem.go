@@ -22,6 +22,7 @@ import (
 	metamd5 "meta/meta-md5"
 	metapanic "meta/meta-panic"
 	"meta/meta-response"
+	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	metazip "meta/meta-zip"
 	"os"
@@ -364,7 +365,19 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 				return
 			}
 
-			_, _, compileStatus, err := foundationjudge.CompileCode(uuid.New().String(), runUrl, language, jobConfig.SpecialJudge.Source)
+			codeFilePath := filepath.Join(unzipDir, jobConfig.SpecialJudge.Source)
+			codeContent, err := metastring.GetStringFromOpenFile(codeFilePath)
+			if err != nil {
+				metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+				return
+			}
+
+			jobKey := uuid.New().String()
+
+			execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(jobKey, runUrl, language, codeContent)
+			if extraMessage != "" {
+				slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
+			}
 			if compileStatus != foundationjudge.JudgeStatusAC {
 				metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 				return
@@ -373,6 +386,13 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 				metapanic.ProcessError(err)
 				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 				return
+			}
+			for _, fileId := range execFileIds {
+				deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
+				err := foundationjudge.DeleteFile(jobKey, deleteUrl)
+				if err != nil {
+					metapanic.ProcessError(err)
+				}
 			}
 			judgeType = foundationjudge.JudgeTypeSpecial
 		}
