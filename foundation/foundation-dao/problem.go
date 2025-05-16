@@ -3,6 +3,7 @@ package foundationdao
 import (
 	"context"
 	"errors"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -118,6 +119,7 @@ func (d *ProblemDao) GetProblemJudge(ctx context.Context, id string) (*foundatio
 		"creator_id":       1,
 		"creator_nickname": 1,
 		"judge_md5":        1,
+		"judge_type":       1,
 	})
 	var problem foundationmodel.Problem
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
@@ -310,13 +312,14 @@ func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.Problem
 	return &nowTime, nil
 }
 
-func (d *ProblemDao) UpdateJudgeMd5(ctx context.Context, id string, md5 string) error {
+func (d *ProblemDao) UpdateProblemJudgeInfo(ctx context.Context, id string, judgeType foundationjudge.JudgeType, md5 string) error {
 	filter := bson.M{
 		"_id": id,
 	}
 	update := bson.M{
 		"$set": bson.M{
-			"judge_md5": md5,
+			"judge_type": judgeType,
+			"judge_md5":  md5,
 		},
 	}
 	_, err := d.collection.UpdateOne(ctx, filter, update)

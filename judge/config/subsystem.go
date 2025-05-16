@@ -1,6 +1,7 @@
 package config
 
 import (
+	foundationjudge "foundation/foundation-judge"
 	cfr2 "meta/cf-r2"
 	"meta/engine"
 	metaconfig "meta/meta-config"
@@ -8,11 +9,11 @@ import (
 )
 
 type Config struct {
-	Judger     string           `yaml:"judger"`       // 评测器标识
-	GoJudgeUrl string           `yaml:"go-judge-url"` // GoJudge 服务地址
-	MaxJob     int              `yaml:"max-job"`      // 最大同时评测的job数量
-	JudgeData  cfr2.Config      `yaml:"judge-data"`   // GoJudge 数据服务地址
-	Mongo      metamongo.Config `yaml:"mongo"`
+	Judger    string                        `yaml:"judger"`     // 评测器标识
+	GoJudge   foundationjudge.GoJudgeConfig `yaml:"go-judge"`   // GoJudge 数据服务地址
+	MaxJob    int                           `yaml:"max-job"`    // 最大同时评测的job数量
+	JudgeData cfr2.Config                   `yaml:"judge-data"` // GoJudge 数据服务地址
+	Mongo     metamongo.Config              `yaml:"mongo"`
 }
 
 type Subsystem struct {

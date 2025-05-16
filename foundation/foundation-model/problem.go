@@ -1,6 +1,7 @@
 package foundationmodel
 
 import (
+	foundationjudge "foundation/foundation-judge"
 	"time"
 )
 
@@ -36,16 +37,17 @@ type Problem struct {
 	CreatorUsername *string `json:"creator_username,omitempty" bson:"creator_username,omitempty"`
 	CreatorNickname *string `json:"creator_nickname,omitempty" bson:"creator_nickname,omitempty"`
 
-	Privilege   int       `json:"privilege" bson:"privilege"`
-	TimeLimit   int       `json:"time_limit" bson:"time_limit"`
-	MemoryLimit int       `json:"memory_limit" bson:"memory_limit"` // 题目内存限制，单位为KB
-	JudgeType   JudgeType `json:"judge_type" bson:"judge_type"`
-	Accept      int       `json:"accept" bson:"accept"`
-	Attempt     int       `json:"attempt" bson:"attempt"`
-	Tags        []int     `json:"tags,omitempty" bson:"tags,omitempty"`
-	InsertTime  time.Time `json:"insert_time" bson:"insert_time"`
-	UpdateTime  time.Time `json:"update_time" bson:"update_time"`
-	JudgeMd5    *string   `json:"judge_md5,omitempty" bson:"judge_md5,omitempty"` // 判题数据的Md5标识
+	Privilege   int                       `json:"privilege" bson:"privilege"`
+	TimeLimit   int                       `json:"time_limit" bson:"time_limit"`
+	MemoryLimit int                       `json:"memory_limit" bson:"memory_limit"` // 题目内存限制，单位为KB
+	Tags        []int                     `json:"tags,omitempty" bson:"tags,omitempty"`
+	JudgeType   foundationjudge.JudgeType `json:"judge_type" bson:"judge_type"`
+	JudgeMd5    *string                   `json:"judge_md5,omitempty" bson:"judge_md5,omitempty"` // 判题数据的Md5标识
+	InsertTime  time.Time                 `json:"insert_time" bson:"insert_time"`
+	UpdateTime  time.Time                 `json:"update_time" bson:"update_time"`
+
+	Accept  int `json:"accept" bson:"accept"`
+	Attempt int `json:"attempt" bson:"attempt"`
 }
 
 type ProblemViewTitle struct {
@@ -137,7 +139,7 @@ func (b *ProblemBuilder) MemoryLimit(memoryLimit int) *ProblemBuilder {
 	return b
 }
 
-func (b *ProblemBuilder) JudgeType(judgeType JudgeType) *ProblemBuilder {
+func (b *ProblemBuilder) JudgeType(judgeType foundationjudge.JudgeType) *ProblemBuilder {
 	b.item.JudgeType = judgeType
 	return b
 }

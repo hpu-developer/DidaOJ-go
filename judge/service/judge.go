@@ -26,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -103,8 +104,9 @@ func (s *JudgeService) Start() error {
 }
 
 func (s *JudgeService) cleanGoJudge() error {
-	goJudgeUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "file")
-	fileListResp, err := http.Get(goJudgeUrl)
+	goJudgeUrl := config.GetConfig().GoJudge.Url
+	goJudgeFileUrl := metahttp.UrlJoin(goJudgeUrl, "file")
+	fileListResp, err := http.Get(goJudgeFileUrl)
 	if err != nil {
 		return err
 	}
@@ -121,7 +123,7 @@ func (s *JudgeService) cleanGoJudge() error {
 	}
 	client := &http.Client{}
 	for fileId, _ := range fileList {
-		deleteUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "file", fileId)
+		deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
 		request, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
 		if err != nil {
 			return err
@@ -206,7 +208,8 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	defer func() {
 		client := &http.Client{}
 		for _, fileId := range execFileIds {
-			deleteUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "file", fileId)
+			goJudgeUrl := config.GetConfig().GoJudge.Url
+			deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
 			request, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
 			if err != nil {
 				metapanic.ProcessError(metaerror.Wrap(err, "failed to create delete request"))
@@ -351,137 +354,9 @@ func (s *JudgeService) downloadObject(ctx context.Context, s3Client *s3.S3, buck
 }
 
 func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]string, string, foundationjudge.JudgeStatus, error) {
-	slog.Info("compile code", "job", job.Id)
-	runUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "run")
-
-	var args []string
-	var copyIns map[string]interface{}
-	var copyOutCached []string
-
-	switch job.Language {
-	case foundationjudge.JudgeLanguageC:
-		args = []string{"gcc", "-fno-asm", "-fmax-errors=10", "-Wall", "--static", "-DONLINE_JUDGE", "-o", "a", "a.c", "-lm"}
-		copyIns = map[string]interface{}{
-			"a.c": map[string]interface{}{
-				"content": job.Code,
-			},
-		}
-		copyOutCached = []string{"a"}
-		break
-	case foundationjudge.JudgeLanguageCpp:
-		args = []string{"g++", "-fno-asm", "-fmax-errors=10", "-Wall", "--static",
-			"-DONLINE_JUDGE", "-Wno-sign-compare",
-			"-o", "a", "a.cc",
-		}
-		copyIns = map[string]interface{}{
-			"a.cc": map[string]interface{}{
-				"content": job.Code,
-			},
-		}
-		copyOutCached = []string{"a"}
-		break
-	case foundationjudge.JudgeLanguageJava:
-		args = []string{"javac", "-J-Xms128m", "-J-Xmx512m", "-encoding", "UTF-8", "Main.java"}
-		copyIns = map[string]interface{}{
-			"Main.java": map[string]interface{}{
-				"content": job.Code,
-			},
-		}
-		copyOutCached = []string{"Main.class"}
-		break
-	case foundationjudge.JudgeLanguagePython:
-		args = []string{"python3", "-c", "import py_compile; py_compile.compile(r'a.py')"}
-		copyIns = map[string]interface{}{
-			"a.py": map[string]interface{}{
-				"content": job.Code,
-			},
-		}
-		copyOutCached = nil
-	default:
-		return nil, "compile failed, language not support.",
-			foundationjudge.JudgeStatusJudgeFail,
-			metaerror.New("language not support: %d",
-				job.Language,
-			)
-	}
-
-	// 准备请求数据
-	data := map[string]interface{}{
-		"cmd": []map[string]interface{}{
-			{
-				"args": args,
-				"env":  []string{"PATH=/usr/bin:/bin"},
-				"files": []map[string]interface{}{
-					{"content": ""},
-					{"name": "stdout", "max": 10240},
-					{"name": "stderr", "max": 10240},
-				},
-				"cpuLimit":      10000000000,
-				"memoryLimit":   1048576 * 500, // 500MB
-				"procLimit":     50,
-				"copyIn":        copyIns,
-				"copyOut":       []string{"stdout", "stderr"},
-				"copyOutCached": copyOutCached,
-			},
-		},
-	}
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return nil, "compile failed, system error.", foundationjudge.JudgeStatusJudgeFail, err
-	}
-	resp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, "compile failed, upload file error.", foundationjudge.JudgeStatusJudgeFail, err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-	}(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return nil, "compile failed, upload file response error.", foundationjudge.JudgeStatusJudgeFail, metaerror.New("unexpected status code: %d", resp.StatusCode)
-	}
-	var responseDataList []struct {
-		Status gojudge.Status `json:"status"`
-		Error  string         `json:"error"`
-		Files  struct {
-			Stderr string `json:"stderr"`
-			Stdout string `json:"stdout"`
-		} `json:"files"`
-		FileIds map[string]string `json:"fileIds"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&responseDataList)
-	if err != nil {
-		return nil, fmt.Sprintf("compile failed, upload file response parse error."), foundationjudge.JudgeStatusJudgeFail, metaerror.Wrap(err, "failed to decode response")
-	}
-	if len(responseDataList) != 1 {
-		return nil, "compile failed, compile response data error.", foundationjudge.JudgeStatusJudgeFail, metaerror.New("unexpected response length: %d", len(responseDataList))
-	}
-	responseData := responseDataList[0]
-	errorMessage := responseData.Error
-	if responseData.Files.Stderr != "" {
-		if errorMessage != "" {
-			errorMessage += "\n"
-		}
-		errorMessage += responseData.Files.Stderr
-	}
-	if responseData.Files.Stdout != "" {
-		if errorMessage != "" {
-			errorMessage += "\n"
-		}
-		errorMessage += responseData.Files.Stdout
-	}
-	errorMessage = metastring.GetTextEllipsis(errorMessage, 1000)
-	if responseData.Status != gojudge.StatusAccepted {
-		if responseData.Status != gojudge.StatusNonzeroExit {
-			slog.Warn("compile error", "job", job.Id, "responseData", responseData)
-			return nil, errorMessage, foundationjudge.JudgeStatusCLE, nil
-		} else {
-			return nil, errorMessage, foundationjudge.JudgeStatusCE, nil
-		}
-	}
-	return responseData.FileIds, errorMessage, foundationjudge.JudgeStatusAC, nil
+	goJudgeUrl := config.GetConfig().GoJudge.Url
+	runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
+	return foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, job.Language, job.Code)
 }
 
 func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.JudgeJob, md5 string, timeLimit int, memoryLimit int, execFileId map[string]string) error {
@@ -512,6 +387,9 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			return metaerror.Wrap(err, "Unmarshal config file error")
 		}
 	} else {
+		if !os.IsNotExist(err) {
+			return metaerror.Wrap(err, "failed to read rule.yaml file")
+		}
 		// 如果没有rule.yaml文件，则根据文件生成Config信息
 		files, err := os.ReadDir(judgeDataDir)
 		if err != nil {
@@ -589,7 +467,8 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 			WaHint("").
 			Build()
 
-		runUrl := metahttp.UrlJoin(config.GetConfig().GoJudgeUrl, "run")
+		goJudgeUrl := config.GetConfig().GoJudge.Url
+		runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
 
 		var inContent string
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	foundationjudge "foundation/foundation-judge"
 	cfr2 "meta/cf-r2"
 	"meta/engine"
 	metaconfig "meta/meta-config"
@@ -15,6 +16,8 @@ type Config struct {
 	AllowedOrigins []string `yaml:"allowed-origins"` // 允许的跨域请求来源
 
 	Mongo metamogo.Config `yaml:"mongo"`
+
+	GoJudge foundationjudge.GoJudgeConfig `yaml:"go-judge"` // GoJudge 数据服务地址
 
 	CfR2 map[string]*cfr2.Config `yaml:"cf-r2"` // GoJudge 数据服务地址
 }

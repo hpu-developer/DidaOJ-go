@@ -16,3 +16,20 @@ const (
 func IsValidJudgeLanguage(language int) bool {
 	return language > int(JudgeLanguageUnknown) && language < int(JudgeLanguageMax)
 }
+
+func GetLanguageByKey(language string) JudgeLanguage {
+	switch language {
+	case "c":
+		return JudgeLanguageC
+	case "cpp":
+		return JudgeLanguageCpp
+	case "java":
+		return JudgeLanguageJava
+	case "python":
+		return JudgeLanguagePython
+	case "golang":
+		return JudgeLanguageGolang
+	default:
+		return JudgeLanguageUnknown
+	}
+}

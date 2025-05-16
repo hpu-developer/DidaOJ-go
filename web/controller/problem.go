@@ -5,16 +5,20 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 	"log/slog"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
 	"meta/error-code"
 	metaerror "meta/meta-error"
+	metahttp "meta/meta-http"
 	metamd5 "meta/meta-md5"
 	metapanic "meta/meta-panic"
 	"meta/meta-response"
@@ -26,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"web/config"
 	"web/request"
 )
 
@@ -337,6 +342,47 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		return
 	}
 
+	judgeType := foundationjudge.JudgeTypeNormal
+
+	// 解析rule.yaml
+	ruleFile := filepath.Join(unzipDir, "rule.yaml")
+	yamlFile, err := os.ReadFile(ruleFile)
+	if err == nil {
+		var jobConfig foundationjudge.JudgeJobConfig
+		err = yaml.Unmarshal(yamlFile, &jobConfig)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		if jobConfig.SpecialJudge != nil {
+			goJudgeUrl := config.GetConfig().GoJudge.Url
+			runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
+
+			language := foundationjudge.GetLanguageByKey(jobConfig.SpecialJudge.Language)
+			if !foundationjudge.IsValidJudgeLanguage(int(language)) {
+				metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+				return
+			}
+
+			_, _, compileStatus, err := foundationjudge.CompileCode(uuid.New().String(), runUrl, language, jobConfig.SpecialJudge.Source)
+			if compileStatus != foundationjudge.JudgeStatusAC {
+				metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+				return
+			}
+			if err != nil {
+				metapanic.ProcessError(err)
+				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+				return
+			}
+			judgeType = foundationjudge.JudgeTypeSpecial
+		}
+	} else {
+		if !os.IsNotExist(err) {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+	}
+
 	// 把所有文件的换行改为Linux格式
 	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -455,7 +501,7 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 			return true
 		})
 	}
-	err = problemService.UpdateJudgeMd5(ctx, id, judgeDataMd5)
+	err = problemService.UpdateProblemJudgeInfo(ctx, id, judgeType, judgeDataMd5)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

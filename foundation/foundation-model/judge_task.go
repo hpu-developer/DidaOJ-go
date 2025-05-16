@@ -4,13 +4,6 @@ import (
 	foundationjudge "foundation/foundation-judge"
 )
 
-type JudgeType int
-
-var (
-	JudgeTypeNormal  JudgeType = 0 // 正常判题（比较输出）
-	JudgeTypeSpecial JudgeType = 1 // 特殊判题（由特殊的评测程序判断）
-)
-
 type JudgeTask struct {
 	TaskId  string                      `json:"task_id" bson:"task_id"`           // 代码长度
 	Status  foundationjudge.JudgeStatus `json:"status" bson:"status"`             // 评测状态

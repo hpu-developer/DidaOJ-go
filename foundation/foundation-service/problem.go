@@ -3,6 +3,7 @@ package foundationservice
 import (
 	"context"
 	"foundation/foundation-dao"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	"meta/singleton"
 	"time"
@@ -122,6 +123,6 @@ func (s *ProblemService) PostEdit(ctx context.Context, userId int, requestData *
 	return foundationdao.GetProblemDao().PostEdit(ctx, userId, requestData)
 }
 
-func (s *ProblemService) UpdateJudgeMd5(ctx context.Context, id string, md5 string) error {
-	return foundationdao.GetProblemDao().UpdateJudgeMd5(ctx, id, md5)
+func (s *ProblemService) UpdateProblemJudgeInfo(ctx context.Context, id string, judgeType foundationjudge.JudgeType, md5 string) error {
+	return foundationdao.GetProblemDao().UpdateProblemJudgeInfo(ctx, id, judgeType, md5)
 }

@@ -9,5 +9,9 @@ type JudgeTaskConfig struct {
 }
 
 type JudgeJobConfig struct {
-	Tasks []*JudgeTaskConfig `json:"tasks"` // 任务列表
+	Tasks        []*JudgeTaskConfig `json:"tasks"` // 任务列表
+	SpecialJudge *struct {
+		Language string `json:"language"` // 程序语言（key）
+		Source   string `json:"source"`   // 程序代码
+	} `json:"special_judge"` // 特殊判题配置
 }
