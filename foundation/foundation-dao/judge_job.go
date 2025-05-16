@@ -601,8 +601,7 @@ func (d *JudgeJobDao) RejudgeProblem(ctx context.Context, id string) error {
 				"problem_id": 1,
 				"author":     1,
 				"status":     1,
-			}).
-			SetLimit(100)
+			})
 		cursor, err := d.collection.Find(sessCtx, findFilter, findOpts)
 		if err != nil {
 			return nil, metaerror.Wrap(err, "failed to find recent submissions")

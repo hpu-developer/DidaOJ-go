@@ -19,8 +19,10 @@ import (
 	"meta/error-code"
 	metaerror "meta/meta-error"
 	metahttp "meta/meta-http"
+	metamath "meta/meta-math"
 	metamd5 "meta/meta-md5"
 	metapanic "meta/meta-panic"
+	metapath "meta/meta-path"
 	"meta/meta-response"
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
@@ -28,6 +30,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -345,69 +348,146 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 
 	judgeType := foundationjudge.JudgeTypeNormal
 
+	var jobConfig foundationjudge.JudgeJobConfig
+
 	// 解析rule.yaml
 	ruleFile := filepath.Join(unzipDir, "rule.yaml")
 	yamlFile, err := os.ReadFile(ruleFile)
 	if err == nil {
-		var jobConfig foundationjudge.JudgeJobConfig
 		err = yaml.Unmarshal(yamlFile, &jobConfig)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
-		}
-		if jobConfig.SpecialJudge != nil {
-			goJudgeUrl := config.GetConfig().GoJudge.Url
-			runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
-
-			language := foundationjudge.GetLanguageByKey(jobConfig.SpecialJudge.Language)
-			if !foundationjudge.IsValidJudgeLanguage(int(language)) {
-				metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-				return
-			}
-
-			// 考虑编译机性能影响，暂时仅允许C/C++
-			if language != foundationjudge.JudgeLanguageC &&
-				language != foundationjudge.JudgeLanguageCpp {
-				metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-				return
-			}
-
-			codeFilePath := filepath.Join(unzipDir, jobConfig.SpecialJudge.Source)
-			codeContent, err := metastring.GetStringFromOpenFile(codeFilePath)
-			if err != nil {
-				metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-				return
-			}
-
-			jobKey := uuid.New().String()
-
-			execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(jobKey, runUrl, language, codeContent)
-			if extraMessage != "" {
-				slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
-			}
-			if compileStatus != foundationjudge.JudgeStatusAC {
-				metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-				return
-			}
-			if err != nil {
-				metapanic.ProcessError(err)
-				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-				return
-			}
-			for _, fileId := range execFileIds {
-				deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
-				err := foundationjudge.DeleteFile(jobKey, deleteUrl)
-				if err != nil {
-					metapanic.ProcessError(err)
-				}
-			}
-			judgeType = foundationjudge.JudgeTypeSpecial
 		}
 	} else {
 		if !os.IsNotExist(err) {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
 		}
+	}
+
+	if jobConfig.SpecialJudge == nil {
+		specialFiles := map[string]string{
+			"spj.c":   "c",
+			"spj.cc":  "cpp",
+			"spj.cpp": "cpp",
+		}
+		// 判断是否存在对应文件
+		for fileName, language := range specialFiles {
+			filePath := path.Join(unzipDir, fileName)
+			_, err := os.Stat(filePath)
+			if err == nil {
+				jobConfig.SpecialJudge = &foundationjudge.SpecialJudgeConfig{}
+				jobConfig.SpecialJudge.Language = language
+				jobConfig.SpecialJudge.Source = fileName
+				break
+			}
+		}
+	}
+
+	if jobConfig.SpecialJudge != nil {
+		goJudgeUrl := config.GetConfig().GoJudge.Url
+		runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
+
+		language := foundationjudge.GetLanguageByKey(jobConfig.SpecialJudge.Language)
+		if !foundationjudge.IsValidJudgeLanguage(int(language)) {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+
+		// 考虑编译机性能影响，暂时仅允许C/C++
+		if language != foundationjudge.JudgeLanguageC &&
+			language != foundationjudge.JudgeLanguageCpp {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+
+		codeFilePath := filepath.Join(unzipDir, jobConfig.SpecialJudge.Source)
+		codeContent, err := metastring.GetStringFromOpenFile(codeFilePath)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+
+		jobKey := uuid.New().String()
+
+		execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(jobKey, runUrl, language, codeContent)
+		if extraMessage != "" {
+			slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
+		}
+		if compileStatus != foundationjudge.JudgeStatusAC {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		if err != nil {
+			metapanic.ProcessError(err)
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		for _, fileId := range execFileIds {
+			deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
+			err := foundationjudge.DeleteFile(jobKey, deleteUrl)
+			if err != nil {
+				metapanic.ProcessError(err)
+			}
+		}
+		judgeType = foundationjudge.JudgeTypeSpecial
+	}
+
+	if len(jobConfig.Tasks) <= 0 {
+		// 如果没有rule.yaml文件，则根据文件生成Config信息
+		files, err := os.ReadDir(unzipDir)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		var outFileNames []string
+		hasInFiles := make(map[string]bool)
+		for _, file := range files {
+			if strings.HasSuffix(file.Name(), ".out") {
+				outFileNames = append(outFileNames, metapath.GetBaseName(file.Name()))
+			} else if strings.HasSuffix(file.Name(), ".in") {
+				hasInFiles[metapath.GetBaseName(file.Name())] = true
+			}
+		}
+		sort.Slice(outFileNames, func(i, j int) bool {
+			return outFileNames[i] < outFileNames[j]
+		})
+		totalScore := 100
+		averageScore := totalScore / len(outFileNames)
+		for i, file := range outFileNames {
+			outFile, err := os.Stat(path.Join(unzipDir, file+".out"))
+			if err != nil {
+				continue
+			}
+			judgeTaskConfig := &foundationjudge.JudgeTaskConfig{
+				Key:      file,
+				OutFile:  file + ".out",
+				OutLimit: metamath.Max(outFile.Size()*2, 1024),
+			}
+			if hasInFiles[file] {
+				judgeTaskConfig.InFile = file + ".in"
+			}
+			if i == len(outFileNames)-1 {
+				judgeTaskConfig.Score = totalScore - averageScore*(len(outFileNames)-1)
+			} else {
+				judgeTaskConfig.Score = averageScore
+			}
+			jobConfig.Tasks = append(jobConfig.Tasks, judgeTaskConfig)
+		}
+	}
+
+	// 重新生成一个rule.yaml
+	ruleFile = filepath.Join(unzipDir, "rule.yaml")
+	yamlData, err := yaml.Marshal(jobConfig)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	err = os.WriteFile(ruleFile, yamlData, 0644)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
 	}
 
 	// 把所有文件的换行改为Linux格式

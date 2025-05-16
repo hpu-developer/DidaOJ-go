@@ -444,9 +444,9 @@ func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.Jud
 	execFileIds map[string]string) error {
 	problemId := job.ProblemId
 
-	md5 := problem.Id
 	timeLimit := problem.TimeLimit
 	memoryLimit := problem.MemoryLimit
+	md5 := *problem.JudgeMd5
 
 	judgeDataDir := path.Join(".judge_data", problemId, md5)
 
