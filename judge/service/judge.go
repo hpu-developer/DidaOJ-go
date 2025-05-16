@@ -775,9 +775,12 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 		}
 		return finalStatus, sumTime, sumMemory, finalScore, nil
 	}
-	rightOutContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.OutFile))
-	if err != nil {
-		return finalStatus, sumTime, sumMemory, finalScore, err
+	var rightOutContent string
+	if taskConfig.OutFile != "" {
+		rightOutContent, err = metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.OutFile))
+		if err != nil {
+			return finalStatus, sumTime, sumMemory, finalScore, err
+		}
 	}
 
 	task.Time = responseData.Time

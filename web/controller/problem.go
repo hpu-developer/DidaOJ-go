@@ -24,6 +24,7 @@ import (
 	metapanic "meta/meta-panic"
 	metapath "meta/meta-path"
 	"meta/meta-response"
+	metaslice "meta/meta-slice"
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	metazip "meta/meta-zip"
@@ -441,39 +442,92 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
 		}
-		var outFileNames []string
+		taskKeyMap := make(map[string]bool)
 		hasInFiles := make(map[string]bool)
+		hasOutFiles := make(map[string]bool)
 		for _, file := range files {
+			fileBaseName := metapath.GetBaseName(file.Name())
 			if strings.HasSuffix(file.Name(), ".out") {
-				outFileNames = append(outFileNames, metapath.GetBaseName(file.Name()))
+				hasOutFiles[fileBaseName] = true
 			} else if strings.HasSuffix(file.Name(), ".in") {
-				hasInFiles[metapath.GetBaseName(file.Name())] = true
+				hasInFiles[fileBaseName] = true
 			}
+			taskKeyMap[fileBaseName] = true
 		}
-		sort.Slice(outFileNames, func(i, j int) bool {
-			return outFileNames[i] < outFileNames[j]
+		var taskKeys []string
+		for key, _ := range taskKeyMap {
+			taskKeys = append(taskKeys, key)
+		}
+		taskKeys = metaslice.RemoveAllFunc(taskKeys, func(key string) bool {
+			return !hasInFiles[key] && !hasOutFiles[key]
 		})
-		totalScore := 100
-		averageScore := totalScore / len(outFileNames)
-		for i, file := range outFileNames {
-			outFile, err := os.Stat(path.Join(unzipDir, file+".out"))
-			if err != nil {
+		taskCount := len(taskKeys)
+
+		if taskCount <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+
+		sort.Slice(taskKeys, func(i, j int) bool {
+			return taskKeys[i] < taskKeys[j]
+		})
+
+		for _, key := range taskKeys {
+			if !hasInFiles[key] && !hasOutFiles[key] {
 				continue
 			}
 			judgeTaskConfig := &foundationjudge.JudgeTaskConfig{
-				Key:      file,
-				OutFile:  file + ".out",
-				OutLimit: metamath.Max(outFile.Size()*2, 1024),
+				Key: key,
 			}
-			if hasInFiles[file] {
-				judgeTaskConfig.InFile = file + ".in"
+			if hasInFiles[key] {
+				judgeTaskConfig.InFile = key + ".in"
 			}
-			if i == len(outFileNames)-1 {
-				judgeTaskConfig.Score = totalScore - averageScore*(len(outFileNames)-1)
+			if hasOutFiles[key] {
+				judgeTaskConfig.OutFile = key + ".out"
+				outFile, err := os.Stat(path.Join(unzipDir, judgeTaskConfig.OutFile))
+				if err != nil {
+					metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+					return
+				}
+				judgeTaskConfig.OutLimit = metamath.Max(outFile.Size()*2, 1024)
 			} else {
-				judgeTaskConfig.Score = averageScore
+				// 考虑到SpecialJudge的情况可能也需要输出，这里默认给个大小
+				if jobConfig.SpecialJudge != nil {
+					judgeTaskConfig.OutLimit = 1048576 * 1 //1MB
+				}
 			}
 			jobConfig.Tasks = append(jobConfig.Tasks, judgeTaskConfig)
+		}
+	}
+
+	taskCount := len(jobConfig.Tasks)
+
+	totalScore := 0
+	for _, taskConfig := range jobConfig.Tasks {
+		totalScore += taskConfig.Score
+	}
+	if totalScore <= 0 {
+		totalScore = 100
+		averageScore := totalScore / taskCount
+		for i, taskConfig := range jobConfig.Tasks {
+			if i != taskCount-1 {
+				taskConfig.Score = averageScore
+			} else {
+				taskConfig.Score = totalScore - averageScore*(taskCount-1)
+			}
+		}
+	} else {
+		//把totalScore转为0~100
+		rate := 100.0 / float64(totalScore)
+		totalScore = 100
+		sumScore := 0
+		for i, taskConfig := range jobConfig.Tasks {
+			if i != taskCount-1 {
+				taskConfig.Score = int(float64(taskConfig.Score) * rate)
+				sumScore += taskConfig.Score
+			} else {
+				taskConfig.Score = totalScore - sumScore
+			}
 		}
 	}
 
