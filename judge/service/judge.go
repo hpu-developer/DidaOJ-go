@@ -254,7 +254,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if err != nil {
 		metapanic.ProcessError(err)
 	}
-	err = s.runJudgeJob(ctx, job, *problem.JudgeMd5, problem.TimeLimit, problem.MemoryLimit, execFileIds)
+	err = s.runJudgeJob(ctx, job, problem, execFileIds)
 	return err
 }
 
@@ -439,8 +439,14 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]st
 	return foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, job.Language, job.Code)
 }
 
-func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.JudgeJob, md5 string, timeLimit int, memoryLimit int, execFileIds map[string]string) error {
+func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.JudgeJob,
+	problem *foundationmodel.Problem,
+	execFileIds map[string]string) error {
 	problemId := job.ProblemId
+
+	md5 := problem.Id
+	timeLimit := problem.TimeLimit
+	memoryLimit := problem.MemoryLimit
 
 	judgeDataDir := path.Join(".judge_data", problemId, md5)
 
@@ -457,6 +463,28 @@ func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.Jud
 			return metaerror.Wrap(err, "Unmarshal config file error")
 		}
 	}
+
+	if problem.JudgeType == foundationjudge.JudgeTypeSpecial {
+		if jobConfig.SpecialJudge == nil {
+			specialFiles := map[string]string{
+				"spj.c":   "c",
+				"spj.cc":  "cpp",
+				"spj.cpp": "cpp",
+			}
+			// 判断是否存在对应文件
+			for fileName, language := range specialFiles {
+				filePath := path.Join(judgeDataDir, fileName)
+				_, err := os.Stat(filePath)
+				if err == nil {
+					jobConfig.SpecialJudge = &foundationjudge.SpecialJudgeConfig{}
+					jobConfig.SpecialJudge.Language = language
+					jobConfig.SpecialJudge.Source = fileName
+					break
+				}
+			}
+		}
+	}
+
 	var specialFileId string
 	if jobConfig.SpecialJudge != nil {
 		specialFileId, err = s.compileSpecialJudge(job, md5, &jobConfig)
