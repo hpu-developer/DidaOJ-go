@@ -313,13 +313,15 @@ func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.Problem
 }
 
 func (d *ProblemDao) UpdateProblemJudgeInfo(ctx context.Context, id string, judgeType foundationjudge.JudgeType, md5 string) error {
+	nowTime := metatime.GetTimeNow()
 	filter := bson.M{
 		"_id": id,
 	}
 	update := bson.M{
 		"$set": bson.M{
-			"judge_type": judgeType,
-			"judge_md5":  md5,
+			"judge_type":  judgeType,
+			"judge_md5":   md5,
+			"update_time": nowTime,
 		},
 	}
 	_, err := d.collection.UpdateOne(ctx, filter, update)
