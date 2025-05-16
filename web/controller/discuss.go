@@ -76,9 +76,15 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	var contestId int
+	contestIdStr := ctx.Query("contest_id")
+	if contestIdStr != "" {
+		contestId, err = strconv.Atoi(contestIdStr)
+	}
+
 	var list []*foundationmodel.Discuss
 	var totalCount int
-	list, totalCount, err = discussService.GetDiscussList(ctx, page, pageSize)
+	list, totalCount, err = discussService.GetDiscussList(ctx, contestId, page, pageSize)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

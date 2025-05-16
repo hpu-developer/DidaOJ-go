@@ -3,6 +3,7 @@ package foundationdao
 import (
 	"context"
 	"errors"
+	"fmt"
 	foundationmodel "foundation/foundation-model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -83,6 +84,51 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.C
 		return nil, metaerror.Wrap(err, "find contest error")
 	}
 	return &contest, nil
+}
+
+func (d *ContestDao) GetContestTitle(ctx context.Context, id int) (*string, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(bson.M{
+			"_id":   1,
+			"title": 1,
+		})
+	var contest foundationmodel.Contest
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &contest.Title, nil
+}
+
+func (d *ContestDao) GetProblemSort(ctx context.Context, id int, problemId *string) (int, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(bson.M{
+		"problems": bson.M{
+			"$elemMatch": bson.M{
+				"problem_id": *problemId,
+			},
+		},
+	})
+	var result struct {
+		Problems []struct {
+			Sort int `bson:"sort"`
+		} `bson:"problems"`
+	}
+	err := d.collection.FindOne(ctx, filter, opts).Decode(&result)
+	if err != nil {
+		return 0, err
+	}
+	if len(result.Problems) == 0 {
+		return 0, fmt.Errorf("problem_id %s not found", *problemId)
+	}
+	return result.Problems[0].Sort, nil
 }
 
 func (d *ContestDao) GetContestList(ctx context.Context,

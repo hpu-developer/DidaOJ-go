@@ -71,7 +71,10 @@ func (d *DiscussDao) GetDiscuss(ctx context.Context, id int) (*foundationmodel.D
 			"create_time": 1,
 			"view_count":  1,
 			"tags":        1,
-			"keyword":     1,
+			"keyword_id":  1,
+			"problem_id":  1,
+			"contest_id":  1,
+			"judge_id":    1,
 		})
 	var discuss foundationmodel.Discuss
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&discuss); err != nil {
@@ -84,6 +87,7 @@ func (d *DiscussDao) GetDiscuss(ctx context.Context, id int) (*foundationmodel.D
 }
 
 func (d *DiscussDao) GetDiscussList(ctx context.Context,
+	contestId int,
 	page int,
 	pageSize int,
 ) ([]*foundationmodel.Discuss,
@@ -91,6 +95,11 @@ func (d *DiscussDao) GetDiscussList(ctx context.Context,
 	error,
 ) {
 	filter := bson.M{}
+	if contestId > 0 {
+		filter["contest_id"] = contestId
+	} else {
+		filter["contest_id"] = bson.M{"$exists": false}
+	}
 	limit := int64(pageSize)
 	skip := int64((page - 1) * pageSize)
 

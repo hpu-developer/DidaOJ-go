@@ -107,6 +107,25 @@ func (d *ProblemDao) GetProblem(ctx context.Context, id string) (*foundationmode
 	return &problem, nil
 }
 
+func (d *ProblemDao) GetProblemTitle(ctx context.Context, id *string) (*string, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(bson.M{
+		"_id":   1,
+		"title": 1,
+	})
+	var problem foundationmodel.Problem
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem error")
+	}
+	return &problem.Title, nil
+
+}
+
 func (d *ProblemDao) GetProblemJudge(ctx context.Context, id string) (*foundationmodel.Problem, error) {
 	filter := bson.M{
 		"_id": id,

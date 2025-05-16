@@ -40,30 +40,66 @@ func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmod
 		discuss.AuthorUsername = &user.Username
 		discuss.AuthorNickname = &user.Nickname
 	}
+	if discuss.ContestId > 0 {
+		// 校验权限
+
+		contestTitle, err := foundationdao.GetContestDao().GetContestTitle(ctx, discuss.ContestId)
+		if err != nil {
+			return nil, err
+		}
+		discuss.ContestTitle = contestTitle
+		if discuss.ProblemId != nil {
+			problemTitle, err := foundationdao.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
+			if err != nil {
+				return nil, err
+			}
+			discuss.ProblemTitle = problemTitle
+			discuss.ContestProblemSort, err = foundationdao.GetContestDao().GetProblemSort(ctx, discuss.ContestId, discuss.ProblemId)
+			if err != nil {
+				return nil, err
+			}
+			// 隐藏真实的ProblemId
+			discuss.ProblemId = nil
+		}
+	} else if discuss.ProblemId != nil {
+		// 校验权限
+
+		title, err := foundationdao.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
+		if err != nil {
+			return nil, err
+		}
+		discuss.ProblemTitle = title
+	} else if discuss.JudgeId > 0 {
+		// 校验权限
+
+	}
+
 	return discuss, err
 }
 
-func (s *DiscussService) GetDiscussList(ctx context.Context, page int, pageSize int) ([]*foundationmodel.Discuss, int, error) {
-	discusses, totalCount, err := foundationdao.GetDiscussDao().GetDiscussList(ctx, page, pageSize)
+func (s *DiscussService) GetDiscussList(ctx context.Context, contestId int, page int, pageSize int) ([]*foundationmodel.Discuss, int, error) {
+	discusses, totalCount, err := foundationdao.GetDiscussDao().GetDiscussList(ctx, contestId, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
-	var userIds []int
-	for _, discuss := range discusses {
-		userIds = append(userIds, discuss.AuthorId)
-	}
-	users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
-	if err != nil {
-		return nil, 0, err
-	}
-	userMap := make(map[int]*foundationmodel.UserAccountInfo)
-	for _, user := range users {
-		userMap[user.Id] = user
-	}
-	for _, discuss := range discusses {
-		if user, ok := userMap[discuss.AuthorId]; ok {
-			discuss.AuthorUsername = &user.Username
-			discuss.AuthorNickname = &user.Nickname
+	if len(discusses) > 0 {
+		var userIds []int
+		for _, discuss := range discusses {
+			userIds = append(userIds, discuss.AuthorId)
+		}
+		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
+		if err != nil {
+			return nil, 0, err
+		}
+		userMap := make(map[int]*foundationmodel.UserAccountInfo)
+		for _, user := range users {
+			userMap[user.Id] = user
+		}
+		for _, discuss := range discusses {
+			if user, ok := userMap[discuss.AuthorId]; ok {
+				discuss.AuthorUsername = &user.Username
+				discuss.AuthorNickname = &user.Nickname
+			}
 		}
 	}
 	return discusses, totalCount, nil

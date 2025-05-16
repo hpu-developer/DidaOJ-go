@@ -14,10 +14,14 @@ type Discuss struct {
 	UpdateTime     time.Time `json:"update_time" bson:"update_time"`                             // 更新时间，有回复时会更新
 	ViewCount      int       `json:"view_count" bson:"view_count"`                               // 浏览次数
 
-	KeywordId int     `json:"keyword,omitempty" bson:"keyword,omitempty"`       // 话题Id
-	ProblemId *string `json:"problem_id,omitempty" bson:"problem_id,omitempty"` // 问题Id
-	ContestId int     `json:"contest_id,omitempty" bson:"contest_id,omitempty"` // 比赛Id
-	JudgeId   int     `json:"judge_id,omitempty" bson:"judge_id,omitempty"`     // 评测Id
+	// 用于标识帖子的关联
+	KeywordId          int     `json:"keyword,omitempty" bson:"keyword,omitempty"`             // 话题Id
+	ProblemId          *string `json:"problem_id,omitempty" bson:"problem_id,omitempty"`       // 问题Id
+	ProblemTitle       *string `json:"problem_title,omitempty" bson:"problem_title,omitempty"` // 问题标题
+	ContestId          int     `json:"contest_id,omitempty" bson:"contest_id,omitempty"`       // 比赛Id
+	ContestTitle       *string `json:"contest_title,omitempty" bson:"contest_title,omitempty"`
+	ContestProblemSort int     `json:"contest_problem_sort,omitempty" bson:"contest_problem_sort,omitempty"` // 比赛题目序号，不会存档，用于标识题目并且隐藏真实题目
+	JudgeId            int     `json:"judge_id,omitempty" bson:"judge_id,omitempty"`                         // 评测Id
 
 	Tags []int `json:"tags,omitempty" bson:"tags,omitempty"` // 讨论标签，用于给帖子分类，用户自定义的标签
 }
