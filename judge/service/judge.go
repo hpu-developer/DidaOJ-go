@@ -16,6 +16,7 @@ import (
 	"meta/cron"
 	metaerror "meta/meta-error"
 	metahttp "meta/meta-http"
+	metamath "meta/meta-math"
 	metapanic "meta/meta-panic"
 	metapath "meta/meta-path"
 	metastring "meta/meta-string"
@@ -495,7 +496,7 @@ func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.Jud
 			judgeTaskConfig := &foundationjudge.JudgeTaskConfig{
 				Key:      file,
 				OutFile:  file + ".out",
-				OutLimit: outFile.Size() * 2,
+				OutLimit: metamath.Max(outFile.Size()*2, 1024),
 			}
 			if hasInFiles[file] {
 				judgeTaskConfig.InFile = file + ".in"
