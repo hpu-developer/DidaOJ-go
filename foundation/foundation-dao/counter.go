@@ -57,6 +57,18 @@ func (d *CounterDao) InitDao(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	err = d.InitCounter(ctx, "discuss_id", 0)
+	if err != nil {
+		return err
+	}
+	err = d.InitCounter(ctx, "discuss_comment_id", 0)
+	if err != nil {
+		return err
+	}
+	err = d.InitCounter(ctx, "discuss_tag_id", 0)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

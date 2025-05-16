@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	foundationjudge "foundation/foundation-judge"
 	"log/slog"
 	metamysql "meta/meta-mysql"
 	"strconv"
@@ -194,7 +195,7 @@ func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error 
 			Privilege(p.Privilege).
 			TimeLimit(p.TimeLimit*1000).
 			MemoryLimit(p.MemoryLimit*1024).
-			JudgeType(foundationmodel.JudgeType(p.JudgeType)).
+			JudgeType(foundationjudge.JudgeType(p.JudgeType)).
 			Tags(problemTagMap[p.ProblemID]).
 			Accept(0).
 			Attempt(0).
@@ -290,7 +291,7 @@ func (s *MigrateProblemService) processVhojProblem(ctx context.Context) error {
 			CreatorNickname(vhojDescription.Author).
 			TimeLimit(p.TimeLimit).
 			MemoryLimit(p.MemoryLimit).
-			JudgeType(foundationmodel.JudgeTypeNormal).
+			JudgeType(foundationjudge.JudgeTypeNormal).
 			Accept(0).
 			Attempt(0).
 			InsertTime(p.TriggerTime).

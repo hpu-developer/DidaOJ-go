@@ -88,7 +88,7 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	title := ctx.Query("title")
 	tag := ctx.Query("tag")
 	pageStr := ctx.DefaultQuery("page", "1")
-	pageSizeStr := ctx.DefaultQuery("page_size", "10")
+	pageSizeStr := ctx.DefaultQuery("page_size", "50")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)

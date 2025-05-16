@@ -46,7 +46,7 @@ func (c *ContestController) Get(ctx *gin.Context) {
 func (c *ContestController) GetList(ctx *gin.Context) {
 	contestService := foundationservice.GetContestService()
 	pageStr := ctx.DefaultQuery("page", "1")
-	pageSizeStr := ctx.DefaultQuery("page_size", "10")
+	pageSizeStr := ctx.DefaultQuery("page_size", "50")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
@@ -95,7 +95,6 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-
 	startTime, err := metatime.GetTimeByDateString(requestData.OpenTime[0])
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)

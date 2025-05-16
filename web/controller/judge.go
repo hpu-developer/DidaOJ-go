@@ -49,7 +49,7 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 func (c *JudgeController) GetList(ctx *gin.Context) {
 	judgeService := foundationservice.GetJudgeService()
 	pageStr := ctx.DefaultQuery("page", "1")
-	pageSizeStr := ctx.DefaultQuery("page_size", "10")
+	pageSizeStr := ctx.DefaultQuery("page_size", "50")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
