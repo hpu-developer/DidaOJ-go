@@ -77,7 +77,7 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 					{"name": "stderr", "max": 10240},
 				},
 				"cpuLimit":      10000000000,
-				"memoryLimit":   1048576 * 128, // 128MB
+				"memoryLimit":   1048576 * 256, // 256MB
 				"procLimit":     50,
 				"copyIn":        copyIns,
 				"copyOut":       []string{"stdout", "stderr"},

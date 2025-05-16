@@ -44,8 +44,13 @@ type judgeDataDownloadEntry struct {
 }
 
 type JudgeService struct {
-	runningTasks      atomic.Int32
-	judgeDataDownload sync.Map
+	runningTasks atomic.Int32
+
+	// 有些时候同一个问题只能有一个逻辑去处理
+	problemMutexMap sync.Map
+
+	// 题目号对应的特判程序文件ID
+	specialFileIds map[string]string
 
 	s3Client *s3.S3
 }
@@ -101,6 +106,17 @@ func (s *JudgeService) Start() error {
 	c.Start()
 
 	return nil
+}
+
+func (s *JudgeService) getSpecialFileId(problemId string) string {
+	if s.specialFileIds == nil {
+		return ""
+	}
+	fileId, ok := s.specialFileIds[problemId]
+	if !ok {
+		return ""
+	}
+	return fileId
 }
 
 func (s *JudgeService) cleanGoJudge() error {
@@ -237,17 +253,17 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if err != nil {
 		metapanic.ProcessError(err)
 	}
-	err = s.runJudgeTask(ctx, job, *problem.JudgeMd5, problem.TimeLimit, problem.MemoryLimit, execFileIds)
+	err = s.runJudgeJob(ctx, job, *problem.JudgeMd5, problem.TimeLimit, problem.MemoryLimit, execFileIds)
 	return err
 }
 
 func (s *JudgeService) updateJudgeData(ctx context.Context, problemId string, md5 string) error {
-	val, _ := s.judgeDataDownload.LoadOrStore(problemId, &judgeDataDownloadEntry{})
+	val, _ := s.problemMutexMap.LoadOrStore(problemId, &judgeDataDownloadEntry{})
 	e := val.(*judgeDataDownloadEntry)
 	atomic.AddInt32(&e.ref, 1)
 	defer func() {
 		if atomic.AddInt32(&e.ref, -1) == 0 {
-			s.judgeDataDownload.Delete(problemId)
+			s.problemMutexMap.Delete(problemId)
 		}
 	}()
 	e.mu.Lock()
@@ -353,24 +369,77 @@ func (s *JudgeService) downloadObject(ctx context.Context, s3Client *s3.S3, buck
 	return nil
 }
 
+func (s *JudgeService) compileSpecialJudge(job *foundationmodel.JudgeJob, md5 string, jobConfig *foundationjudge.JudgeJobConfig) (string, error) {
+	problemId := job.ProblemId
+
+	specialFileId := s.getSpecialFileId(problemId)
+	if specialFileId != "" {
+		return specialFileId, nil
+	}
+
+	val, _ := s.problemMutexMap.LoadOrStore(problemId, &judgeDataDownloadEntry{})
+	e := val.(*judgeDataDownloadEntry)
+	atomic.AddInt32(&e.ref, 1)
+	defer func() {
+		if atomic.AddInt32(&e.ref, -1) == 0 {
+			s.problemMutexMap.Delete(problemId)
+		}
+	}()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	runUrl := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "run")
+
+	language := foundationjudge.GetLanguageByKey(jobConfig.SpecialJudge.Language)
+	if !foundationjudge.IsValidJudgeLanguage(int(language)) {
+		return "", metaerror.New("invalid language: %s", jobConfig.SpecialJudge.Language)
+	}
+
+	// 考虑编译机性能影响，暂时仅允许C/C++
+	if language != foundationjudge.JudgeLanguageC &&
+		language != foundationjudge.JudgeLanguageCpp {
+		return "", metaerror.New("language %s not c/cpp", jobConfig.SpecialJudge.Language)
+	}
+
+	judgeDataDir := path.Join(".judge_data", problemId, md5)
+
+	codeFilePath := filepath.Join(judgeDataDir, jobConfig.SpecialJudge.Source)
+	codeContent, err := metastring.GetStringFromOpenFile(codeFilePath)
+	if err != nil {
+		return "", metaerror.Wrap(err, "failed to read special judge code file")
+	}
+
+	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, language, codeContent)
+	if extraMessage != "" {
+		slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
+	}
+	if compileStatus != foundationjudge.JudgeStatusAC {
+		return "", metaerror.New("compile special judge failed: %s", extraMessage)
+	}
+	if err != nil {
+		return "", metaerror.Wrap(err, "failed to compile special judge")
+	}
+
+	var ok bool
+	specialFileId, ok = execFileIds["a"]
+	if !ok {
+		return "", metaerror.New("special judge compile failed, fileId not found")
+	}
+	if s.specialFileIds == nil {
+		s.specialFileIds = make(map[string]string)
+	}
+	s.specialFileIds[problemId] = specialFileId
+	return specialFileId, nil
+}
+
 func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]string, string, foundationjudge.JudgeStatus, error) {
 	goJudgeUrl := config.GetConfig().GoJudge.Url
 	runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
 	return foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, job.Language, job.Code)
 }
 
-func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.JudgeJob, md5 string, timeLimit int, memoryLimit int, execFileId map[string]string) error {
+func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.JudgeJob, md5 string, timeLimit int, memoryLimit int, execFileIds map[string]string) error {
 	problemId := job.ProblemId
-	val, _ := s.judgeDataDownload.LoadOrStore(problemId, &judgeDataDownloadEntry{})
-	e := val.(*judgeDataDownloadEntry)
-	atomic.AddInt32(&e.ref, 1)
-	defer func() {
-		if atomic.AddInt32(&e.ref, -1) == 0 {
-			s.judgeDataDownload.Delete(problemId)
-		}
-	}()
-	e.mu.Lock()
-	defer e.mu.Unlock()
 
 	judgeDataDir := path.Join(".judge_data", problemId, md5)
 
@@ -386,10 +455,19 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 		if err != nil {
 			return metaerror.Wrap(err, "Unmarshal config file error")
 		}
-	} else {
-		if !os.IsNotExist(err) {
-			return metaerror.Wrap(err, "failed to read rule.yaml file")
+	}
+	var specialFileId string
+	if jobConfig.SpecialJudge != nil {
+		specialFileId, err = s.compileSpecialJudge(job, md5, &jobConfig)
+		if err != nil {
+			return metaerror.Wrap(err, "failed to compile special judge")
 		}
+		if specialFileId == "" {
+			return metaerror.New("special judge compile failed")
+		}
+	}
+
+	if len(jobConfig.Tasks) <= 0 {
 		// 如果没有rule.yaml文件，则根据文件生成Config信息
 		files, err := os.ReadDir(judgeDataDir)
 		if err != nil {
@@ -456,222 +534,9 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 	finalScore := 0
 
 	for _, taskConfig := range jobConfig.Tasks {
-		key := taskConfig.Key
-		task := foundationmodel.NewJudgeTaskBuilder().
-			TaskId(key).
-			Status(foundationjudge.JudgeStatusJudgeFail).
-			Time(0).
-			Memory(0).
-			Score(0).
-			Content("").
-			WaHint("").
-			Build()
-
-		goJudgeUrl := config.GetConfig().GoJudge.Url
-		runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
-
-		var inContent string
-
-		if taskConfig.InFile != "" {
-			inContent, err = metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.InFile))
-			if err != nil {
-				markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-				if markErr != nil {
-					metapanic.ProcessError(markErr)
-				}
-				return err
-			}
-		}
-
-		var args []string
-		var copyIns map[string]interface{}
-		switch job.Language {
-		case foundationjudge.JudgeLanguageC:
-			fallthrough
-		case foundationjudge.JudgeLanguageCpp:
-			args = []string{"a"}
-			fileId, ok := execFileId["a"]
-			if !ok {
-				markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-				if markErr != nil {
-					metapanic.ProcessError(markErr)
-				}
-				return metaerror.New("fileId not found")
-			}
-			copyIns = map[string]interface{}{
-				"a": map[string]interface{}{
-					"fileId": fileId,
-				},
-			}
-		case foundationjudge.JudgeLanguageJava:
-			args = []string{"java", "-Djava.security.manager", "-Djava.security.policy=./java.policy", "Main"}
-			fileId, ok := execFileId["Main.class"]
-			if !ok {
-				markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-				if markErr != nil {
-					metapanic.ProcessError(markErr)
-				}
-				return metaerror.New("fileId not found")
-			}
-			copyIns = map[string]interface{}{
-				"Main.class": map[string]interface{}{
-					"fileId": fileId,
-				},
-			}
-			break
-		case foundationjudge.JudgeLanguagePython:
-			args = []string{"python3", "a.py"}
-			copyIns = map[string]interface{}{
-				"a.py": map[string]interface{}{
-					"content": job.Code,
-				},
-			}
-		default:
-			return metaerror.New("language not support: %d", job.Language)
-		}
-
-		data := map[string]interface{}{
-			"cmd": []map[string]interface{}{
-				{
-					"args": args,
-					"env":  []string{"PATH=/usr/bin:/bin"},
-					"files": []map[string]interface{}{
-						{"content": inContent},
-						{"name": "stdout", "max": taskConfig.OutLimit},
-						{"name": "stderr", "max": 10240},
-					},
-					"cpuLimit":    cpuLimit,
-					"memoryLimit": memoryLimit,
-					"procLimit":   50,
-					"copyIn":      copyIns,
-				},
-			},
-		}
-		jsonData, err := json.Marshal(data)
+		finalStatus, sumTime, sumMemory, finalScore, err = s.runJudgeTask(ctx, job, taskConfig, cpuLimit, memoryLimit, sumTime, sumMemory, finalScore, specialFileId, judgeDataDir, execFileIds, finalStatus)
 		if err != nil {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-			if markErr != nil {
-				metapanic.ProcessError(markErr)
-			}
-			return metaerror.Wrap(err)
-		}
-		resp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(jsonData))
-		if err != nil {
-			return metaerror.Wrap(err)
-		}
-		defer func(Body io.ReadCloser) {
-			err := Body.Close()
-			if err != nil {
-				metapanic.ProcessError(err)
-			}
-		}(resp.Body)
-		if resp.StatusCode != http.StatusOK {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-			if markErr != nil {
-				metapanic.ProcessError(markErr)
-			}
-			return metaerror.New("unexpected status code: %d", resp.StatusCode)
-		}
-		var responseDataList []struct {
-			Status gojudge.Status `json:"status"`
-			Files  struct {
-				Stderr string `json:"stderr"`
-				Stdout string `json:"stdout"`
-			} `json:"files"`
-			Time   int `json:"time"`
-			Memory int `json:"memory"`
-		}
-		err = json.NewDecoder(resp.Body).Decode(&responseDataList)
-		if err != nil {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-			if markErr != nil {
-				metapanic.ProcessError(markErr)
-			}
-			return metaerror.Wrap(err, "failed to decode response")
-		}
-		if len(responseDataList) != 1 {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-			if markErr != nil {
-				metapanic.ProcessError(markErr)
-			}
-			return metaerror.New("unexpected response length: %d", len(responseDataList))
-		}
-		responseData := responseDataList[0]
-		if responseData.Status != gojudge.StatusAccepted {
-			switch responseData.Status {
-			case gojudge.StatusSignalled:
-				task.Status = foundationjudge.JudgeStatusRE
-			case gojudge.StatusNonzeroExit:
-				task.Status = foundationjudge.JudgeStatusRE
-			case gojudge.StatusInternalError:
-				slog.Warn("internal error", "job", job.Id, "responseData", responseData)
-				task.Status = foundationjudge.JudgeStatusJudgeFail
-			case gojudge.StatusOutputLimit:
-				task.Status = foundationjudge.JudgeStatusOLE
-			case gojudge.StatusFileError:
-				task.Status = foundationjudge.JudgeStatusOLE
-			case gojudge.StatusMemoryLimit:
-				task.Status = foundationjudge.JudgeStatusMLE
-			case gojudge.StatusTimeLimit:
-				task.Status = foundationjudge.JudgeStatusTLE
-			default:
-				slog.Warn("status error", "job", job.Id, "responseData", responseData)
-				task.Status = foundationjudge.JudgeStatusJudgeFail
-			}
-			task.WaHint = metastring.GetTextEllipsis(responseData.Files.Stderr, 1000)
-			finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-			if markErr != nil {
-				metapanic.ProcessError(markErr)
-			}
-			continue
-		}
-		rightOutContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.OutFile))
-		if err != nil {
-			return err
-		}
-
-		task.Time = responseData.Time
-		task.Memory = responseData.Memory
-
-		sumTime += responseData.Time
-		sumMemory += responseData.Memory
-
-		ansContent := responseData.Files.Stdout
-
-		// 移除所有空行和每行前后的空格
-		outContentMyPe := strings.Fields(rightOutContent)
-		ansContentMyPe := strings.Fields(ansContent)
-		WaHint := ""
-		for i := 0; i < len(outContentMyPe); i++ {
-			if i < len(ansContentMyPe) {
-				if outContentMyPe[i] != ansContentMyPe[i] {
-					WaHint = fmt.Sprintf("%s != %s", outContentMyPe[i], ansContentMyPe[i])
-				}
-			} else {
-				WaHint = fmt.Sprintf("%s not found", outContentMyPe[i])
-				break
-			}
-		}
-		if WaHint != "" {
-			task.Status = foundationjudge.JudgeStatusWA
-			task.WaHint = metastring.GetTextEllipsis(WaHint, 1000)
-		} else {
-			//各自删除最后的换行符，避免最后的换行与测试数据不同带来没必要的误差
-			rightOutContent = strings.TrimSuffix(rightOutContent, "\n")
-			ansContent = strings.TrimSuffix(ansContent, "\n")
-			if rightOutContent == ansContent {
-				task.Score = taskConfig.Score
-				finalScore += taskConfig.Score
-				task.Status = foundationjudge.JudgeStatusAC
-			} else {
-				task.Status = foundationjudge.JudgeStatusPE
-			}
-		}
-		finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)
-		err = foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-		if err != nil {
-			return err
+			return metaerror.Wrap(err, "failed to run task")
 		}
 	}
 
@@ -693,4 +558,350 @@ func (s *JudgeService) runJudgeTask(ctx context.Context, job *foundationmodel.Ju
 	)
 
 	return err
+}
+
+func (s *JudgeService) runJudgeTask(ctx context.Context,
+	job *foundationmodel.JudgeJob,
+	taskConfig *foundationjudge.JudgeTaskConfig,
+	cpuLimit int, memoryLimit int,
+	sumTime int, sumMemory int,
+	finalScore int,
+	specialFileId string,
+	judgeDataDir string,
+	execFileIds map[string]string,
+	finalStatus foundationjudge.JudgeStatus,
+) (foundationjudge.JudgeStatus, int, int, int, error) {
+
+	var err error
+
+	key := taskConfig.Key
+	task := foundationmodel.NewJudgeTaskBuilder().
+		TaskId(key).
+		Status(foundationjudge.JudgeStatusJudgeFail).
+		Time(0).
+		Memory(0).
+		Score(0).
+		Content("").
+		WaHint("").
+		Build()
+
+	goJudgeUrl := config.GetConfig().GoJudge.Url
+	runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
+
+	var inContent string
+
+	if taskConfig.InFile != "" {
+		inContent, err = metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.InFile))
+		if err != nil {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
+			return finalStatus, sumTime, sumMemory, finalScore, err
+		}
+	}
+
+	var args []string
+	var copyIns map[string]interface{}
+	switch job.Language {
+	case foundationjudge.JudgeLanguageC:
+		fallthrough
+	case foundationjudge.JudgeLanguageCpp:
+		args = []string{"a"}
+		fileId, ok := execFileIds["a"]
+		if !ok {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("fileId not found")
+		}
+		copyIns = map[string]interface{}{
+			"a": map[string]interface{}{
+				"fileId": fileId,
+			},
+		}
+	case foundationjudge.JudgeLanguageJava:
+		args = []string{"java", "-Djava.security.manager", "-Djava.security.policy=./java.policy", "Main"}
+		fileId, ok := execFileIds["Main.class"]
+		if !ok {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("fileId not found")
+		}
+		copyIns = map[string]interface{}{
+			"Main.class": map[string]interface{}{
+				"fileId": fileId,
+			},
+		}
+		break
+	case foundationjudge.JudgeLanguagePython:
+		args = []string{"python3", "a.py"}
+		copyIns = map[string]interface{}{
+			"a.py": map[string]interface{}{
+				"content": job.Code,
+			},
+		}
+	default:
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("language not support: %d", job.Language)
+	}
+
+	data := map[string]interface{}{
+		"cmd": []map[string]interface{}{
+			{
+				"args": args,
+				"env":  []string{"PATH=/usr/bin:/bin"},
+				"files": []map[string]interface{}{
+					{"content": inContent},
+					{"name": "stdout", "max": taskConfig.OutLimit},
+					{"name": "stderr", "max": 10240},
+				},
+				"cpuLimit":    cpuLimit,
+				"memoryLimit": memoryLimit,
+				"procLimit":   50,
+				"copyIn":      copyIns,
+			},
+		},
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+		if markErr != nil {
+			metapanic.ProcessError(markErr)
+		}
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
+	}
+	resp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			metapanic.ProcessError(err)
+		}
+	}(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+		if markErr != nil {
+			metapanic.ProcessError(markErr)
+		}
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected status code: %d", resp.StatusCode)
+	}
+	var responseDataList []struct {
+		Status gojudge.Status `json:"status"`
+		Files  struct {
+			Stderr string `json:"stderr"`
+			Stdout string `json:"stdout"`
+		} `json:"files"`
+		Time   int `json:"time"`
+		Memory int `json:"memory"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&responseDataList)
+	if err != nil {
+		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+		if markErr != nil {
+			metapanic.ProcessError(markErr)
+		}
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err, "failed to decode response")
+	}
+	if len(responseDataList) != 1 {
+		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+		if markErr != nil {
+			metapanic.ProcessError(markErr)
+		}
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected response length: %d", len(responseDataList))
+	}
+	responseData := responseDataList[0]
+
+	task.Content = metastring.GetTextEllipsis(responseData.Files.Stderr, 1000)
+
+	if responseData.Status != gojudge.StatusAccepted {
+		switch responseData.Status {
+		case gojudge.StatusSignalled:
+			task.Status = foundationjudge.JudgeStatusRE
+		case gojudge.StatusNonzeroExit:
+			task.Status = foundationjudge.JudgeStatusRE
+		case gojudge.StatusInternalError:
+			slog.Warn("internal error", "job", job.Id, "responseData", responseData)
+			task.Status = foundationjudge.JudgeStatusJudgeFail
+		case gojudge.StatusOutputLimit:
+			task.Status = foundationjudge.JudgeStatusOLE
+		case gojudge.StatusFileError:
+			task.Status = foundationjudge.JudgeStatusOLE
+		case gojudge.StatusMemoryLimit:
+			task.Status = foundationjudge.JudgeStatusMLE
+		case gojudge.StatusTimeLimit:
+			task.Status = foundationjudge.JudgeStatusTLE
+		default:
+			slog.Warn("status error", "job", job.Id, "responseData", responseData)
+			task.Status = foundationjudge.JudgeStatusJudgeFail
+		}
+		finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)
+		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+		if markErr != nil {
+			metapanic.ProcessError(markErr)
+		}
+		return finalStatus, sumTime, sumMemory, finalScore, nil
+	}
+	rightOutContent, err := metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.OutFile))
+	if err != nil {
+		return finalStatus, sumTime, sumMemory, finalScore, err
+	}
+
+	task.Time = responseData.Time
+	task.Memory = responseData.Memory
+
+	sumTime += responseData.Time
+	sumMemory += responseData.Memory
+
+	userAnsContent := responseData.Files.Stdout
+
+	if specialFileId == "" {
+		// 移除所有空行和每行前后的空格
+		outContentMyPe := strings.Fields(rightOutContent)
+		ansContentMyPe := strings.Fields(userAnsContent)
+		WaHint := ""
+		for i := 0; i < len(outContentMyPe); i++ {
+			if i < len(ansContentMyPe) {
+				if outContentMyPe[i] != ansContentMyPe[i] {
+					WaHint = fmt.Sprintf("%s != %s", outContentMyPe[i], ansContentMyPe[i])
+				}
+			} else {
+				WaHint = fmt.Sprintf("%s not found", outContentMyPe[i])
+				break
+			}
+		}
+		if WaHint != "" {
+			task.Status = foundationjudge.JudgeStatusWA
+			task.WaHint = metastring.GetTextEllipsis(WaHint, 1000)
+		} else {
+			//各自删除最后的换行符，避免最后的换行与测试数据不同带来没必要的误差
+			rightOutContent = strings.TrimSuffix(rightOutContent, "\n")
+			userAnsContent = strings.TrimSuffix(userAnsContent, "\n")
+			if rightOutContent == userAnsContent {
+				task.Score = taskConfig.Score
+				finalScore += taskConfig.Score
+				task.Status = foundationjudge.JudgeStatusAC
+			} else {
+				task.Status = foundationjudge.JudgeStatusPE
+			}
+		}
+	} else {
+		specialData := map[string]interface{}{
+			"cmd": []map[string]interface{}{
+				{
+					"args": []string{"spj", "test.in", "test.out", "user.out"},
+					"env":  []string{"PATH=/usr/bin:/bin"},
+					"files": []map[string]interface{}{
+						{"content": inContent},
+						{"name": "stdout", "max": 10240},
+						{"name": "stderr", "max": 10240},
+					},
+					"cpuLimit":    cpuLimit,
+					"memoryLimit": memoryLimit,
+					"procLimit":   50,
+					"copyIn": map[string]interface{}{
+						"spj": map[string]interface{}{
+							"fileId": specialFileId,
+						},
+						"test.in": map[string]interface{}{
+							"content": inContent,
+						},
+						"test.out": map[string]interface{}{
+							"content": rightOutContent,
+						},
+						"user.out": map[string]interface{}{
+							"content": userAnsContent,
+						},
+					},
+				},
+			},
+		}
+		specialJsonData, err := json.Marshal(specialData)
+		if err != nil {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
+		}
+		specialResp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(specialJsonData))
+		if err != nil {
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
+		}
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			if err != nil {
+				metapanic.ProcessError(err)
+			}
+		}(specialResp.Body)
+		if specialResp.StatusCode != http.StatusOK {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected status code: %d", resp.StatusCode)
+		}
+		var specialRespDataList []struct {
+			Status     gojudge.Status `json:"status"`
+			ExitStatus int            `json:"exitStatus"`
+			Files      struct {
+				Stderr string `json:"stderr"`
+				Stdout string `json:"stdout"`
+			} `json:"files"`
+			Time   int `json:"time"`
+			Memory int `json:"memory"`
+		}
+		err = json.NewDecoder(specialResp.Body).Decode(&specialRespDataList)
+		if err != nil {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err, "failed to decode response")
+		}
+		if len(specialRespDataList) != 1 {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected response length: %d", len(specialRespDataList))
+		}
+		specialRespData := specialRespDataList[0]
+
+		if task.Content != "" {
+			task.Content = task.Content + "\n"
+		}
+		task.Content = task.Content + specialRespData.Files.Stderr
+		task.WaHint = metastring.GetTextEllipsis(specialRespData.Files.Stdout, 1000)
+
+		if specialRespData.Status == gojudge.StatusAccepted {
+			task.Score = taskConfig.Score
+			finalScore += taskConfig.Score
+			task.Status = foundationjudge.JudgeStatusAC
+		} else {
+			if specialRespData.Status == gojudge.StatusNonzeroExit {
+				switch specialRespData.ExitStatus {
+				case int(foundationjudge.SpecialJudgeExitCodeWA):
+					task.Status = foundationjudge.JudgeStatusWA
+				case int(foundationjudge.SpecialJudgeExitCodePE):
+					task.Status = foundationjudge.JudgeStatusPE
+				default:
+					task.Status = foundationjudge.JudgeStatusRE
+				}
+			} else {
+				task.Status = foundationjudge.JudgeStatusJudgeFail
+			}
+		}
+	}
+
+	finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)
+	err = foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+	if err != nil {
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err, "failed to add judge job task")
+	}
+	return finalStatus, sumTime, sumMemory, finalScore, nil
 }

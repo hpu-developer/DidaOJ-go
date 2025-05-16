@@ -187,7 +187,19 @@ func (c *JudgeController) PostRejudge(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }
 
-func (c *JudgeController) PostRejudgeAll(ctx *gin.Context) {
+func (c *JudgeController) PostRejudgeProblem(ctx *gin.Context) {
+	var requestData struct {
+		Id string `json:"id"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id := requestData.Id
+	if id == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -204,9 +216,7 @@ func (c *JudgeController) PostRejudgeAll(ctx *gin.Context) {
 		return
 	}
 
-	slog.Warn("Rejudge all judge jobs", "userId", userId)
-
-	err = foundationservice.GetJudgeService().RejudgeAll(ctx)
+	err = foundationservice.GetJudgeService().PostRejudgeProblem(ctx, id)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
@@ -233,6 +243,34 @@ func (c *JudgeController) PostRejudgeRecently(ctx *gin.Context) {
 	}
 
 	err = foundationservice.GetJudgeService().RejudgeRecently(ctx)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
+func (c *JudgeController) PostRejudgeAll(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	ok, err := foundationservice.GetUserService().CheckUserAuthByUserId(ctx, userId, foundationauth.AuthTypeManageJudge)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+
+	slog.Warn("Rejudge all judge jobs", "userId", userId)
+
+	err = foundationservice.GetJudgeService().RejudgeAll(ctx)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return

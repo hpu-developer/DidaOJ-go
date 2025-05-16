@@ -365,6 +365,13 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 				return
 			}
 
+			// 考虑编译机性能影响，暂时仅允许C/C++
+			if language != foundationjudge.JudgeLanguageC &&
+				language != foundationjudge.JudgeLanguageCpp {
+				metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+				return
+			}
+
 			codeFilePath := filepath.Join(unzipDir, jobConfig.SpecialJudge.Source)
 			codeContent, err := metastring.GetStringFromOpenFile(codeFilePath)
 			if err != nil {
