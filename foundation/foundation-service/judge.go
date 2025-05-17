@@ -38,6 +38,10 @@ func (s *JudgeService) GetJudge(ctx context.Context, id int) (*foundationmodel.J
 	return judgeJob, nil
 }
 
+func (s *JudgeService) GetJudgeCode(ctx context.Context, id int) (foundationjudge.JudgeLanguage, *string, error) {
+	return foundationdao.GetJudgeJobDao().GetJudgeCode(ctx, id)
+}
+
 func (s *JudgeService) GetJudgeList(ctx context.Context, problemId string, username string, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus, page int, pageSize int) ([]*foundationmodel.JudgeJob, int, error) {
 	var err error
 	userId := -1

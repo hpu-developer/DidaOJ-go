@@ -46,6 +46,33 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, judgeJob)
 }
 
+func (c *JudgeController) GetCode(ctx *gin.Context) {
+	judgeService := foundationservice.GetJudgeService()
+	idStr := ctx.Query("id")
+	if idStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	language, jobCode, err := judgeService.GetJudgeCode(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	responseData := struct {
+		Language foundationjudge.JudgeLanguage `json:"language"`
+		Code     *string                       `json:"code"`
+	}{
+		Language: language,
+		Code:     jobCode,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
 func (c *JudgeController) GetList(ctx *gin.Context) {
 	judgeService := foundationservice.GetJudgeService()
 	pageStr := ctx.DefaultQuery("page", "1")

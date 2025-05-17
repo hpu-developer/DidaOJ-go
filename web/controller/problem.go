@@ -97,8 +97,9 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 	}
 	var tags []*foundationmodel.ProblemTag
 	if isContest {
-		// 比赛时隐藏真实Id
+		// 比赛时隐藏一些信息
 		problem.Id = ""
+		problem.Source = ""
 	} else {
 		if problem.Tags != nil {
 			tags, err = problemService.GetProblemTagByIds(ctx, problem.Tags)
