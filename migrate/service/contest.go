@@ -188,7 +188,7 @@ func (s *MigrateContestService) processJolContest(ctx context.Context) ([]*found
 				foundationmodel.NewContestProblemBuilder().
 					ProblemId(newProblemId).
 					Score(problem.Scores).
-					Sort(problem.Num).
+					Index(problem.Num+1).
 					Build(),
 			)
 		}
@@ -274,7 +274,7 @@ func (s *MigrateContestService) processVhojContest(ctx context.Context) ([]*foun
 			finalContest.Problems = append(finalContest.Problems,
 				foundationmodel.NewContestProblemBuilder().
 					ProblemId(newProblemId).
-					Sort(i).
+					Index(i+1).
 					Build(),
 			)
 		}

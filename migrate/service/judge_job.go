@@ -179,7 +179,7 @@ func (s *MigrateJudgeJobService) processCodeojJudgeJob(ctx context.Context) ([]*
 
 			judgeJob := foundationmodel.NewJudgeJobBuilder().
 				ProblemId(newProblemId).
-				Author(userId).
+				AuthorId(userId).
 				ApproveTime(row.InsertTime).
 				Language(migratetype.GetJudgeLanguageByCodeOJ(row.Language)).
 				Code(row.Code).
@@ -240,7 +240,7 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 
 			judgeJob := foundationmodel.NewJudgeJobBuilder().
 				ProblemId(newProblemId).
-				Author(userId).
+				AuthorId(userId).
 				ApproveTime(row.InDate).
 				Language(migratetype.GetJudgeLanguageByCodeOJ(row.Language)).
 				Code(row.Code).
@@ -310,7 +310,7 @@ func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*fo
 			Code(row.Source).
 			CodeLength(len(row.Source)).
 			Private(!row.IsOpen).
-			Author(userId).
+			AuthorId(userId).
 			OriginOj(&row.OriginOj).
 			OriginProblemId(&row.OriginProb).
 			CompileMessage(&row.AdditionalInfo).

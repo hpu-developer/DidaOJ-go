@@ -86,34 +86,45 @@ func (d *DiscussDao) GetDiscuss(ctx context.Context, id int) (*foundationmodel.D
 	return &discuss, nil
 }
 
-func (d *DiscussDao) GetDiscussList(ctx context.Context,
-	contestId int,
-	page int,
-	pageSize int,
-) ([]*foundationmodel.Discuss,
-	int,
-	error,
-) {
+func (d *DiscussDao) GetDiscussList(ctx context.Context, contestId int, problemId string, title string, userId int, page int, pageSize int) ([]*foundationmodel.Discuss, int, error) {
 	filter := bson.M{}
 	if contestId > 0 {
 		filter["contest_id"] = contestId
 	} else {
 		filter["contest_id"] = bson.M{"$exists": false}
 	}
+	if problemId != "" {
+		filter["problem_id"] = problemId
+	}
+	if title != "" {
+		filter["title"] = bson.M{
+			"$regex":   title,
+			"$options": "i", // 不区分大小写
+		}
+	}
+	if userId > 0 {
+		filter["author_id"] = userId
+	}
+
 	limit := int64(pageSize)
 	skip := int64((page - 1) * pageSize)
 
+	projection := bson.M{
+		"_id":         1,
+		"title":       1,
+		"insert_time": 1,
+		"modify_time": 1,
+		"update_time": 1,
+		"author_id":   1,
+		"view_count":  1,
+
+		"contest_id": 1,
+		"problem_id": 1,
+	}
+
 	// 只获取id、title、tags、accept
 	opts := options.Find().
-		SetProjection(bson.M{
-			"_id":         1,
-			"title":       1,
-			"insert_time": 1,
-			"modify_time": 1,
-			"update_time": 1,
-			"author_id":   1,
-			"view_count":  1,
-		}).
+		SetProjection(projection).
 		SetSkip(skip).
 		SetLimit(limit).
 		SetSort(bson.M{"update_time": -1})

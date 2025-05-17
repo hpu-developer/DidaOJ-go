@@ -11,7 +11,7 @@ type JudgeJob struct {
 	ProblemId string `json:"problem_id" bson:"problem_id"`                     // 题目ID
 	ContestId int    `json:"contest_id,omitempty" bson:"contest_id,omitempty"` // 比赛ID
 
-	Author         int                           `json:"author" bson:"author"`                                       // 提交者UserId
+	AuthorId       int                           `json:"author_id" bson:"author_id"`                                 // 提交者UserId
 	AuthorUsername *string                       `json:"author_username,omitempty" bson:"author_username,omitempty"` // 申请者用户名
 	AuthorNickname *string                       `json:"author_nickname,omitempty" bson:"author_nickname,omitempty"` // 申请者昵称
 	ApproveTime    time.Time                     `json:"approve_time" bson:"approve_time"`                           //申请时间
@@ -56,8 +56,8 @@ func (b *JudgeJobBuilder) ProblemId(problemId string) *JudgeJobBuilder {
 	return b
 }
 
-func (b *JudgeJobBuilder) Author(author int) *JudgeJobBuilder {
-	b.item.Author = author
+func (b *JudgeJobBuilder) AuthorId(authorId int) *JudgeJobBuilder {
+	b.item.AuthorId = authorId
 	return b
 }
 

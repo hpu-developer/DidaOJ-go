@@ -83,7 +83,7 @@ func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmo
 			userAttempt["accept"] = 1
 		}
 		_, err = GetUserDao().collection.UpdateOne(sc,
-			bson.M{"_id": judgeJob.Author},
+			bson.M{"_id": judgeJob.AuthorId},
 			bson.M{"$inc": userAttempt},
 		)
 
@@ -136,7 +136,7 @@ func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
 		filter["problem_id"] = problemId
 	}
 	if userId > 0 {
-		filter["author"] = userId
+		filter["author_id"] = userId
 	}
 	if language != foundationjudge.JudgeLanguageUnknown {
 		filter["language"] = language
@@ -158,7 +158,7 @@ func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
 			"time":         1,
 			"memory":       1,
 			"problem_id":   1,
-			"author":       1,
+			"author_id":    1,
 			"code_length":  1,
 		}).
 		SetSkip(skip).
@@ -187,11 +187,11 @@ func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
 	return list, int(totalCount), nil
 }
 
-func (d *JudgeJobDao) GetProblemAttemptStatus(ctx context.Context, problemIds []string, author int,
+func (d *JudgeJobDao) GetProblemAttemptStatus(ctx context.Context, problemIds []string, authorId int,
 ) (map[string]foundationmodel.ProblemAttemptStatus, error) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{
-			"author":     author,
+			"author_id":  authorId,
 			"problem_id": bson.M{"$in": problemIds},
 		}}},
 		{{Key: "$group", Value: bson.M{
@@ -511,13 +511,13 @@ func (d *JudgeJobDao) RejudgeJob(ctx context.Context, id int) error {
 			SetProjection(bson.M{
 				"_id":        1,
 				"problem_id": 1,
-				"author":     1,
+				"author_id":  1,
 				"status":     1,
 			})
 		var doc struct {
 			ID        int                         `bson:"_id"`
 			ProblemID string                      `bson:"problem_id"`
-			Author    int                         `bson:"author"`
+			AuthorId  int                         `bson:"author_id"`
 			Status    foundationjudge.JudgeStatus `bson:"status"`
 		}
 		if err := d.collection.FindOne(ctx, findFilter, findOpts).Decode(&doc); err != nil {
@@ -564,7 +564,7 @@ func (d *JudgeJobDao) RejudgeJob(ctx context.Context, id int) error {
 
 		// 4. 批量更新 UserId 表的 accept 计数
 		if userAcceptDelta != 0 {
-			uid := doc.Author
+			uid := doc.AuthorId
 			_, err := GetUserDao().collection.UpdateOne(sessCtx,
 				bson.M{"_id": uid},
 				bson.M{"$inc": bson.M{
@@ -599,7 +599,7 @@ func (d *JudgeJobDao) RejudgeProblem(ctx context.Context, id string) error {
 			SetProjection(bson.M{
 				"_id":        1,
 				"problem_id": 1,
-				"author":     1,
+				"author_id":  1,
 				"status":     1,
 			})
 		cursor, err := d.collection.Find(sessCtx, findFilter, findOpts)
@@ -621,7 +621,7 @@ func (d *JudgeJobDao) RejudgeProblem(ctx context.Context, id string) error {
 			var doc struct {
 				ID        int                         `bson:"_id"`
 				ProblemID string                      `bson:"problem_id"`
-				Author    int                         `bson:"author"`
+				AuthorId  int                         `bson:"author_id"`
 				Status    foundationjudge.JudgeStatus `bson:"status"`
 			}
 			if err := cursor.Decode(&doc); err != nil {
@@ -631,7 +631,7 @@ func (d *JudgeJobDao) RejudgeProblem(ctx context.Context, id string) error {
 
 			if doc.Status == foundationjudge.JudgeStatusAC {
 				problemAcceptDelta[doc.ProblemID]--
-				userAcceptDelta[doc.Author]--
+				userAcceptDelta[doc.AuthorId]--
 			}
 		}
 		if err := cursor.Err(); err != nil {
@@ -717,7 +717,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 			SetProjection(bson.M{
 				"_id":        1,
 				"problem_id": 1,
-				"author":     1,
+				"author_id":  1,
 				"status":     1,
 			}).
 			SetLimit(100)
@@ -740,7 +740,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 			var doc struct {
 				ID        int                         `bson:"_id"`
 				ProblemID string                      `bson:"problem_id"`
-				Author    int                         `bson:"author"`
+				AuthorId  int                         `bson:"author_id"`
 				Status    foundationjudge.JudgeStatus `bson:"status"`
 			}
 			if err := cursor.Decode(&doc); err != nil {
@@ -750,7 +750,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 
 			if doc.Status == foundationjudge.JudgeStatusAC {
 				problemAcceptDelta[doc.ProblemID]--
-				userAcceptDelta[doc.Author]--
+				userAcceptDelta[doc.AuthorId]--
 			}
 		}
 		if err := cursor.Err(); err != nil {
@@ -846,7 +846,7 @@ func (d *JudgeJobDao) RejudgeAll(ctx context.Context) error {
 				SetProjection(bson.M{
 					"_id":        1,
 					"problem_id": 1,
-					"author":     1,
+					"author_id":  1,
 					"status":     1,
 				})
 
@@ -872,7 +872,7 @@ func (d *JudgeJobDao) RejudgeAll(ctx context.Context) error {
 				var doc struct {
 					ID        int                         `bson:"_id"`
 					ProblemID string                      `bson:"problem_id"`
-					Author    int                         `bson:"author"`
+					AuthorId  int                         `bson:"author_id"`
 					Status    foundationjudge.JudgeStatus `bson:"status"`
 				}
 				if err := cursor.Decode(&doc); err != nil {
@@ -883,7 +883,7 @@ func (d *JudgeJobDao) RejudgeAll(ctx context.Context) error {
 
 				if doc.Status == foundationjudge.JudgeStatusAC {
 					problemAcceptDelta[doc.ProblemID]--
-					userAcceptDelta[doc.Author]--
+					userAcceptDelta[doc.AuthorId]--
 				}
 			}
 

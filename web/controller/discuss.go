@@ -3,6 +3,7 @@ package controller
 import (
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
+	foundationcontest "foundation/foundation-contest"
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
 	"github.com/gin-gonic/gin"
@@ -50,7 +51,7 @@ func (c *DiscussController) Get(ctx *gin.Context) {
 	}
 	responseData := struct {
 		Discuss *foundationmodel.Discuss      `json:"discuss"`
-		Tags    []*foundationmodel.DiscussTag `json:"tags"`
+		Tags    []*foundationmodel.DiscussTag `json:"tags,omitempty"`
 	}{
 		Discuss: discuss,
 		Tags:    tags,
@@ -76,15 +77,22 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	var contestId int
+	problemId := ctx.Query("problem_id")
+	var contestId, constProblemIndex int
 	contestIdStr := ctx.Query("contest_id")
 	if contestIdStr != "" {
 		contestId, err = strconv.Atoi(contestIdStr)
+		constProblemIndex = foundationcontest.GetContestProblemIndex(problemId)
 	}
+	title := ctx.Query("title")
+	username := ctx.Query("username")
 
 	var list []*foundationmodel.Discuss
 	var totalCount int
-	list, totalCount, err = discussService.GetDiscussList(ctx, contestId, page, pageSize)
+	list, totalCount, err = discussService.GetDiscussList(ctx,
+		contestId, constProblemIndex, problemId,
+		title, username,
+		page, pageSize)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

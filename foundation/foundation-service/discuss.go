@@ -54,7 +54,7 @@ func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmod
 				return nil, err
 			}
 			discuss.ProblemTitle = problemTitle
-			discuss.ContestProblemSort, err = foundationdao.GetContestDao().GetProblemSort(ctx, discuss.ContestId, discuss.ProblemId)
+			discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(ctx, discuss.ContestId, discuss.ProblemId)
 			if err != nil {
 				return nil, err
 			}
@@ -77,8 +77,37 @@ func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmod
 	return discuss, err
 }
 
-func (s *DiscussService) GetDiscussList(ctx context.Context, contestId int, page int, pageSize int) ([]*foundationmodel.Discuss, int, error) {
-	discusses, totalCount, err := foundationdao.GetDiscussDao().GetDiscussList(ctx, contestId, page, pageSize)
+func (s *DiscussService) GetDiscussList(ctx context.Context, contestId int,
+	contestProblemIndex int, problemId string, title string, username string,
+	page int, pageSize int) ([]*foundationmodel.Discuss, int, error) {
+	var err error
+	userId := -1
+	if username != "" {
+		userId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
+		if err != nil {
+			return nil, 0, err
+		}
+		if userId <= 0 {
+			return nil, 0, nil
+		}
+	}
+	if contestId > 0 {
+		// 计算ProblemId
+		if contestProblemIndex > 0 {
+			problemIdPtr, err := foundationdao.GetContestDao().GetProblemIdByContest(ctx, contestId, contestProblemIndex)
+			if err != nil {
+				return nil, 0, err
+			}
+			if problemIdPtr == nil {
+				return nil, 0, nil
+			}
+			problemId = *problemIdPtr
+		}
+	}
+
+	discusses, totalCount, err := foundationdao.GetDiscussDao().GetDiscussList(ctx, contestId,
+		problemId, title, userId,
+		page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -99,6 +128,24 @@ func (s *DiscussService) GetDiscussList(ctx context.Context, contestId int, page
 			if user, ok := userMap[discuss.AuthorId]; ok {
 				discuss.AuthorUsername = &user.Username
 				discuss.AuthorNickname = &user.Nickname
+			}
+		}
+
+		for _, discuss := range discusses {
+			if discuss.ContestId > 0 {
+				if discuss.ProblemId != nil {
+					problemTitle, err := foundationdao.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
+					if err != nil {
+						return nil, 0, err
+					}
+					discuss.ProblemTitle = problemTitle
+					discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(ctx, discuss.ContestId, discuss.ProblemId)
+					if err != nil {
+						return nil, 0, err
+					}
+					// 隐藏真实的ProblemId
+					discuss.ProblemId = nil
+				}
 			}
 		}
 	}

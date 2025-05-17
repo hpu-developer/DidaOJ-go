@@ -105,7 +105,7 @@ func (d *ContestDao) GetContestTitle(ctx context.Context, id int) (*string, erro
 	return &contest.Title, nil
 }
 
-func (d *ContestDao) GetProblemSort(ctx context.Context, id int, problemId *string) (int, error) {
+func (d *ContestDao) GetProblemIndex(ctx context.Context, id int, problemId *string) (int, error) {
 	filter := bson.M{
 		"_id": id,
 	}
@@ -118,7 +118,7 @@ func (d *ContestDao) GetProblemSort(ctx context.Context, id int, problemId *stri
 	})
 	var result struct {
 		Problems []struct {
-			Sort int `bson:"sort"`
+			Index int `bson:"index"`
 		} `bson:"problems"`
 	}
 	err := d.collection.FindOne(ctx, filter, opts).Decode(&result)
@@ -128,7 +128,33 @@ func (d *ContestDao) GetProblemSort(ctx context.Context, id int, problemId *stri
 	if len(result.Problems) == 0 {
 		return 0, fmt.Errorf("problem_id %s not found", *problemId)
 	}
-	return result.Problems[0].Sort, nil
+	return result.Problems[0].Index, nil
+}
+
+func (d *ContestDao) GetProblemIdByContest(ctx context.Context, id int, problemIndex int) (*string, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(bson.M{
+		"problems": bson.M{
+			"$elemMatch": bson.M{
+				"index": problemIndex,
+			},
+		},
+	})
+	var result struct {
+		Problems []struct {
+			ProblemId string `bson:"problem_id"`
+		} `bson:"problems"`
+	}
+	err := d.collection.FindOne(ctx, filter, opts).Decode(&result)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Problems) == 0 {
+		return nil, fmt.Errorf("problem index %d not found", problemIndex)
+	}
+	return &result.Problems[0].ProblemId, nil
 }
 
 func (d *ContestDao) GetContestList(ctx context.Context,

@@ -26,7 +26,7 @@ func (s *JudgeService) GetJudge(ctx context.Context, id int) (*foundationmodel.J
 	if err != nil {
 		return nil, err
 	}
-	user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, judgeJob.Author)
+	user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, judgeJob.AuthorId)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (s *JudgeService) GetJudgeList(ctx context.Context, problemId string, usern
 	if len(judgeJobs) > 0 {
 		var userIds []int
 		for _, judgeJob := range judgeJobs {
-			userIds = append(userIds, judgeJob.Author)
+			userIds = append(userIds, judgeJob.AuthorId)
 		}
 		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
 		if err != nil {
@@ -68,7 +68,7 @@ func (s *JudgeService) GetJudgeList(ctx context.Context, problemId string, usern
 			userMap[user.Id] = user
 		}
 		for _, judgeJob := range judgeJobs {
-			if user, ok := userMap[judgeJob.Author]; ok {
+			if user, ok := userMap[judgeJob.AuthorId]; ok {
 				judgeJob.AuthorUsername = &user.Username
 				judgeJob.AuthorNickname = &user.Nickname
 			}

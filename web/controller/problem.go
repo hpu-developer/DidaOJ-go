@@ -52,9 +52,39 @@ type ProblemController struct {
 func (c *ProblemController) Get(ctx *gin.Context) {
 	problemService := foundationservice.GetProblemService()
 	id := ctx.Query("id")
+	isContest := false
 	if id == "" {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
+		contestIdStr := ctx.Query("contest_id")
+		if contestIdStr == "" {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		contestId, err := strconv.Atoi(contestIdStr)
+		if err != nil || contestId <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		problemIndexStr := ctx.Query("problem_index")
+		if problemIndexStr == "" {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		problemIndex, err := strconv.Atoi(problemIndexStr)
+		if err != nil || problemIndex <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		idPtr, err := problemService.GetProblemIdByContest(ctx, contestId, problemIndex)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		if idPtr == nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+			return
+		}
+		id = *idPtr
+		isContest = true
 	}
 	problem, err := problemService.GetProblem(ctx, id)
 	if err != nil {
@@ -66,16 +96,21 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 		return
 	}
 	var tags []*foundationmodel.ProblemTag
-	if problem.Tags != nil {
-		tags, err = problemService.GetProblemTagByIds(ctx, problem.Tags)
-		if err != nil {
-			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-			return
+	if isContest {
+		// 比赛时隐藏真实Id
+		problem.Id = ""
+	} else {
+		if problem.Tags != nil {
+			tags, err = problemService.GetProblemTagByIds(ctx, problem.Tags)
+			if err != nil {
+				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+				return
+			}
 		}
 	}
 	responseData := struct {
 		Problem *foundationmodel.Problem      `json:"problem"`
-		Tags    []*foundationmodel.ProblemTag `json:"tags"`
+		Tags    []*foundationmodel.ProblemTag `json:"tags,omitempty"`
 	}{
 		Problem: problem,
 		Tags:    tags,

@@ -134,7 +134,7 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 	codeLength := len(code)
 	judgeJob := foundationmodel.NewJudgeJobBuilder().
 		ProblemId(problemId).
-		Author(userId).
+		AuthorId(userId).
 		ApproveTime(nowTime).
 		Language(language).
 		Code(code).

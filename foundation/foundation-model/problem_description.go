@@ -5,7 +5,7 @@ type ProblemView struct {
 	ProblemId   string `json:"problem_id" bson:"problem_id"`   // 题目Id
 	Title       string `json:"title" bson:"title"`             // 题目标题
 	Description string `json:"description" bson:"description"` // 题目描述
-	Author      int    `json:"author" bson:"author"`           // 上传者
+	AuthorId    int    `json:"author_id" bson:"author_id"`     // 上传者
 }
 
 type ProblemViewBuilder struct {
@@ -36,8 +36,8 @@ func (b *ProblemViewBuilder) Description(description string) *ProblemViewBuilder
 	return b
 }
 
-func (b *ProblemViewBuilder) Author(author int) *ProblemViewBuilder {
-	b.item.Author = author
+func (b *ProblemViewBuilder) AuthorId(authorId int) *ProblemViewBuilder {
+	b.item.AuthorId = authorId
 	return b
 }
 

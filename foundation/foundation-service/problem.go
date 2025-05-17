@@ -5,6 +5,7 @@ import (
 	"foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	"github.com/gin-gonic/gin"
 	"meta/singleton"
 	"time"
 	"web/request"
@@ -43,6 +44,10 @@ func (s *ProblemService) GetProblem(ctx context.Context, id string) (*foundation
 		problem.CreatorNickname = &user.Nickname
 	}
 	return problem, nil
+}
+
+func (s *ProblemService) GetProblemIdByContest(ctx *gin.Context, contestId int, problemIndex int) (*string, error) {
+	return foundationdao.GetContestDao().GetProblemIdByContest(ctx, contestId, problemIndex)
 }
 
 func (s *ProblemService) GetProblemJudge(ctx context.Context, id string) (*foundationmodel.Problem, error) {
