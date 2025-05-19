@@ -667,7 +667,8 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 			},
 		}
 	default:
-		return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("language not support: %d", job.Language)
+		return finalStatus, sumTime, sumMemory,
+			finalScore, metaerror.New("language not support: %d", job.Language)
 	}
 
 	data := map[string]interface{}{

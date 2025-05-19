@@ -62,7 +62,7 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 	default:
 		return nil, "compile failed, language not support.",
 			JudgeStatusJudgeFail,
-			metaerror.New("language not support: %d")
+			metaerror.New("language not support: %d", language)
 	}
 
 	// 准备请求数据
