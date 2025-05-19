@@ -644,7 +644,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 			},
 		}
 	case foundationjudge.JudgeLanguageJava:
-		args = []string{"java", "-Djava.security.manager", "-Djava.security.policy=./java.policy", "Main"}
+		args = []string{"java", "Main"}
 		fileId, ok := execFileIds["Main.class"]
 		if !ok {
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
