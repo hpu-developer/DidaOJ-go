@@ -13,6 +13,7 @@ import (
 	"judge/config"
 	gojudge "judge/go-judge"
 	"log/slog"
+	cfr2 "meta/cf-r2"
 	"meta/cron"
 	metaerror "meta/meta-error"
 	metahttp "meta/meta-http"
@@ -33,8 +34,6 @@ import (
 	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
@@ -52,8 +51,6 @@ type JudgeService struct {
 
 	// 题目号对应的特判程序文件ID
 	specialFileIds map[string]string
-
-	s3Client *s3.S3
 }
 
 var singletonJudgeService = singleton.Singleton[JudgeService]{}
@@ -69,22 +66,7 @@ func GetJudgeService() *JudgeService {
 
 func (s *JudgeService) Start() error {
 
-	// 初始化 R2 连接（这里用 AWS SDK）
-	r2Session, err := session.NewSession(&aws.Config{
-		Region:           aws.String("auto"),                           // R2一般写 auto
-		Endpoint:         aws.String(config.GetConfig().JudgeData.Url), // 替换成你的 R2 Endpoint
-		S3ForcePathStyle: aws.Bool(true),                               // R2要求这个必须 true
-		Credentials: credentials.NewStaticCredentials(config.GetConfig().JudgeData.Key,
-			config.GetConfig().JudgeData.Secret,
-			config.GetConfig().JudgeData.Token),
-	})
-	s.s3Client = s3.New(r2Session)
-
-	if err != nil {
-		return metaerror.Wrap(err, "failed to create session")
-	}
-
-	err = s.cleanGoJudge()
+	err := s.cleanGoJudge()
 	if err != nil {
 		return err
 	}
@@ -155,12 +137,18 @@ func (s *JudgeService) cleanGoJudge() error {
 }
 
 func (s *JudgeService) handleStart() error {
+
+	// 如果上报状态报错，停止判题
+	if GetStatusService().IsReportError() {
+		return nil
+	}
+
 	maxJob := config.GetConfig().MaxJob
 	if int(s.runningTasks.Load()) >= maxJob {
 		return nil
 	}
 	ctx := context.Background()
-	jobs, err := foundationdao.GetJudgeJobDao().GetJudgeJobListPendingJudge(ctx, maxJob)
+	jobs, err := foundationdao.GetJudgeJobDao().RequestJudgeJobListPendingJudge(ctx, maxJob, config.GetConfig().Judger.Key)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to get judge job list")
 	}
@@ -197,7 +185,7 @@ func (s *JudgeService) handleStart() error {
 func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	ctx := context.Background()
 
-	err := foundationdao.GetJudgeJobDao().StartProcessJudgeJob(ctx, job.Id, config.GetConfig().Judger)
+	err := foundationdao.GetJudgeJobDao().StartProcessJudgeJob(ctx, job.Id, config.GetConfig().Judger.Key)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to start process judge job")
 	}
@@ -286,6 +274,11 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 
 	slog.Info("downloading judge data", "problemId", problemId)
 
+	r2Client := cfr2.GetSubsystem().GetClient("judge-data")
+	if r2Client == nil {
+		return metaerror.New("r2Client is nil")
+	}
+
 	// 删除旧的判题数据
 	judgeDataDir := path.Join(".judge_data", problemId)
 	err := os.RemoveAll(judgeDataDir)
@@ -300,13 +293,13 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 	var mu sync.Mutex
 	var downloadErr error
 
-	err = s.s3Client.ListObjectsV2PagesWithContext(ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+	err = r2Client.ListObjectsV2PagesWithContext(ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
 		for _, obj := range page.Contents {
 			wg.Add(1)
 			go func(obj *s3.Object) {
 				defer wg.Done()
 				localPath := path.Join(".judge_data", *obj.Key)
-				err := s.downloadObject(ctx, s.s3Client, "didaoj-judge", *obj.Key, localPath)
+				err := s.downloadObject(ctx, r2Client, "didaoj-judge", *obj.Key, localPath)
 				if err != nil {
 					mu.Lock()
 					if downloadErr == nil {

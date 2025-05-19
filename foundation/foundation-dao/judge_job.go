@@ -12,8 +12,8 @@ import (
 	metaerror "meta/meta-error"
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
-	metatime "meta/meta-time"
 	"meta/singleton"
+	"time"
 )
 
 type JudgeJobDao struct {
@@ -315,33 +315,42 @@ func (d *JudgeJobDao) GetProblemViewAttempt(
 	return results, nil
 }
 
-// GetJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的
-func (d *JudgeJobDao) GetJudgeJobListPendingJudge(ctx context.Context, maxCount int) ([]*foundationmodel.JudgeJob, error) {
-	filter := bson.M{
-		"status": bson.M{
-			"$in": []foundationjudge.JudgeStatus{foundationjudge.JudgeStatusInit, foundationjudge.JudgeStatusRejudge},
-		},
-	}
-	// 按照 id 升序排列
-	findOptions := options.Find().SetSort(bson.M{"_id": 1})
-	if maxCount > 0 {
-		findOptions.SetLimit(int64(maxCount))
-	}
-	cursor, err := d.collection.Find(ctx, filter, findOptions)
-	if err != nil {
-		return nil, metaerror.Wrap(err, "find JudgeJob error")
-	}
-	defer func(cursor *mongo.Cursor, ctx context.Context) {
-		err := cursor.Close(ctx)
-		if err != nil {
-			metapanic.ProcessError(err)
+// RequestJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的
+func (d *JudgeJobDao) RequestJudgeJobListPendingJudge(ctx context.Context, maxCount int, judger string) ([]*foundationmodel.JudgeJob, error) {
+	var result []*foundationmodel.JudgeJob
+
+	for i := 0; i < maxCount; i++ {
+		filter := bson.M{
+			"status": bson.M{"$in": []foundationjudge.JudgeStatus{
+				foundationjudge.JudgeStatusInit,
+				foundationjudge.JudgeStatusRejudge,
+			}},
 		}
-	}(cursor, ctx)
-	var judgeSourceList []*foundationmodel.JudgeJob
-	if err = cursor.All(ctx, &judgeSourceList); err != nil {
-		return nil, metaerror.Wrap(err, "decode JudgeJob error")
+
+		update := bson.M{
+			"$set": bson.M{
+				"status":     foundationjudge.JudgeStatusQueuing, // 标记为处理中
+				"judger":     judger,
+				"judge_time": time.Now(), // 标记开始处理的时间，可以据此判断重试
+			},
+		}
+
+		findOpts := options.FindOneAndUpdate().
+			SetSort(bson.M{"_id": 1}).
+			SetReturnDocument(options.After) // 返回更新后的文档
+
+		var job foundationmodel.JudgeJob
+		err := d.collection.FindOneAndUpdate(ctx, filter, update, findOpts).Decode(&job)
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			break // 没有更多了
+		}
+		if err != nil {
+			return nil, metaerror.Wrap(err, "findOneAndUpdate error")
+		}
+		result = append(result, &job)
 	}
-	return judgeSourceList, nil
+
+	return result, nil
 }
 
 func (d *JudgeJobDao) UpdateJudgeJobs(ctx context.Context, tags []*foundationmodel.JudgeJob) error {
@@ -373,9 +382,7 @@ func (d *JudgeJobDao) StartProcessJudgeJob(ctx context.Context, id int, judger s
 	}
 	update := bson.M{
 		"$set": bson.M{
-			"judger":     judger,
-			"status":     foundationjudge.JudgeStatusCompiling,
-			"judge_time": metatime.GetTimeNow(),
+			"status": foundationjudge.JudgeStatusCompiling,
 		},
 	}
 	updateOptions := options.Update()
@@ -565,6 +572,7 @@ func (d *JudgeJobDao) RejudgeJob(ctx context.Context, id int) error {
 				"task":            "",
 				"task_current":    "",
 				"task_total":      "",
+				"judger":          "", "judge_time": "",
 			},
 		}
 		_, err = d.collection.UpdateOne(sessCtx, findFilter, update)
@@ -678,6 +686,7 @@ func (d *JudgeJobDao) RejudgeProblem(ctx context.Context, id string) error {
 				"task":            "",
 				"task_current":    "",
 				"task_total":      "",
+				"judger":          "", "judge_time": "",
 			},
 		}
 		_, err = d.collection.UpdateMany(sessCtx, filter, update)
@@ -797,6 +806,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 				"task":            "",
 				"task_current":    "",
 				"task_total":      "",
+				"judger":          "", "judge_time": "",
 			},
 		}
 		_, err = d.collection.UpdateMany(sessCtx, filter, update)
@@ -944,6 +954,7 @@ func (d *JudgeJobDao) rejudgeAllChunk(ctx context.Context, lastID int, pageSize 
 				"task":            "",
 				"task_current":    "",
 				"task_total":      "",
+				"judger":          "", "judge_time": "",
 			},
 		}
 		if _, err := d.collection.UpdateMany(sessCtx, filter, update); err != nil {

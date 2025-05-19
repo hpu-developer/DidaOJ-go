@@ -9,6 +9,7 @@ import (
 	metamogo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
 	"meta/subsystem"
+	"web/application"
 	"web/config"
 	"web/router"
 )
@@ -54,6 +55,13 @@ func InitPre() error {
 				return config.GetCfr2Config()
 			}
 			return cfr2Subsystem
+		},
+	)
+
+	engine.RegisterSubsystem(
+		func() subsystem.Interface {
+			judgeSubsystem := &application.Subsystem{}
+			return judgeSubsystem
 		},
 	)
 

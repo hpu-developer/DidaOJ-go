@@ -2,6 +2,7 @@ package config
 
 import (
 	foundationjudge "foundation/foundation-judge"
+	"foundation/foundation-status"
 	cfr2 "meta/cf-r2"
 	"meta/engine"
 	metaconfig "meta/meta-config"
@@ -9,11 +10,13 @@ import (
 )
 
 type Config struct {
-	Judger    string                        `yaml:"judger"`     // 评测器标识
+	Judger    foundationstatus.JudgerConfig `yaml:"judger"`     // 评测器标识
 	GoJudge   foundationjudge.GoJudgeConfig `yaml:"go-judge"`   // GoJudge 数据服务地址
 	MaxJob    int                           `yaml:"max-job"`    // 最大同时评测的job数量
 	JudgeData cfr2.Config                   `yaml:"judge-data"` // GoJudge 数据服务地址
 	Mongo     metamongo.Config              `yaml:"mongo"`
+
+	CfR2 map[string]*cfr2.Config `yaml:"cf-r2"` // GoJudge 数据服务地址
 }
 
 type Subsystem struct {
@@ -50,4 +53,15 @@ func GetMongoConfig() *metamongo.Config {
 		return nil
 	}
 	return &configSubsystem.config.Mongo
+}
+
+func GetCfr2Config() map[string]*cfr2.Config {
+	configSubsystem := GetSubsystem()
+	if configSubsystem == nil {
+		return nil
+	}
+	if configSubsystem.config == nil {
+		return nil
+	}
+	return configSubsystem.config.CfR2
 }
