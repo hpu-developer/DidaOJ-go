@@ -319,9 +319,9 @@ func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*fo
 			CodeLength(len(row.Source)).
 			Private(!row.IsOpen).
 			AuthorId(userId).
+			CompileMessage(&row.AdditionalInfo).
 			OriginOj(&row.OriginOj).
 			OriginProblemId(&row.OriginProb).
-			CompileMessage(&row.AdditionalInfo).
 			RemoteJudgeId(&row.RealRunId).
 			RemoteAccountId(&row.RemoteAccountId).
 			Language(migratetype.GetJudgeLanguageByVhoj(row.LanguageCanonical)).

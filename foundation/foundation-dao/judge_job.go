@@ -413,6 +413,7 @@ func (d *JudgeJobDao) MarkJudgeJobJudgeStatus(ctx context.Context, id int, statu
 func (d *JudgeJobDao) MarkJudgeJobJudgeFinalStatus(ctx context.Context, id int,
 	status foundationjudge.JudgeStatus,
 	problemId string,
+	userId int,
 	score int,
 	time int,
 	memory int,
@@ -460,6 +461,17 @@ func (d *JudgeJobDao) MarkJudgeJobJudgeFinalStatus(ctx context.Context, id int,
 			if err != nil {
 				return nil, metaerror.Wrap(err, "failed to update problem accept count for problem %s", id)
 			}
+			// 更新User表的 accept 计数
+			_, err = GetUserDao().collection.UpdateOne(sessCtx,
+				bson.M{"_id": userId},
+				bson.M{"$inc": bson.M{
+					"accept": 1,
+				}},
+			)
+			if err != nil {
+				return nil, metaerror.Wrap(err, "failed to update user accept count for user %d", id)
+			}
+
 			return nil, nil
 		})
 	} else {
@@ -572,7 +584,8 @@ func (d *JudgeJobDao) RejudgeJob(ctx context.Context, id int) error {
 				"task":            "",
 				"task_current":    "",
 				"task_total":      "",
-				"judger":          "", "judge_time": "",
+				"judger":          "",
+				"judge_time":      "",
 			},
 		}
 		_, err = d.collection.UpdateOne(sessCtx, findFilter, update)
@@ -686,7 +699,8 @@ func (d *JudgeJobDao) RejudgeProblem(ctx context.Context, id string) error {
 				"task":            "",
 				"task_current":    "",
 				"task_total":      "",
-				"judger":          "", "judge_time": "",
+				"judger":          "",
+				"judge_time":      "",
 			},
 		}
 		_, err = d.collection.UpdateMany(sessCtx, filter, update)
@@ -806,7 +820,8 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 				"task":            "",
 				"task_current":    "",
 				"task_total":      "",
-				"judger":          "", "judge_time": "",
+				"judger":          "",
+				"judge_time":      "",
 			},
 		}
 		_, err = d.collection.UpdateMany(sessCtx, filter, update)
@@ -875,11 +890,13 @@ func (d *JudgeJobDao) rejudgeAllChunk(ctx context.Context, lastID int, pageSize 
 
 	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 		// 构造分页 filter（根据 lastID）
+
+		// 如果存在远程OJ，则这里不进行重判，避免对远端OJ造成干扰
 		findFilter := bson.M{
-			"origin_oj": bson.M{"$exists": false},
 			"$or": bson.A{
-				bson.M{"origin_oj": ""},
+				bson.M{"origin_oj": bson.M{"$exists": false}},
 				bson.M{"origin_oj": nil},
+				bson.M{"origin_oj": ""},
 			},
 		}
 		if lastID > 0 {
@@ -954,7 +971,8 @@ func (d *JudgeJobDao) rejudgeAllChunk(ctx context.Context, lastID int, pageSize 
 				"task":            "",
 				"task_current":    "",
 				"task_total":      "",
-				"judger":          "", "judge_time": "",
+				"judger":          "",
+				"judge_time":      "",
 			},
 		}
 		if _, err := d.collection.UpdateMany(sessCtx, filter, update); err != nil {

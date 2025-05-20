@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	foundationmodel "foundation/foundation-model"
+	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -235,4 +236,47 @@ func (d *UserDao) UpdateUsers(ctx context.Context, users []*foundationmodel.User
 		}
 	}
 	return nil
+}
+
+func (d *UserDao) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
+	filter := bson.M{}
+	limit := int64(pageSize)
+	skip := int64((page - 1) * pageSize)
+
+	opts := options.Find().
+		SetProjection(bson.M{
+			"_id":      1,
+			"username": 1,
+			"nickname": 1,
+			"accept":   1,
+			"attempt":  1,
+		}).
+		SetSkip(skip).
+		SetLimit(limit).
+		SetSort(bson.D{
+			{Key: "accept", Value: -1},
+			{Key: "attempt", Value: 1},
+			{Key: "_id", Value: 1},
+		})
+	// 查询总记录数
+	totalCount, err := d.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, metaerror.Wrap(err, "failed to count documents, page: %d", page)
+	}
+	// 查询当前页的数据
+	cursor, err := d.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, metaerror.Wrap(err, "failed to find documents, page: %d", page)
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(cursor, ctx)
+	var list []*foundationmodel.UserRank
+	if err = cursor.All(ctx, &list); err != nil {
+		return nil, 0, metaerror.Wrap(err, "failed to decode documents, page: %d", page)
+	}
+	return list, int(totalCount), nil
 }

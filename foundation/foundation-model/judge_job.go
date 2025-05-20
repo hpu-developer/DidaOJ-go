@@ -126,7 +126,11 @@ func (b *JudgeJobBuilder) Memory(memory int) *JudgeJobBuilder {
 }
 
 func (b *JudgeJobBuilder) CompileMessage(compileMessage *string) *JudgeJobBuilder {
-	b.item.CompileMessage = compileMessage
+	if compileMessage != nil && *compileMessage != "" {
+		b.item.CompileMessage = compileMessage
+	} else {
+		b.item.CompileMessage = nil
+	}
 	return b
 }
 
@@ -140,23 +144,39 @@ func (b *JudgeJobBuilder) Private(private bool) *JudgeJobBuilder {
 	return b
 }
 
-func (b *JudgeJobBuilder) RemoteJudgeId(remoteJudgeId *string) *JudgeJobBuilder {
-	b.item.RemoteJudgeId = remoteJudgeId
-	return b
-}
-
 func (b *JudgeJobBuilder) OriginOj(originOj *string) *JudgeJobBuilder {
-	b.item.OriginOj = originOj
+	if originOj != nil && *originOj != "" {
+		b.item.OriginOj = originOj
+	} else {
+		b.item.OriginOj = nil
+	}
 	return b
 }
 
 func (b *JudgeJobBuilder) OriginProblemId(originProblemId *string) *JudgeJobBuilder {
-	b.item.OriginProblemId = originProblemId
+	if originProblemId != nil && *originProblemId != "" {
+		b.item.OriginProblemId = originProblemId
+	} else {
+		b.item.OriginProblemId = nil
+	}
 	return b
 }
 
 func (b *JudgeJobBuilder) RemoteAccountId(remoteAccountId *string) *JudgeJobBuilder {
-	b.item.RemoteAccountId = remoteAccountId
+	if remoteAccountId != nil && *remoteAccountId != "" {
+		b.item.RemoteAccountId = remoteAccountId
+	} else {
+		b.item.RemoteAccountId = nil
+	}
+	return b
+}
+
+func (b *JudgeJobBuilder) RemoteJudgeId(remoteJudgeId *string) *JudgeJobBuilder {
+	if remoteJudgeId != nil && *remoteJudgeId != "" {
+		b.item.RemoteJudgeId = remoteJudgeId
+	} else {
+		b.item.RemoteJudgeId = nil
+	}
 	return b
 }
 

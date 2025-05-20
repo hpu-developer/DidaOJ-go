@@ -580,6 +580,7 @@ func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.Jud
 	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(ctx, job.Id,
 		finalStatus,
 		problemId,
+		job.AuthorId,
 		finalScore,
 		finalTime,
 		finalMemory,
