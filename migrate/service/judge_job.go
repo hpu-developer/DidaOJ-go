@@ -80,7 +80,7 @@ type VhojSubmission struct {
 	OriginProb        string    `gorm:"column:C_ORIGIN_PROB"`
 	IsPrivate         bool      `gorm:"column:C_IS_PRIVATE"`
 	AdditionalInfo    string    `gorm:"column:C_ADDITIONAL_INFO"`
-	RealRunId         string    `gorm:"column:C_REAL_RUN_ID"`
+	RealRunId         string    `gorm:"column:C_REAL_RUNID"`
 	RemoteAccountId   string    `gorm:"column:C_REMOTE_ACCOUNT_ID"`
 	QueryCount        int       `gorm:"column:C_QUERY_COUNT"`
 	StatusUpdateTime  time.Time `gorm:"column:C_STATUS_UPDATE_TIME"`
@@ -326,7 +326,6 @@ func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*fo
 			RemoteAccountId(&row.RemoteAccountId).
 			Language(migratetype.GetJudgeLanguageByVhoj(row.LanguageCanonical)).
 			Status(migratetype.GetJudgeStatusByVhoj(row.StatusCanonical)).
-			RemoteLanguage(&row.Language).
 			JudgeTime(&row.RemoteSubmitTime).
 			Judger("didaoj").
 			Build()

@@ -35,7 +35,6 @@ type JudgeJob struct {
 	OriginProblemId *string `json:"origin_problem_id,omitempty" bson:"origin_problem_id,omitempty"` // 远程评测题目ID
 	RemoteJudgeId   *string `json:"remote_judge_id,omitempty" bson:"remote_judge_id,omitempty"`     // 远程评测ID
 	RemoteAccountId *string `json:"remote_account_id,omitempty" bson:"remote_account_id,omitempty"`
-	RemoteLanguage  *string `json:"remote_language,omitempty" bson:"remote_language,omitempty"` // 远程评测语言
 }
 
 type JudgeJobBuilder struct {
@@ -158,11 +157,6 @@ func (b *JudgeJobBuilder) OriginProblemId(originProblemId *string) *JudgeJobBuil
 
 func (b *JudgeJobBuilder) RemoteAccountId(remoteAccountId *string) *JudgeJobBuilder {
 	b.item.RemoteAccountId = remoteAccountId
-	return b
-}
-
-func (b *JudgeJobBuilder) RemoteLanguage(remoteLanguage *string) *JudgeJobBuilder {
-	b.item.RemoteLanguage = remoteLanguage
 	return b
 }
 
