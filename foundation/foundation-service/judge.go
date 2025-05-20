@@ -5,6 +5,7 @@ import (
 	"foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	"github.com/gin-gonic/gin"
 	"meta/singleton"
 )
 
@@ -82,6 +83,34 @@ func (s *JudgeService) GetJudgeList(ctx context.Context, problemId string, usern
 		}
 	}
 	return judgeJobs, totalCount, nil
+}
+
+func (s *JudgeService) GetRankAcProblem(ctx *gin.Context, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
+	rankUsers, totalCount, err := foundationdao.GetJudgeJobDao().GetRankAcProblem(ctx, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(rankUsers) > 0 {
+		var userIds []int
+		for _, rankUser := range rankUsers {
+			userIds = append(userIds, rankUser.Id)
+		}
+		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
+		if err != nil {
+			return nil, 0, err
+		}
+		userMap := make(map[int]*foundationmodel.UserAccountInfo)
+		for _, user := range users {
+			userMap[user.Id] = user
+		}
+		for _, rankUser := range rankUsers {
+			if user, ok := userMap[rankUser.Id]; ok {
+				rankUser.Username = user.Username
+				rankUser.Nickname = user.Nickname
+			}
+		}
+	}
+	return rankUsers, totalCount, nil
 }
 
 func (s *JudgeService) UpdateJudge(ctx context.Context, id int, judgeJob *foundationmodel.JudgeJob) error {

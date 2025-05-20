@@ -5,6 +5,7 @@ import (
 	"errors"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -313,6 +314,85 @@ func (d *JudgeJobDao) GetProblemViewAttempt(
 		})
 	}
 	return results, nil
+}
+
+func (d *JudgeJobDao) GetRankAcProblem(ctx *gin.Context, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
+	collection := d.collection
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"status": foundationjudge.JudgeStatusAC}}},
+		{{Key: "$group", Value: bson.M{
+			"_id": bson.M{
+				"author_id":  "$author_id",
+				"problem_id": "$problem_id",
+			},
+		}}},
+		// 再按用户统计通过题数
+		{{Key: "$group", Value: bson.M{
+			"_id":   "$_id.author_id",
+			"count": bson.M{"$sum": 1},
+		}}},
+		// 按通过题数倒序排列
+		{{Key: "$sort", Value: bson.M{"count": -1, "_id": 1}}},
+		// 分页
+		{{Key: "$skip", Value: (page - 1) * pageSize}},
+		{{Key: "$limit", Value: pageSize}},
+	}
+	cursor, err := collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(cursor, ctx)
+
+	// 构建返回值
+	var list []*foundationmodel.UserRank
+	for cursor.Next(ctx) {
+		var result struct {
+			ID    int `bson:"_id"`
+			Count int `bson:"count"`
+		}
+		if err := cursor.Decode(&result); err != nil {
+			return nil, 0, err
+		}
+		list = append(list, foundationmodel.NewUserRankBuilder().Id(result.ID).ProblemCount(result.Count).Build())
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, 0, err
+	}
+	totalPipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"status": foundationjudge.JudgeStatusAC}}},
+		{{Key: "$group", Value: bson.M{
+			"_id": bson.M{
+				"author_id":  "$author_id",
+				"problem_id": "$problem_id",
+			},
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id": "$_id.author_id",
+		}}},
+		{{Key: "$count", Value: "total"}},
+	}
+	totalCursor, err := collection.Aggregate(ctx, totalPipeline)
+	if err != nil {
+		return list, 0, nil // 返回分页结果，但不报错
+	}
+	defer func(totalCursor *mongo.Cursor, ctx context.Context) {
+		err := totalCursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(totalCursor, ctx)
+	var totalResult struct {
+		Total int `bson:"total"`
+	}
+	if totalCursor.Next(ctx) {
+		_ = totalCursor.Decode(&totalResult)
+	}
+	return list, totalResult.Total, nil
 }
 
 // RequestJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的

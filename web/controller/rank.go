@@ -51,3 +51,37 @@ func (c *RankController) GetAcAll(ctx *gin.Context) {
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
+
+func (c *RankController) GetAcProblem(ctx *gin.Context) {
+	pageStr := ctx.DefaultQuery("page", "1")
+	pageSizeStr := ctx.DefaultQuery("page_size", "50")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if pageSize != 50 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	list, totalCount, err := foundationservice.GetJudgeService().GetRankAcProblem(ctx, page, pageSize)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	responseData := struct {
+		Time       time.Time                   `json:"time"`
+		TotalCount int                         `json:"total_count"`
+		List       []*foundationmodel.UserRank `json:"list"`
+	}{
+		Time:       metatime.GetTimeNow(),
+		TotalCount: totalCount,
+		List:       list,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
