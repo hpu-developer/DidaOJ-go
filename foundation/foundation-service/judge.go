@@ -26,6 +26,9 @@ func (s *JudgeService) GetJudge(ctx context.Context, id int) (*foundationmodel.J
 	if err != nil {
 		return nil, err
 	}
+	if judgeJob == nil {
+		return nil, nil
+	}
 	user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, judgeJob.AuthorId)
 	if err != nil {
 		return nil, err
