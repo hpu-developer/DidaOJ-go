@@ -59,6 +59,14 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 			},
 		}
 		copyOutCached = nil
+	case JudgeLanguagePascal:
+		args = []string{"fpc", "-Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/rtl", "a.pas"}
+		copyIns = map[string]interface{}{
+			"a.pas": map[string]interface{}{
+				"content": code,
+			},
+		}
+		copyOutCached = []string{"a"}
 	default:
 		return nil, "compile failed, language not support.",
 			JudgeStatusJudgeFail,
@@ -134,7 +142,8 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 	}
 	errorMessage = metastring.GetTextEllipsis(errorMessage, 1000)
 	if responseData.Status != gojudge.StatusAccepted {
-		if responseData.Status != gojudge.StatusNonzeroExit {
+		if responseData.Status != gojudge.StatusNonzeroExit &&
+			responseData.Status != gojudge.StatusFileError {
 			slog.Warn("compile error", "job", jobKey, "responseData", responseData)
 			return nil, errorMessage, JudgeStatusCLE, nil
 		} else {

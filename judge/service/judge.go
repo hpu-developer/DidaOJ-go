@@ -203,44 +203,50 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update judge data")
 	}
-	execFileIds, extraMessage, compileStatus, err := s.compileCode(job)
-	if extraMessage != "" {
-		markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobCompileMessage(ctx, job.Id, extraMessage)
-		if markErr != nil {
-			metapanic.ProcessError(markErr)
-		}
-	}
-	defer func() {
-		client := &http.Client{}
-		for _, fileId := range execFileIds {
-			goJudgeUrl := config.GetConfig().GoJudge.Url
-			deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
-			request, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
-			if err != nil {
-				metapanic.ProcessError(metaerror.Wrap(err, "failed to create delete request"))
-				continue
-			}
-			_, err = client.Do(request)
-			if err != nil {
-				metapanic.ProcessError(metaerror.Wrap(err, "failed to delete file"))
-				continue
+
+	var execFileIds map[string]string
+	var extraMessage string
+	var compileStatus foundationjudge.JudgeStatus
+	if foundationjudge.IsLanguageNeedCompile(job.Language) {
+		execFileIds, extraMessage, compileStatus, err = s.compileCode(job)
+		if extraMessage != "" {
+			markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobCompileMessage(ctx, job.Id, extraMessage)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
 			}
 		}
-	}()
-	if err != nil {
-		return err
-	}
-	if compileStatus != foundationjudge.JudgeStatusAC {
-		err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, compileStatus)
+		defer func() {
+			client := &http.Client{}
+			for _, fileId := range execFileIds {
+				goJudgeUrl := config.GetConfig().GoJudge.Url
+				deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
+				request, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
+				if err != nil {
+					metapanic.ProcessError(metaerror.Wrap(err, "failed to create delete request"))
+					continue
+				}
+				_, err = client.Do(request)
+				if err != nil {
+					metapanic.ProcessError(metaerror.Wrap(err, "failed to delete file"))
+					continue
+				}
+			}
+		}()
+		if err != nil {
+			return err
+		}
+		if compileStatus != foundationjudge.JudgeStatusAC {
+			err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, compileStatus)
+			if err != nil {
+				metapanic.ProcessError(err)
+			}
+			return nil
+		}
+		slog.Info("compile code success", "job", job.Id, "execFileIds", execFileIds)
+		err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, foundationjudge.JudgeStatusRunning)
 		if err != nil {
 			metapanic.ProcessError(err)
 		}
-		return nil
-	}
-	slog.Info("compile code success", "job", job.Id, "execFileIds", execFileIds)
-	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, foundationjudge.JudgeStatusRunning)
-	if err != nil {
-		metapanic.ProcessError(err)
 	}
 	err = s.runJudgeJob(ctx, job, problem, execFileIds)
 	return err
@@ -626,9 +632,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 	var args []string
 	var copyIns map[string]interface{}
 	switch job.Language {
-	case foundationjudge.JudgeLanguageC:
-		fallthrough
-	case foundationjudge.JudgeLanguageCpp:
+	case foundationjudge.JudgeLanguageC, foundationjudge.JudgeLanguageCpp, foundationjudge.JudgeLanguagePascal:
 		args = []string{"a"}
 		fileId, ok := execFileIds["a"]
 		if !ok {

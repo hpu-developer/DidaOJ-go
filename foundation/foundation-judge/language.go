@@ -13,6 +13,16 @@ const (
 	JudgeLanguageMax     JudgeLanguage = iota
 )
 
+// IsLanguageNeedCompile 是否判题时需要执行编辑过程
+func IsLanguageNeedCompile(language JudgeLanguage) bool {
+	switch language {
+	case JudgeLanguageC, JudgeLanguageCpp, JudgeLanguageJava, JudgeLanguagePython, JudgeLanguagePascal:
+		return true
+	default:
+		return false
+	}
+}
+
 func IsValidJudgeLanguage(language int) bool {
 	return language > int(JudgeLanguageUnknown) && language < int(JudgeLanguageMax)
 }
