@@ -4,9 +4,9 @@ import (
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
+	metaconfig "meta/meta-config"
 	"meta/meta-response"
 	"meta/meta-time"
-	"meta/module"
 	webconfig "web/config"
 )
 
@@ -19,6 +19,7 @@ type HomeData struct {
 	Time    string `json:"time"`
 	Powered string `json:"powered"`
 	Module  string `json:"module"`
+	Name    string `json:"name"`
 }
 
 func (c *HomeController) Get(ctx *gin.Context) {
@@ -28,7 +29,8 @@ func (c *HomeController) Get(ctx *gin.Context) {
 			Port:    webconfig.GetHttpPort(),
 			Time:    metatime.GetTimeNowString(),
 			Powered: "Golang",
-			Module:  module.GetModuleName(),
+			Module:  metaconfig.GetModuleName(),
+			Name:    metaconfig.GetNodeName(),
 		},
 	)
 }

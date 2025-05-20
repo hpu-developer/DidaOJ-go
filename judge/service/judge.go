@@ -869,7 +869,7 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
-			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected status code: %d", resp.StatusCode)
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected status code: %d", specialResp.StatusCode)
 		}
 		var specialRespDataList []struct {
 			Status     gojudge.Status `json:"status"`
