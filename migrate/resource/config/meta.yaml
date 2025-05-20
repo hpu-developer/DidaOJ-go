@@ -1,2 +1,4 @@
 module:
   name: "migrate"
+node:
+  name: "daily-dev"

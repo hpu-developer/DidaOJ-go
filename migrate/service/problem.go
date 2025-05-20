@@ -316,5 +316,8 @@ func (s *MigrateProblemService) GetNewProblemId(oldProblemId int) string {
 	if id, ok := s.oldProblemIdToNewProblemId[oldProblemId]; ok {
 		return id
 	}
+	if oldProblemId == 1472 {
+		return "421"
+	}
 	return "-1"
 }

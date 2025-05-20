@@ -1,2 +1,4 @@
 module:
   name: "judge"
+node:
+  name: "daily-dev"

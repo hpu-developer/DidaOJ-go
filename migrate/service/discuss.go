@@ -52,20 +52,6 @@ func (JolReply) TableName() string {
 	return "reply"
 }
 
-type CodeojDiscuss struct {
-	DiscussId  string    `gorm:"column:discuss_id"`
-	Keyword    string    `gorm:"column:keyword"`
-	Title      string    `gorm:"column:title"`
-	Content    string    `gorm:"column:content"`
-	Creator    string    `gorm:"column:creator"`
-	InsertTime time.Time `gorm:"column:insert_time"`
-	UpdateTime time.Time `gorm:"column:update_time"`
-}
-
-func (CodeojDiscuss) TableName() string {
-	return "discuss"
-}
-
 type CodeojBlog struct {
 	BlogId     string    `gorm:"column:blog_id"`
 	Content    string    `gorm:"column:content"`
@@ -91,32 +77,42 @@ func (s *MigrateDiscussService) Start() error {
 	}
 	discusses = append(discusses, jolDiscusses...)
 
+	codeojBlogs, err := s.processCodeojBlog(ctx)
+	if err != nil {
+		return err
+	}
+	discusses = append(discusses, codeojBlogs...)
+
 	slog.Info("migrate Discusses updates", "count", len(discusses))
 
 	sort.Slice(discusses, func(i, j int) bool {
 		return discusses[i].InsertTime.Before(discusses[j].InsertTime)
 	})
-
-	oldDiscussIdToNewDiscussId := make(map[int]int)
+	oldJolDiscussIdToNewDiscussId := make(map[int]int)
 	for _, discuss := range discusses {
-		oldId := discuss.Id
+		var oldId int
+		if discuss.Id > 0 {
+			oldId = discuss.Id
+		}
 		err = foundationdao.GetDiscussDao().InsertDiscuss(ctx, discuss)
 		if err != nil {
 			return metaerror.Wrap(err, "insert Discuss failed")
 		}
-		oldDiscussIdToNewDiscussId[oldId] = discuss.Id
+		if oldId > 0 {
+			oldJolDiscussIdToNewDiscussId[oldId] = discuss.Id
+		}
 	}
 
-	var codeojReplies []*foundationmodel.DiscussComment
+	var jolComments []*foundationmodel.DiscussComment
 	for _, replies := range jolReplyMap {
 		for _, reply := range replies {
 			userId, err := GetMigrateUserService().getUserIdByUsername(ctx, reply.AuthorId)
 			if err != nil {
 				return metaerror.Wrap(err, "get userId failed, userId: %s", reply.AuthorId)
 			}
-			newDiscussId, ok := oldDiscussIdToNewDiscussId[reply.TopicId]
+			newDiscussId, ok := oldJolDiscussIdToNewDiscussId[reply.TopicId]
 			if !ok {
-				return metaerror.New("oldDiscussIdToNewDiscussId not found, oldId: %d", reply.TopicId)
+				return metaerror.New("oldJolDiscussIdToNewDiscussId not found, oldId: %d", reply.TopicId)
 			}
 
 			discussComment := foundationmodel.NewDiscussCommentBuilder().
@@ -126,16 +122,16 @@ func (s *MigrateDiscussService) Start() error {
 				InsertTime(reply.Time).
 				UpdateTime(reply.Time).
 				Build()
-			codeojReplies = append(codeojReplies, discussComment)
+			jolComments = append(jolComments, discussComment)
 		}
 	}
-	slog.Info("migrate DiscussReplies updates", "count", len(codeojReplies))
+	slog.Info("migrate DiscussReplies updates", "count", len(jolComments))
 
-	sort.Slice(codeojReplies, func(i, j int) bool {
-		return codeojReplies[i].InsertTime.Before(codeojReplies[j].InsertTime)
+	sort.Slice(jolComments, func(i, j int) bool {
+		return jolComments[i].InsertTime.Before(jolComments[j].InsertTime)
 	})
 
-	for _, reply := range codeojReplies {
+	for _, reply := range jolComments {
 		err = foundationdao.GetDiscussCommentDao().InsertDiscussComment(ctx, reply)
 		if err != nil {
 			return metaerror.Wrap(err, "insert DiscussComment failed")
@@ -200,18 +196,18 @@ func (s *MigrateDiscussService) processJolDiscuss(ctx context.Context) ([]*found
 	return docs, jolReplyMap, nil
 }
 
-func (s *MigrateDiscussService) processCodeojDiscuss(ctx context.Context) ([]*foundationmodel.Discuss, error) {
+func (s *MigrateDiscussService) processCodeojBlog(ctx context.Context) ([]*foundationmodel.Discuss, error) {
 	slog.Info("migrate Discuss processCodeojDiscuss")
 
-	db := metamysql.GetSubsystem().GetClient("vhoj")
+	db := metamysql.GetSubsystem().GetClient("codeoj")
 
-	var codeojDiscusses []CodeojDiscuss
-	if err := db.Order("discuss_id ASC").Find(&codeojDiscusses).Error; err != nil {
-		return nil, metaerror.Wrap(err, "query codeojDiscusses failed")
+	var codeojBlogs []CodeojBlog
+	if err := db.Where("blog_id < 13").Order("blog_id ASC").Find(&codeojBlogs).Error; err != nil {
+		return nil, metaerror.Wrap(err, "query codeojBlogs failed")
 	}
 
 	var docs []*foundationmodel.Discuss
-	for _, u := range codeojDiscusses {
+	for _, u := range codeojBlogs {
 		userId, err := GetMigrateUserService().getUserIdByUsername(ctx, u.Creator)
 		if err != nil {
 			return nil, metaerror.Wrap(err, "get userId failed, userId: %s", u.Creator)

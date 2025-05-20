@@ -1,2 +1,4 @@
 module:
   name: "web"
+node:
+  name: "daily-dev"

@@ -239,7 +239,7 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 			newProblemId := GetMigrateProblemService().GetNewProblemId(row.ProblemID)
 
 			if newProblemId == "-1" {
-				return nil, metaerror.New("problem id not found", "oldProblemId", row.ProblemID)
+				return nil, metaerror.New("problem id not found", "oldProblemId:%d", row.ProblemID)
 			}
 
 			judgeJob := foundationmodel.NewJudgeJobBuilder().
