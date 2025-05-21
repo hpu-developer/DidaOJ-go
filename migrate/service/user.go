@@ -156,7 +156,7 @@ func (s *MigrateUserService) processJolUser(ctx context.Context) ([]*foundationm
 			Password(u.Password).
 			Email(u.Email).
 			CheckinCount(u.Exper).
-			Sign(u.Sign).
+			Slogan(u.Sign).
 			Organization(u.School).
 			VjudgeId(u.VjudgeId).
 			RegTime(u.RegTime).
@@ -191,7 +191,7 @@ func (s *MigrateUserService) processCodeojUser(ctx context.Context) ([]*foundati
 			Nickname(u.Nickname).
 			Password(u.Password).
 			Email(u.Email).
-			Sign(u.Sign).
+			Slogan(u.Sign).
 			Organization(u.Organization).
 			RegTime(u.RegTime).
 			Build()
@@ -226,7 +226,7 @@ func (s *MigrateUserService) processVhojUser(ctx context.Context) ([]*foundation
 			Nickname(u.Nickname).
 			Password(u.Password).
 			Email(u.Email).
-			Sign(u.Blog).
+			Slogan(u.Blog).
 			Organization(u.School).
 			RegTime(u.CreateTime).
 			QQ(u.QQ).

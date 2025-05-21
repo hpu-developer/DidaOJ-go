@@ -141,7 +141,7 @@ func (d *UserDao) GetUsersRankInfo(ctx context.Context, userId []int) ([]*founda
 			"$in": userId,
 		},
 	}
-	findOptions := options.Find().SetProjection(bson.M{"_id": 1, "username": 1, "nickname": 1, "sign": 1})
+	findOptions := options.Find().SetProjection(bson.M{"_id": 1, "username": 1, "nickname": 1, "slogan": 1})
 	cursor, err := d.collection.Find(ctx, filter, findOptions)
 	if err != nil {
 		return nil, metaerror.Wrap(err, "find user account info error")
@@ -276,7 +276,7 @@ func (d *UserDao) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]*fou
 			"_id":      1,
 			"username": 1,
 			"nickname": 1,
-			"sign":     1,
+			"slogan":   1,
 			"accept":   1,
 			"attempt":  1,
 		}).

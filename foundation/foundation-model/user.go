@@ -11,7 +11,7 @@ type User struct {
 	Password     string    `json:"password" bson:"password"`                             // 密码
 	Email        string    `json:"email,omitempty" bson:"email,omitempty"`               // 邮箱
 	QQ           string    `json:"qq,omitempty" bson:"qq,omitempty"`                     // QQ
-	Sign         string    `json:"sign,omitempty" bson:"sign,omitempty"`                 // 签名
+	Slogan       string    `json:"slogan,omitempty" bson:"slogan,omitempty"`             // 签名
 	Organization string    `json:"organization,omitempty" bson:"organization,omitempty"` // 组织
 	RegTime      time.Time `json:"reg_time" bson:"reg_time"`                             // 注册时间
 	Accept       int       `json:"accept" bson:"accept"`                                 // AC次数
@@ -33,7 +33,7 @@ type UserRankInfo struct {
 	Id       int    `json:"id" bson:"_id"`                                // 数据库索引时真正的Id
 	Username string `json:"username" bson:"username"`                     // 对用户展示的唯一标识
 	Nickname string `json:"nickname,omitempty" bson:"nickname,omitempty"` // 显示的昵称
-	Sign     string `json:"sign,omitempty" bson:"sign,omitempty"`         // 显示的昵称
+	Slogan   string `json:"slogan,omitempty" bson:"slogan,omitempty"`     // 显示的昵称
 }
 
 type UserLogin struct {
@@ -77,8 +77,8 @@ func (b *UserBuilder) Email(email string) *UserBuilder {
 	return b
 }
 
-func (b *UserBuilder) Sign(sign string) *UserBuilder {
-	b.item.Sign = sign
+func (b *UserBuilder) Slogan(slogan string) *UserBuilder {
+	b.item.Slogan = slogan
 	return b
 }
 

@@ -108,7 +108,7 @@ func (s *JudgeService) GetRankAcProblem(ctx *gin.Context, approveStartTime *time
 			if user, ok := userMap[rankUser.Id]; ok {
 				rankUser.Username = user.Username
 				rankUser.Nickname = user.Nickname
-				rankUser.Sign = user.Sign
+				rankUser.Slogan = user.Slogan
 			}
 		}
 	}
