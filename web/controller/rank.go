@@ -122,3 +122,77 @@ func (c *RankController) GetAcProblemToday(ctx *gin.Context) {
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
+
+func (c *RankController) GetAcProblemDay7(ctx *gin.Context) {
+	pageStr := ctx.DefaultQuery("page", "1")
+	pageSizeStr := ctx.DefaultQuery("page_size", "50")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if pageSize != 50 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 获取7日之前的凌晨0点
+	startTime := metatime.GetTimeDayStart(-7 * 5 * 24 * time.Hour)
+	endTime := metatime.GetTimeNow()
+	list, totalCount, err := foundationservice.GetJudgeService().GetRankAcProblem(ctx, &startTime, &endTime, page, pageSize)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	responseData := struct {
+		Time       time.Time                   `json:"time"`
+		TotalCount int                         `json:"total_count"`
+		List       []*foundationmodel.UserRank `json:"list"`
+	}{
+		Time:       metatime.GetTimeNow(),
+		TotalCount: totalCount,
+		List:       list,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
+func (c *RankController) GetAcProblemYear(ctx *gin.Context) {
+	pageStr := ctx.DefaultQuery("page", "1")
+	pageSizeStr := ctx.DefaultQuery("page_size", "50")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if pageSize != 50 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 获取365日之前的凌晨0点
+	startTime := metatime.GetTimeDayStart(-365 * 5 * 24 * time.Hour)
+	endTime := metatime.GetTimeNow()
+	list, totalCount, err := foundationservice.GetJudgeService().GetRankAcProblem(ctx, &startTime, &endTime, page, pageSize)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	responseData := struct {
+		Time       time.Time                   `json:"time"`
+		TotalCount int                         `json:"total_count"`
+		List       []*foundationmodel.UserRank `json:"list"`
+	}{
+		Time:       metatime.GetTimeNow(),
+		TotalCount: totalCount,
+		List:       list,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
