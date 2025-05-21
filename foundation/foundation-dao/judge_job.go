@@ -41,7 +41,20 @@ func GetJudgeJobDao() *JudgeJobDao {
 }
 
 func (d *JudgeJobDao) InitDao(ctx context.Context) error {
-	return nil
+	collection := d.collection
+	indexes := []mongo.IndexModel{
+		{
+			Keys: bson.D{
+				{Key: "status", Value: 1},
+				{Key: "approve_time", Value: 1},
+				{Key: "author_id", Value: 1},
+				{Key: "problem_id", Value: 1},
+			},
+			Options: options.Index().SetName("idx_status_author_problem"),
+		},
+	}
+	_, err := collection.Indexes().CreateMany(ctx, indexes)
+	return err
 }
 
 func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmodel.JudgeJob) error {
@@ -316,10 +329,25 @@ func (d *JudgeJobDao) GetProblemViewAttempt(
 	return results, nil
 }
 
-func (d *JudgeJobDao) GetRankAcProblem(ctx *gin.Context, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
+func (d *JudgeJobDao) GetRankAcProblem(ctx *gin.Context, approveStartTime *time.Time, approveEndTime *time.Time, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
 	collection := d.collection
+
+	// 生成 $match 条件
+	matchCond := bson.M{"status": foundationjudge.JudgeStatusAC}
+	if approveStartTime != nil || approveEndTime != nil {
+		timeCond := bson.M{}
+		if approveStartTime != nil {
+			timeCond["$gte"] = approveStartTime
+		}
+		if approveEndTime != nil {
+			timeCond["$lt"] = approveEndTime
+		}
+		matchCond["approve_time"] = timeCond
+	}
+
+	// 主聚合流水线
 	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.M{"status": foundationjudge.JudgeStatusAC}}},
+		{{Key: "$match", Value: matchCond}},
 		{{Key: "$group", Value: bson.M{
 			"_id": bson.M{
 				"author_id":  "$author_id",

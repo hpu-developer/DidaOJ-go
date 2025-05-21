@@ -7,6 +7,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
+	"time"
 )
 
 type JudgeService struct {
@@ -85,8 +86,8 @@ func (s *JudgeService) GetJudgeList(ctx context.Context, problemId string, usern
 	return judgeJobs, totalCount, nil
 }
 
-func (s *JudgeService) GetRankAcProblem(ctx *gin.Context, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
-	rankUsers, totalCount, err := foundationdao.GetJudgeJobDao().GetRankAcProblem(ctx, page, pageSize)
+func (s *JudgeService) GetRankAcProblem(ctx *gin.Context, approveStartTime *time.Time, approveEndTime *time.Time, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
+	rankUsers, totalCount, err := foundationdao.GetJudgeJobDao().GetRankAcProblem(ctx, approveStartTime, approveEndTime, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
