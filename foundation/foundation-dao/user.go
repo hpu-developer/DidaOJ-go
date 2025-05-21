@@ -92,6 +92,36 @@ func (d *UserDao) GetUser(ctx context.Context, userId int) (*foundationmodel.Use
 	return &User, nil
 }
 
+func (d *UserDao) GetInfo(ctx *gin.Context, username string) (*foundationmodel.UserInfo, error) {
+	filter := bson.M{
+		"username": username,
+	}
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"_id":           1,
+			"username":      1,
+			"nickname":      1,
+			"email":         1,
+			"qq":            1,
+			"slogan":        1,
+			"organization":  1,
+			"reg_time":      1,
+			"accept":        1,
+			"attempt":       1,
+			"checkin_count": 1,
+			"vjudge_id":     1,
+		},
+	)
+	var User foundationmodel.UserInfo
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&User); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find UserId error")
+	}
+	return &User, nil
+}
+
 func (d *UserDao) GetUserAccountInfo(ctx context.Context, userId int) (*foundationmodel.UserAccountInfo, error) {
 	filter := bson.M{
 		"_id": userId,

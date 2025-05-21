@@ -33,5 +33,34 @@ func (s *MongoInitService) Start() error {
 	if err != nil {
 		return nil
 	}
+	err = foundationdao.GetUserDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
+	err = foundationdao.GetContestDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
+	err = foundationdao.GetDiscussDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
+	err = foundationdao.GetDiscussCommentDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
+	err = foundationdao.GetDiscussTagDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
+	err = foundationdao.GetJudgerDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
+	err = foundationdao.GetJudgeJobDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
+
 	return nil
 }

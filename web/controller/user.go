@@ -3,6 +3,7 @@ package controller
 import (
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
+	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
@@ -14,6 +15,37 @@ import (
 
 type UserController struct {
 	metacontroller.Controller
+}
+
+func (c *UserController) GetInfo(ctx *gin.Context) {
+	username := ctx.Query("username")
+	if username == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userInfo, err := foundationservice.GetUserService().GetInfo(ctx, username)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if userInfo == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	acProblems, err := foundationservice.GetJudgeService().GetUserAcProblemIds(ctx, userInfo.Id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	responseData := struct {
+		User       *foundationmodel.UserInfo `json:"user"`
+		ProblemsAc []string                  `json:"problems_ac"`
+	}{
+		User:       userInfo,
+		ProblemsAc: acProblems,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
 func (c *UserController) PostLoginRefresh(ctx *gin.Context) {

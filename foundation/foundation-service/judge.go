@@ -115,6 +115,14 @@ func (s *JudgeService) GetRankAcProblem(ctx *gin.Context, approveStartTime *time
 	return rankUsers, totalCount, nil
 }
 
+func (s *JudgeService) GetUserAcProblemIds(ctx context.Context, userId int) ([]string, error) {
+	problemIds, err := foundationdao.GetJudgeJobDao().GetUserAcProblemIds(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+	return problemIds, nil
+}
+
 func (s *JudgeService) UpdateJudge(ctx context.Context, id int, judgeJob *foundationmodel.JudgeJob) error {
 	return foundationdao.GetJudgeJobDao().UpdateJudgeJob(ctx, id, judgeJob)
 }

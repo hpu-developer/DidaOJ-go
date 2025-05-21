@@ -423,6 +423,24 @@ func (d *JudgeJobDao) GetRankAcProblem(ctx *gin.Context, approveStartTime *time.
 	return list, totalResult.Total, nil
 }
 
+func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]string, error) {
+	filter := bson.M{
+		"author_id": userId,
+		"status":    foundationjudge.JudgeStatusAC,
+	}
+	values, err := d.collection.Distinct(ctx, "problem_id", filter)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to get distinct problem_ids")
+	}
+	result := make([]string, 0, len(values))
+	for _, v := range values {
+		if id, ok := v.(string); ok {
+			result = append(result, id)
+		}
+	}
+	return result, nil
+}
+
 // RequestJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的
 func (d *JudgeJobDao) RequestJudgeJobListPendingJudge(ctx context.Context, maxCount int, judger string) ([]*foundationmodel.JudgeJob, error) {
 	var result []*foundationmodel.JudgeJob

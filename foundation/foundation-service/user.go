@@ -33,6 +33,10 @@ func (s *UserService) GetUser(ctx context.Context, userId int) (*foundationmodel
 	return foundationdao.GetUserDao().GetUser(ctx, userId)
 }
 
+func (s *UserService) GetInfo(ctx *gin.Context, username string) (*foundationmodel.UserInfo, error) {
+	return foundationdao.GetUserDao().GetInfo(ctx, username)
+}
+
 func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*response.UserLogin, error) {
 	resultUser, err := foundationdao.GetUserDao().GetUserLogin(ctx, userId)
 	if err != nil {

@@ -12,7 +12,6 @@ import (
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
-	metatype "meta/meta-type"
 	"meta/singleton"
 	"regexp"
 	"time"
@@ -266,7 +265,7 @@ func (d *ProblemDao) UpdateProblems(ctx context.Context, tags []*foundationmodel
 func (d *ProblemDao) UpdateProblemsExcludeManualEdit(ctx context.Context, problems []*foundationmodel.Problem) error {
 	var models []mongo.WriteModel
 	for _, problem := range problems {
-		setFields := metatype.StructToMapExclude(problem, "description", "judge_md5")
+		setFields := metamongo.StructToMapExclude(problem, "description", "judge_md5")
 		filter := bson.D{
 			{"_id", problem.Id},
 		}
