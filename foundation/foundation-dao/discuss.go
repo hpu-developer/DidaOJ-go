@@ -11,6 +11,7 @@ import (
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
 	"meta/singleton"
+	"regexp"
 )
 
 type DiscussDao struct {
@@ -98,7 +99,7 @@ func (d *DiscussDao) GetDiscussList(ctx context.Context, contestId int, problemI
 	}
 	if title != "" {
 		filter["title"] = bson.M{
-			"$regex":   title,
+			"$regex":   regexp.QuoteMeta(title),
 			"$options": "i", // 不区分大小写
 		}
 	}

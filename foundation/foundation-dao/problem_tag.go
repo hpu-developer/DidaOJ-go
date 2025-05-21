@@ -11,6 +11,7 @@ import (
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
 	"meta/singleton"
+	"regexp"
 )
 
 type ProblemTagDao struct {
@@ -162,7 +163,8 @@ func (d *ProblemTagDao) GetProblemTagByIds(ctx context.Context, ids []int) ([]*f
 func (d *ProblemTagDao) SearchTags(ctx context.Context, tag string) ([]int, error) {
 	filter := bson.M{
 		"name": bson.M{
-			"$regex":   tag,
+			// 转义避免与正则表达式冲突
+			"$regex":   regexp.QuoteMeta(tag),
 			"$options": "i", // 不区分大小写
 		},
 	}

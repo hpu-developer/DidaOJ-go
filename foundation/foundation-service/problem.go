@@ -100,6 +100,9 @@ func (s *ProblemService) GetProblemListWithUser(ctx context.Context, userId int,
 		if err != nil {
 			return nil, 0, nil, err
 		}
+		if len(tags) == 0 {
+			return nil, 0, nil, nil
+		}
 	}
 	problemList, totalCount, err := foundationdao.GetProblemDao().GetProblemList(ctx, title, tags, page, pageSize)
 	if err != nil {

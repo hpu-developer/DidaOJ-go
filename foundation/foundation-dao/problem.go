@@ -14,6 +14,7 @@ import (
 	metatime "meta/meta-time"
 	metatype "meta/meta-type"
 	"meta/singleton"
+	"regexp"
 	"time"
 	"web/request"
 )
@@ -189,7 +190,7 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 	filter := bson.M{}
 	if title != "" {
 		filter["title"] = bson.M{
-			"$regex":   title,
+			"$regex":   regexp.QuoteMeta(title),
 			"$options": "i", // 不区分大小写
 		}
 	}
