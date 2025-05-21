@@ -187,7 +187,7 @@ func (s *MigrateJudgeJobService) processCodeojJudgeJob(ctx context.Context) ([]*
 				Status(migratetype.GetJudgeStatusByCodeOJ(row.Result)).
 				Score(row.Score).
 				JudgeTime(row.JudgeTime).
-				Judger(row.Judger).
+				Judger("didaoj").
 				Build()
 
 			judgeJobs = append(judgeJobs, judgeJob)
@@ -251,7 +251,7 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 				CodeLength(row.CodeLength).
 				Status(migratetype.GetJudgeStatusByCodeOJ(row.Result)).
 				JudgeTime(row.JudgeTime).
-				Judger(row.Judger).
+				Judger("didaoj").
 				Build()
 
 			if row.ContestId > 0 {
