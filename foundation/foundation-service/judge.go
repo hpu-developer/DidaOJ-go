@@ -96,11 +96,11 @@ func (s *JudgeService) GetRankAcProblem(ctx *gin.Context, approveStartTime *time
 		for _, rankUser := range rankUsers {
 			userIds = append(userIds, rankUser.Id)
 		}
-		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
+		users, err := foundationdao.GetUserDao().GetUsersRankInfo(ctx, userIds)
 		if err != nil {
 			return nil, 0, err
 		}
-		userMap := make(map[int]*foundationmodel.UserAccountInfo)
+		userMap := make(map[int]*foundationmodel.UserRankInfo)
 		for _, user := range users {
 			userMap[user.Id] = user
 		}
@@ -108,6 +108,7 @@ func (s *JudgeService) GetRankAcProblem(ctx *gin.Context, approveStartTime *time
 			if user, ok := userMap[rankUser.Id]; ok {
 				rankUser.Username = user.Username
 				rankUser.Nickname = user.Nickname
+				rankUser.Sign = user.Sign
 			}
 		}
 	}

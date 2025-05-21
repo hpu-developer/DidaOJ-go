@@ -29,6 +29,13 @@ type UserAccountInfo struct {
 	Nickname string `json:"nickname,omitempty" bson:"nickname"` // 显示的昵称
 }
 
+type UserRankInfo struct {
+	Id       int    `json:"id" bson:"_id"`                                // 数据库索引时真正的Id
+	Username string `json:"username" bson:"username"`                     // 对用户展示的唯一标识
+	Nickname string `json:"nickname,omitempty" bson:"nickname,omitempty"` // 显示的昵称
+	Sign     string `json:"sign,omitempty" bson:"sign,omitempty"`         // 显示的昵称
+}
+
 type UserLogin struct {
 	Id       int      `json:"id" bson:"_id"`                          // 数据库索引时真正的Id
 	Username string   `json:"username" bson:"username"`               // 对用户展示的唯一标识

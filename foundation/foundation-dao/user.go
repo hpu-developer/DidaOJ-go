@@ -135,6 +135,34 @@ func (d *UserDao) GetUsersAccountInfo(ctx context.Context, userId []int) ([]*fou
 	return result, nil
 }
 
+func (d *UserDao) GetUsersRankInfo(ctx context.Context, userId []int) ([]*foundationmodel.UserRankInfo, error) {
+	filter := bson.M{
+		"_id": bson.M{
+			"$in": userId,
+		},
+	}
+	findOptions := options.Find().SetProjection(bson.M{"_id": 1, "username": 1, "nickname": 1, "sign": 1})
+	cursor, err := d.collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find user account info error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(err, "close cursor error")
+		}
+	}(cursor, ctx)
+	var result []*foundationmodel.UserRankInfo
+	for cursor.Next(ctx) {
+		var user foundationmodel.UserRankInfo
+		if err := cursor.Decode(&user); err != nil {
+			return nil, metaerror.Wrap(err, "decode user account info error")
+		}
+		result = append(result, &user)
+	}
+	return result, nil
+}
+
 func (d *UserDao) GetUserLogin(ctx context.Context, userId int) (*foundationmodel.UserLogin, error) {
 	filter := bson.M{
 		"_id": userId,
@@ -248,6 +276,7 @@ func (d *UserDao) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]*fou
 			"_id":      1,
 			"username": 1,
 			"nickname": 1,
+			"sign":     1,
 			"accept":   1,
 			"attempt":  1,
 		}).

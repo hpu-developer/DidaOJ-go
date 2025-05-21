@@ -392,7 +392,7 @@ func (d *JudgeJobDao) GetRankAcProblem(ctx *gin.Context, approveStartTime *time.
 		return nil, 0, err
 	}
 	totalPipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.M{"status": foundationjudge.JudgeStatusAC}}},
+		{{Key: "$match", Value: matchCond}},
 		{{Key: "$group", Value: bson.M{
 			"_id": bson.M{
 				"author_id":  "$author_id",
