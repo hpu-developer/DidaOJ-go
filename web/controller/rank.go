@@ -141,7 +141,7 @@ func (c *RankController) GetAcProblemDay7(ctx *gin.Context) {
 		return
 	}
 	// 获取7日之前的凌晨0点
-	startTime := metatime.GetTimeDayStart(-7 * 5 * 24 * time.Hour)
+	startTime := metatime.GetTimeDayStart(-7 * 24 * time.Hour)
 	endTime := metatime.GetTimeNow()
 	list, totalCount, err := foundationservice.GetJudgeService().GetRankAcProblem(ctx, &startTime, &endTime, page, pageSize)
 	if err != nil {
@@ -178,7 +178,7 @@ func (c *RankController) GetAcProblemYear(ctx *gin.Context) {
 		return
 	}
 	// 获取365日之前的凌晨0点
-	startTime := metatime.GetTimeDayStart(-365 * 5 * 24 * time.Hour)
+	startTime := metatime.GetTimeDayStart(-365 * 24 * time.Hour)
 	endTime := metatime.GetTimeNow()
 	list, totalCount, err := foundationservice.GetJudgeService().GetRankAcProblem(ctx, &startTime, &endTime, page, pageSize)
 	if err != nil {
