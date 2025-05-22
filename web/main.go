@@ -8,6 +8,7 @@ import (
 	"meta/meta-http"
 	metamogo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
+	metaredis "meta/meta-redis"
 	"meta/subsystem"
 	"web/application"
 	"web/config"
@@ -33,6 +34,16 @@ func InitPre() error {
 				return config.GetMongoConfig()
 			}
 			return mongoSubsystem
+		},
+	)
+
+	engine.RegisterSubsystem(
+		func() subsystem.Interface {
+			redisSubsystem := &metaredis.Subsystem{}
+			redisSubsystem.GetConfig = func() *metaredis.Config {
+				return config.GetRedisConfig()
+			}
+			return redisSubsystem
 		},
 	)
 

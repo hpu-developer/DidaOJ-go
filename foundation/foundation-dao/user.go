@@ -39,8 +39,13 @@ func GetUserDao() *UserDao {
 
 func (d *UserDao) InitDao(ctx context.Context) error {
 	indexModel := mongo.IndexModel{
-		Keys:    bson.D{{Key: "username", Value: 1}}, // 1表示升序索引
-		Options: options.Index().SetUnique(true),
+		Keys: bson.D{{Key: "username", Value: 1}}, // 1表示升序索引
+		Options: options.Index().
+			SetUnique(true).
+			SetCollation(&options.Collation{
+				Locale:   "en", // 英文排序规则
+				Strength: 2,    // Strength 2 表示忽略大小写，但区分重音
+			}),
 	}
 	_, err := d.collection.Indexes().CreateOne(ctx, indexModel)
 	if err != nil {
@@ -297,7 +302,11 @@ func (d *UserDao) UpdateUsers(ctx context.Context, users []*foundationmodel.User
 }
 
 func (d *UserDao) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
-	filter := bson.M{}
+	filter := bson.M{
+		"accept": bson.M{
+			"$gt": 0,
+		},
+	}
 	limit := int64(pageSize)
 	skip := int64((page - 1) * pageSize)
 

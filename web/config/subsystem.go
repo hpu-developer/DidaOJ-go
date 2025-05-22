@@ -7,6 +7,7 @@ import (
 	metaconfig "meta/meta-config"
 	metaemail "meta/meta-email"
 	metamogo "meta/meta-mongo"
+	metaredis "meta/meta-redis"
 )
 
 type Config struct {
@@ -17,6 +18,8 @@ type Config struct {
 	AllowedOrigins []string `yaml:"allowed-origins"` // 允许的跨域请求来源
 
 	Mongo metamogo.Config `yaml:"mongo"`
+
+	Redis metaredis.Config `yaml:"redis"`
 
 	GoJudge foundationjudge.GoJudgeConfig `yaml:"go-judge"` // GoJudge 数据服务地址
 
@@ -88,4 +91,15 @@ func GetCfr2Config() map[string]*cfr2.Config {
 		return nil
 	}
 	return configSubsystem.config.CfR2
+}
+
+func GetRedisConfig() *metaredis.Config {
+	configSubsystem := GetSubsystem()
+	if configSubsystem == nil {
+		return nil
+	}
+	if configSubsystem.config == nil {
+		return nil
+	}
+	return &configSubsystem.config.Redis
 }

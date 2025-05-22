@@ -3,14 +3,17 @@ package foundationservice
 import (
 	"context"
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	foundationauth "foundation/foundation-auth"
 	foundationconfig "foundation/foundation-config"
 	"foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
+	"io"
 	metaerror "meta/meta-error"
 	"meta/singleton"
 	"web/response"
@@ -57,6 +60,27 @@ func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*re
 		Roles(resultUser.Roles).
 		Build()
 	return userResponse, nil
+}
+
+func (s *UserService) InsertUser(ctx context.Context, user *foundationmodel.User) error {
+	return foundationdao.GetUserDao().InsertUser(ctx, user)
+}
+
+func (s *UserService) GeneratePasswordEncode(password string) (string, error) {
+	salt := make([]byte, 4)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return "", fmt.Errorf("failed to generate salt: %w", err)
+	}
+	md5Hex := md5.Sum([]byte(password))
+	md5HexStr := make([]byte, 32)
+	hex.Encode(md5HexStr, md5Hex[:])
+	sha1Hasher := sha1.New()
+	sha1Hasher.Write(md5HexStr)
+	sha1Hasher.Write(salt)
+	sha1Hash := sha1Hasher.Sum(nil)
+	final := append(sha1Hash, salt...)
+	encoded := base64.StdEncoding.EncodeToString(final)
+	return encoded, nil
 }
 
 func (s *UserService) Login(ctx *gin.Context, username string, password string) (*response.UserLogin, error) {
