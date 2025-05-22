@@ -147,7 +147,7 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 	}
 
 	subject := fmt.Sprintf("[DidaOJ] - 邮件验证码")
-	body := fmt.Sprintf("%s：\n\n您好！\n欢迎您使用DidaOJ，以下是您的邮箱验证码：\n\n%s\n\n本验证码用于您注册本系统的账号，请勿泄露给他人。\n请在10分钟之内使用本验证码，过期请重新申请。\n如有疑问，请联系管理员。\n\n祝好！\nDidaOJ团队",
+	body := fmt.Sprintf("%s：\n\n您好！\n欢迎您使用DidaOJ，以下是您的邮箱验证码：\n\n%s\n\n本验证码用于您注册本系统的账号，请勿泄露给他人。\n请在10分钟之内使用本验证码，过期请重新申请。\n如有疑问，请联系管理员。\n\n祝好！\nDidaOJ团队\nhttps://oj.didapipa.com",
 		email, code)
 
 	err = metaemail.SendEmail(config.GetConfig().Email.Email, config.GetConfig().Email.Password, config.GetConfig().Email.Host, config.GetConfig().Email.Port,
@@ -188,6 +188,11 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 	}
 	// 判断password是否>6并且<20
 	if len(requestData.Password) < 6 || len(requestData.Password) > 20 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	nickname := requestData.Nickname
+	if len(nickname) < 1 || len(nickname) > 30 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
