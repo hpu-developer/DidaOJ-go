@@ -23,6 +23,8 @@ type Config struct {
 
 	GoJudge foundationjudge.GoJudgeConfig `yaml:"go-judge"` // GoJudge 数据服务地址
 
+	CfTurnstile string `yaml:"cf-turnstile"` // Cloudflare Turnstile 密钥
+
 	CfR2 map[string]*cfr2.Config `yaml:"cf-r2"` // GoJudge 数据服务地址
 
 	Email *metaemail.Config `yaml:"email"`
