@@ -117,15 +117,15 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 	var requestData struct {
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
+		Nickname string `json:"nickname" binding:"required"`
 		Email    string `json:"email" binding:"required"`
 		Key      string `json:"key" binding:"required"`
-		Nickname string `json:"nickname"`
 	}
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	if requestData.Username == "" || requestData.Password == "" || requestData.Email == "" {
+	if requestData.Username == "" || requestData.Password == "" || requestData.Nickname == "" || requestData.Email == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
