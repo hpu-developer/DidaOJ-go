@@ -12,6 +12,7 @@ import (
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
 	"meta/singleton"
+	"strings"
 )
 
 type UserDao struct {
@@ -95,10 +96,7 @@ func (d *UserDao) GetUser(ctx context.Context, userId int) (*foundationmodel.Use
 
 func (d *UserDao) GetInfo(ctx *gin.Context, username string) (*foundationmodel.UserInfo, error) {
 	filter := bson.M{
-		"username": bson.M{
-			"$regex":   username,
-			"$options": "i", // i 表示忽略大小写
-		},
+		"username_lower": strings.ToLower(username),
 	}
 	opts := options.FindOne().SetProjection(
 		bson.M{
@@ -219,10 +217,7 @@ func (d *UserDao) GetUserLogin(ctx context.Context, userId int) (*foundationmode
 
 func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (*foundationmodel.UserLogin, error) {
 	filter := bson.M{
-		"username": bson.M{
-			"$regex":   username,
-			"$options": "i", // i 表示忽略大小写
-		},
+		"username_lower": strings.ToLower(username),
 	}
 	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1,
 		"username": 1,
@@ -242,10 +237,7 @@ func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (
 
 func (d *UserDao) GetUserIdByUsername(ctx context.Context, username string) (int, error) {
 	filter := bson.M{
-		"username": bson.M{
-			"$regex":   username,
-			"$options": "i", // i 表示忽略大小写
-		},
+		"username_lower": strings.ToLower(username),
 	}
 	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1})
 	var result struct {
@@ -259,10 +251,7 @@ func (d *UserDao) GetUserIdByUsername(ctx context.Context, username string) (int
 
 func (d *UserDao) GetEmailByUsername(ctx context.Context, username string) (*string, error) {
 	filter := bson.M{
-		"username": bson.M{
-			"$regex":   username,
-			"$options": "i", // i 表示忽略大小写
-		},
+		"username_lower": strings.ToLower(username),
 	}
 	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1, "email": 1})
 	var result struct {
@@ -322,6 +311,23 @@ func (d *UserDao) UpdateUsers(ctx context.Context, users []*foundationmodel.User
 		if err != nil {
 			return metaerror.Wrap(err, "failed to update user")
 		}
+	}
+	return nil
+}
+
+func (d *UserDao) UpdatePassword(ctx *gin.Context, username string, encode string) error {
+	filter := bson.M{
+		"username_lower": strings.ToLower(username),
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"password": encode,
+		},
+	}
+	updateOptions := options.Update()
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update password")
 	}
 	return nil
 }

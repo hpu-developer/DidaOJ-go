@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	foundationdao "foundation/foundation-dao"
@@ -91,7 +92,7 @@ func (s *MigrateUserService) Start() error {
 
 	usernameToUser := make(map[string]*foundationmodel.User)
 	for _, user := range users {
-		usernameToUser[user.Username] = user
+		usernameToUser[strings.ToLower(user.Username)] = user
 	}
 
 	vhojUsers, err := s.processVhojUser(ctx)
@@ -99,12 +100,12 @@ func (s *MigrateUserService) Start() error {
 		return err
 	}
 	for _, u := range vhojUsers {
-		if oldUser, ok := usernameToUser[u.Username]; ok {
+		if oldUser, ok := usernameToUser[strings.ToLower(u.Username)]; ok {
 			// 以jol中的用户为准
 			oldUser.QQ = u.QQ
 			continue
 		}
-		usernameToUser[u.Username] = u
+		usernameToUser[strings.ToLower(u.Username)] = u
 		users = append(users, u)
 	}
 
@@ -114,11 +115,12 @@ func (s *MigrateUserService) Start() error {
 	}
 
 	for _, u := range codeojUsers {
-		if _, ok := usernameToUser[u.Username]; ok {
-			*usernameToUser[u.Username] = *u
+		if _, ok := usernameToUser[strings.ToLower(u.Username)]; ok {
+			// 考虑CodeOJ省去了一些字段，因此仅处理CodeOJ独有的用户
+			//*usernameToUser[strings.ToLower(u.Username)] = *u
 			continue
 		}
-		usernameToUser[u.Username] = u
+		usernameToUser[strings.ToLower(u.Username)] = u
 		users = append(users, u)
 	}
 
@@ -244,6 +246,7 @@ func (s *MigrateUserService) processVhojUser(ctx context.Context) ([]*foundation
 
 func (s *MigrateUserService) getUserIdByUsername(ctx context.Context, username string) (int, error) {
 	var err error
+	username = strings.ToLower(username)
 	userId, ok := s.usernameToUserId[username]
 	if !ok {
 		userId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)

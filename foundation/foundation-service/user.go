@@ -87,6 +87,10 @@ func (s *UserService) GeneratePasswordEncode(password string) (string, error) {
 	return encoded, nil
 }
 
+func (s *UserService) UpdatePassword(ctx *gin.Context, username string, passwordEncode string) error {
+	return foundationdao.GetUserDao().UpdatePassword(ctx, username, passwordEncode)
+}
+
 func (s *UserService) Login(ctx *gin.Context, username string, password string) (*response.UserLogin, error) {
 	resultUser, err := foundationdao.GetUserDao().GetUserLoginByUsername(ctx, username)
 	if err != nil {

@@ -147,7 +147,7 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 		return
 	}
 	// 判断password是否>6并且<20
-	if len(requestData.Password) < 6 || len(requestData.Password) > 20 {
+	if !foundationuser.IsValidPassword(requestData.Password) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -241,7 +241,7 @@ func (c *UserController) PostForget(ctx *gin.Context) {
 		return
 	}
 	if userEmail == nil || !metaemail.IsEmailValid(*userEmail) {
-		metaresponse.NewResponse(ctx, weberrorcode.FogetUserWithoutEmail, nil)
+		metaresponse.NewResponse(ctx, weberrorcode.ForgetUserWithoutEmail, nil)
 		return
 	}
 
@@ -266,7 +266,61 @@ func (c *UserController) PostForget(ctx *gin.Context) {
 		return
 	}
 
+	email := metaemail.MaskEmail(*userEmail)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, email)
+}
+
+func (c *UserController) PostPasswordModify(ctx *gin.Context) {
+	var requestData struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		Key      string `json:"key" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	username := requestData.Username
+	if !foundationuser.IsValidUsername(requestData.Username) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if !foundationuser.IsValidPassword(requestData.Password) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	codeKey := fmt.Sprintf("forget_password_key_%s", username)
+	redisClient := metaredis.GetSubsystem().GetClient()
+	storedCode, err := redisClient.Get(ctx, codeKey).Result()
+	if errors.Is(err, redis.Nil) {
+		metaresponse.NewResponse(ctx, weberrorcode.ForgetUserMailKeyError, nil)
+		return
+	}
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if storedCode != requestData.Key {
+		metaresponse.NewResponse(ctx, weberrorcode.ForgetUserMailKeyError, nil)
+		return
+	}
+	// 删除验证码
+	if err := redisClient.Del(ctx, codeKey).Err(); err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	passwordEncode, err := foundationservice.GetUserService().GeneratePasswordEncode(requestData.Password)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	err = foundationservice.GetUserService().UpdatePassword(ctx, requestData.Username, passwordEncode)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+
 }
 
 func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
