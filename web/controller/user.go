@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	foundationerrorcode "foundation/error-code"
@@ -12,16 +10,14 @@ import (
 	foundationuser "foundation/foundation-user"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"io"
+	cfturnstile "meta/cf-turnstile"
 	metacontroller "meta/controller"
 	"meta/error-code"
 	metaemail "meta/meta-email"
 	metamath "meta/meta-math"
-	metapanic "meta/meta-panic"
 	metaredis "meta/meta-redis"
 	"meta/meta-response"
 	metatime "meta/meta-time"
-	"net/http"
 	"strconv"
 	"time"
 	"web/config"
@@ -67,7 +63,7 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 	var requestData struct {
 		Token string `json:"token" binding:"required"`
-		Email string `json:"email" binding:"required,email"`
+		Email string `json:"email" binding:"required"`
 	}
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
@@ -83,43 +79,12 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 		return
 	}
 
-	postTokenVerify := struct {
-		Secret   string `json:"secret"`
-		Response string `json:"response"`
-	}{
-		Secret:   config.GetConfig().CfTurnstile,
-		Response: requestData.Token,
-	}
-	verifyUrl := "https://challenges.cloudflare.com/turnstile/v0/siteverify"
-	jsonData, err := json.Marshal(postTokenVerify)
+	isTurnstileValid, err := cfturnstile.IsTurnstileTokenValid(ctx, config.GetConfig().CfTurnstile, requestData.Token)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	resp, err := http.Post(verifyUrl, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-	}(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-	var verifyResponseData struct {
-		Success bool `json:"success"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&verifyResponseData)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-	if !verifyResponseData.Success {
+	if !isTurnstileValid {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -173,11 +138,6 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 		return
 	}
 	if requestData.Username == "" || requestData.Password == "" || requestData.Nickname == "" || requestData.Email == "" {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	// 判断username是否>3并且<20
-	if len(requestData.Username) < 3 || len(requestData.Username) > 20 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -246,6 +206,63 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 	err = foundationservice.GetUserService().InsertUser(ctx, user)
 	if err != nil {
 		metaresponse.NewResponse(ctx, weberrorcode.RegisterUserFail)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
+func (c *UserController) PostForget(ctx *gin.Context) {
+	var requestData struct {
+		Token    string `json:"token" binding:"required"`
+		Username string `json:"username" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	username := requestData.Username
+	if !foundationuser.IsValidUsername(requestData.Username) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	isTurnstileValid, err := cfturnstile.IsTurnstileTokenValid(ctx, config.GetConfig().CfTurnstile, requestData.Token)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if !isTurnstileValid {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userEmail, err := foundationservice.GetUserService().GetEmailByUsername(ctx, username)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if userEmail == nil || !metaemail.IsEmailValid(*userEmail) {
+		metaresponse.NewResponse(ctx, weberrorcode.FogetUserWithoutEmail, nil)
+		return
+	}
+
+	redisClient := metaredis.GetSubsystem().GetClient()
+	codeKey := fmt.Sprintf("forget_password_key_%s", username)
+
+	// 生成验证码并存入 Redis，设置10分钟过期
+	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
+	if err := redisClient.Set(ctx, codeKey, code, 10*time.Minute).Err(); err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	subject := fmt.Sprintf("[DidaOJ] - 邮件验证码")
+	body := fmt.Sprintf("%s：\n\n您好！\n欢迎您使用DidaOJ，以下是您的邮箱验证码：\n\n%s\n\n本验证码用于重置本系统的账号，请勿泄露给他人。\n请在10分钟之内使用本验证码，过期请重新申请。\n如有疑问，请联系管理员。\n\n祝好！\nDidaOJ团队\nhttps://oj.didapipa.com",
+		*userEmail, code)
+
+	err = metaemail.SendEmail(config.GetConfig().Email.Email, config.GetConfig().Email.Password, config.GetConfig().Email.Host, config.GetConfig().Email.Port,
+		*userEmail, subject, body)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.RegisterMailSendFail, nil)
 		return
 	}
 

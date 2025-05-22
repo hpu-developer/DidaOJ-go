@@ -62,6 +62,10 @@ func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*re
 	return userResponse, nil
 }
 
+func (s *UserService) GetEmailByUsername(ctx context.Context, username string) (*string, error) {
+	return foundationdao.GetUserDao().GetEmailByUsername(ctx, username)
+}
+
 func (s *UserService) InsertUser(ctx context.Context, user *foundationmodel.User) error {
 	return foundationdao.GetUserDao().InsertUser(ctx, user)
 }

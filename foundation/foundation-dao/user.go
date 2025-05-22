@@ -39,13 +39,9 @@ func GetUserDao() *UserDao {
 
 func (d *UserDao) InitDao(ctx context.Context) error {
 	indexModel := mongo.IndexModel{
-		Keys: bson.D{{Key: "username", Value: 1}}, // 1表示升序索引
+		Keys: bson.D{{Key: "username_lower", Value: 1}}, // 1表示升序索引
 		Options: options.Index().
-			SetUnique(true).
-			SetCollation(&options.Collation{
-				Locale:   "en", // 英文排序规则
-				Strength: 2,    // Strength 2 表示忽略大小写，但区分重音
-			}),
+			SetUnique(true),
 	}
 	_, err := d.collection.Indexes().CreateOne(ctx, indexModel)
 	if err != nil {
@@ -99,7 +95,10 @@ func (d *UserDao) GetUser(ctx context.Context, userId int) (*foundationmodel.Use
 
 func (d *UserDao) GetInfo(ctx *gin.Context, username string) (*foundationmodel.UserInfo, error) {
 	filter := bson.M{
-		"username": username,
+		"username": bson.M{
+			"$regex":   username,
+			"$options": "i", // i 表示忽略大小写
+		},
 	}
 	opts := options.FindOne().SetProjection(
 		bson.M{
@@ -220,7 +219,10 @@ func (d *UserDao) GetUserLogin(ctx context.Context, userId int) (*foundationmode
 
 func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (*foundationmodel.UserLogin, error) {
 	filter := bson.M{
-		"username": username,
+		"username": bson.M{
+			"$regex":   username,
+			"$options": "i", // i 表示忽略大小写
+		},
 	}
 	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1,
 		"username": 1,
@@ -240,7 +242,10 @@ func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (
 
 func (d *UserDao) GetUserIdByUsername(ctx context.Context, username string) (int, error) {
 	filter := bson.M{
-		"username": username,
+		"username": bson.M{
+			"$regex":   username,
+			"$options": "i", // i 表示忽略大小写
+		},
 	}
 	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1})
 	var result struct {
@@ -250,6 +255,26 @@ func (d *UserDao) GetUserIdByUsername(ctx context.Context, username string) (int
 		return 0, metaerror.Wrap(err, "find user id by username error, %s", username)
 	}
 	return result.UserId, nil
+}
+
+func (d *UserDao) GetEmailByUsername(ctx context.Context, username string) (*string, error) {
+	filter := bson.M{
+		"username": bson.M{
+			"$regex":   username,
+			"$options": "i", // i 表示忽略大小写
+		},
+	}
+	findOptions := options.FindOne().SetProjection(bson.M{"_id": 1, "email": 1})
+	var result struct {
+		Email *string `bson:"email"`
+	}
+	if err := d.collection.FindOne(ctx, filter, findOptions).Decode(&result); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find user email error")
+	}
+	return result.Email, nil
 }
 
 func (d *UserDao) GetUserRoles(ctx context.Context, userId int) ([]string, error) {
