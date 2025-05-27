@@ -8,7 +8,7 @@ import (
 type JudgeJob struct {
 	Id int `json:"id" bson:"_id"`
 
-	ProblemId           string `json:"problem_id" bson:"problem_id"`                                           // 题目ID
+	ProblemId           string `json:"problem_id,omitempty" bson:"problem_id,omitempty"`                       // 题目ID
 	ContestId           int    `json:"contest_id,omitempty" bson:"contest_id,omitempty"`                       // 比赛ID
 	ContestProblemIndex int    `json:"contest_problem_index,omitempty" bson:"contest_problem_index,omitempty"` // 比赛题目序号，不会存档，用于标识题目并且隐藏真实题目
 
