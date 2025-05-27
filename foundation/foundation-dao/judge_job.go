@@ -447,6 +447,114 @@ func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]st
 	return result, nil
 }
 
+func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int) ([]*foundationmodel.ContestRank, error) {
+	pipeline := mongo.Pipeline{
+		// Step 1: 筛选比赛提交记录
+		{{"$match", bson.M{"contest_id": id}}},
+
+		// Step 2: 按用户+题目分组，收集所有提交记录
+		{{"$group", bson.M{
+			"_id": bson.M{
+				"author_id":  "$author_id",
+				"problem_id": "$problem_id",
+			},
+			"submissions": bson.M{"$push": bson.M{
+				"status":       "$status",
+				"approve_time": "$approve_time",
+			}},
+		}}},
+
+		// Step 3: 找出最早的 AC 时间（status == 4）
+		{{"$project", bson.M{
+			"author_id":   "$_id.author_id",
+			"problem_id":  "$_id.problem_id",
+			"submissions": 1,
+			"first_ac_time": bson.M{"$min": bson.M{
+				"$map": bson.M{
+					"input": "$submissions",
+					"as":    "s",
+					"in": bson.M{
+						"$cond": []interface{}{
+							bson.M{"$eq": []interface{}{"$$s.status", foundationjudge.JudgeStatusAC}},
+							"$$s.approve_time",
+							bson.TypeNull,
+						},
+					},
+				},
+			}},
+		}}},
+	}
+
+	cursor, err := d.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	type submission struct {
+		Status      int       `bson:"status"`
+		ApproveTime time.Time `bson:"approve_time"`
+	}
+	type entry struct {
+		AuthorId    int          `bson:"author_id"`
+		ProblemId   string       `bson:"problem_id"`
+		Submissions []submission `bson:"submissions"`
+		FirstAcTime *time.Time   `bson:"first_ac_time"`
+	}
+
+	rankMap := make(map[int]*foundationmodel.ContestRank)
+
+	for cursor.Next(ctx) {
+		var e entry
+		if err := cursor.Decode(&e); err != nil {
+			return nil, err
+		}
+
+		// 初始化用户排行榜项
+		if _, ok := rankMap[e.AuthorId]; !ok {
+			rankMap[e.AuthorId] = &foundationmodel.ContestRank{
+				AuthorId: e.AuthorId,
+				Problems: make(map[string]struct {
+					FirstAcTime *time.Time `json:"first_ac_time,omitempty" bson:"first_ac_time,omitempty"`
+					SubmitCount int        `json:"submit_count" bson:"submit_count"`
+				}),
+			}
+		}
+
+		count := 0
+		if e.FirstAcTime != nil {
+			for _, sub := range e.Submissions {
+				if sub.ApproveTime.Before(*e.FirstAcTime) {
+					count++
+				}
+			}
+		} else {
+			count = len(e.Submissions)
+		}
+
+		rankMap[e.AuthorId].Problems[e.ProblemId] = struct {
+			FirstAcTime *time.Time `json:"first_ac_time,omitempty" bson:"first_ac_time,omitempty"`
+			SubmitCount int        `json:"submit_count" bson:"submit_count"`
+		}{
+			FirstAcTime: e.FirstAcTime,
+			SubmitCount: count,
+		}
+	}
+
+	// 检查游标错误
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	// 转换为 slice 返回
+	var result []*foundationmodel.ContestRank
+	for _, v := range rankMap {
+		result = append(result, v)
+	}
+
+	return result, nil
+}
+
 // RequestJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的
 func (d *JudgeJobDao) RequestJudgeJobListPendingJudge(ctx context.Context, maxCount int, judger string) ([]*foundationmodel.JudgeJob, error) {
 	var result []*foundationmodel.JudgeJob

@@ -80,6 +80,36 @@ func (c *ContestController) GetList(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *JudgeController) GetRank(ctx *gin.Context) {
+	id := ctx.Query("id")
+	if id == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	contestId, err := strconv.Atoi(id)
+	if err != nil || contestId <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	list, err := foundationservice.GetJudgeService().GetContestRanks(ctx, contestId)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if list == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	responseData := struct {
+		Time time.Time                      `json:"time"`
+		List []*foundationmodel.ContestRank `json:"list"`
+	}{
+		Time: metatime.GetTimeNow(),
+		List: list,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
 func (c *ContestController) PostCreate(ctx *gin.Context) {
 	var requestData request.ContestCreate
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
