@@ -99,6 +99,19 @@ func (s *JudgeService) GetJudgeList(ctx context.Context,
 				judgeJob.AuthorNickname = &user.Nickname
 			}
 		}
+
+		if contestId > 0 {
+			for _, judgeJob := range judgeJobs {
+				if judgeJob.ProblemId != "" {
+					judgeJob.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(ctx, contestId, &judgeJob.ProblemId)
+					if err != nil {
+						return nil, 0, err
+					}
+					// 隐藏真实的ProblemId
+					judgeJob.ProblemId = ""
+				}
+			}
+		}
 	}
 	return judgeJobs, totalCount, nil
 }

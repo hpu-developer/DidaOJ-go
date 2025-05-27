@@ -132,15 +132,15 @@ func (s *DiscussService) GetDiscussList(ctx context.Context,
 			}
 		}
 
-		for _, discuss := range discusses {
-			if discuss.ContestId > 0 {
+		if contestId > 0 {
+			for _, discuss := range discusses {
 				if discuss.ProblemId != nil {
 					problemTitle, err := foundationdao.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
 					if err != nil {
 						return nil, 0, err
 					}
 					discuss.ProblemTitle = problemTitle
-					discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(ctx, discuss.ContestId, discuss.ProblemId)
+					discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(ctx, contestId, discuss.ProblemId)
 					if err != nil {
 						return nil, 0, err
 					}
