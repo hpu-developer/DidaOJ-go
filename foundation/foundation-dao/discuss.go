@@ -87,7 +87,11 @@ func (d *DiscussDao) GetDiscuss(ctx context.Context, id int) (*foundationmodel.D
 	return &discuss, nil
 }
 
-func (d *DiscussDao) GetDiscussList(ctx context.Context, contestId int, problemId string, title string, userId int, page int, pageSize int) ([]*foundationmodel.Discuss, int, error) {
+func (d *DiscussDao) GetDiscussList(ctx context.Context,
+	contestId int, problemId string,
+	title string, userId int,
+	page int, pageSize int,
+) ([]*foundationmodel.Discuss, int, error) {
 	filter := bson.M{}
 	if contestId > 0 {
 		filter["contest_id"] = contestId

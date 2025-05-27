@@ -3,6 +3,7 @@ package controller
 import (
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
+	foundationcontest "foundation/foundation-contest"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
@@ -92,6 +93,12 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		return
 	}
 	problemId := ctx.Query("problem_id")
+	var contestId, constProblemIndex int
+	contestIdStr := ctx.Query("contest_id")
+	if contestIdStr != "" {
+		contestId, err = strconv.Atoi(contestIdStr)
+		constProblemIndex = foundationcontest.GetContestProblemIndex(problemId)
+	}
 	username := ctx.Query("username")
 	languageStr := ctx.Query("language")
 	language := foundationjudge.JudgeLanguageUnknown
@@ -109,7 +116,11 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 			status = foundationjudge.JudgeStatus(statusInt)
 		}
 	}
-	list, totalCount, err := judgeService.GetJudgeList(ctx, problemId, username, language, status, page, pageSize)
+	list, totalCount, err := judgeService.GetJudgeList(ctx,
+		contestId, constProblemIndex,
+		problemId, username, language, status,
+		page, pageSize,
+	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

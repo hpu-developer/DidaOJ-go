@@ -165,10 +165,16 @@ func (d *JudgeJobDao) GetJudgeCode(ctx context.Context, id int) (foundationjudge
 }
 
 func (d *JudgeJobDao) GetJudgeJobList(ctx context.Context,
-	problemId string, userId int, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus,
+	contestId int, problemId string,
+	userId int, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus,
 	page int, pageSize int,
 ) ([]*foundationmodel.JudgeJob, int, error) {
 	filter := bson.M{}
+	if contestId > 0 {
+		filter["contest_id"] = contestId
+	} else {
+		filter["contest_id"] = bson.M{"$exists": false}
+	}
 	if problemId != "" {
 		filter["problem_id"] = problemId
 	}

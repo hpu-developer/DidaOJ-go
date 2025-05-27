@@ -47,7 +47,10 @@ func (s *JudgeService) GetJudgeCode(ctx context.Context, id int) (foundationjudg
 	return foundationdao.GetJudgeJobDao().GetJudgeCode(ctx, id)
 }
 
-func (s *JudgeService) GetJudgeList(ctx context.Context, problemId string, username string, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus, page int, pageSize int) ([]*foundationmodel.JudgeJob, int, error) {
+func (s *JudgeService) GetJudgeList(ctx context.Context,
+	contestId int, contestProblemIndex int,
+	problemId string,
+	username string, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus, page int, pageSize int) ([]*foundationmodel.JudgeJob, int, error) {
 	var err error
 	userId := -1
 	if username != "" {
@@ -59,7 +62,21 @@ func (s *JudgeService) GetJudgeList(ctx context.Context, problemId string, usern
 			return nil, 0, nil
 		}
 	}
-	judgeJobs, totalCount, err := foundationdao.GetJudgeJobDao().GetJudgeJobList(ctx, problemId, userId, language, status, page, pageSize)
+	if contestId > 0 {
+		// 计算ProblemId
+		if contestProblemIndex > 0 {
+			problemIdPtr, err := foundationdao.GetContestDao().GetProblemIdByContest(ctx, contestId, contestProblemIndex)
+			if err != nil {
+				return nil, 0, err
+			}
+			if problemIdPtr == nil {
+				return nil, 0, nil
+			}
+			problemId = *problemIdPtr
+		}
+	}
+
+	judgeJobs, totalCount, err := foundationdao.GetJudgeJobDao().GetJudgeJobList(ctx, contestId, problemId, userId, language, status, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
