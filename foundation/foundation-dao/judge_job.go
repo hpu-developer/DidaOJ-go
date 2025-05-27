@@ -448,7 +448,6 @@ func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]st
 }
 
 func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int, startTime *time.Time, problemMap map[string]int) ([]*foundationmodel.ContestRank, error) {
-	ACStatus := foundationjudge.JudgeStatusAC
 
 	pipeline := mongo.Pipeline{
 		{{"$match", bson.M{
@@ -460,47 +459,45 @@ func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int, startTime *ti
 				"author_id":  "$author_id",
 				"problem_id": "$problem_id",
 			},
-			"submissions": bson.M{"$push": bson.M{
+			"ac_list": bson.M{"$push": bson.M{
 				"_id":          "$_id",
 				"status":       "$status",
 				"approve_time": "$approve_time",
 			}},
 		}}},
 		{{"$addFields", bson.M{
-			"first_ac_doc": bson.M{
+			"first_ac": bson.M{
 				"$first": bson.M{
 					"$filter": bson.M{
-						"input": "$submissions",
+						"input": "$ac_list",
 						"as":    "s",
-						"cond": bson.M{
-							"$eq": bson.A{"$$s.status", ACStatus},
-						},
+						"cond":  bson.M{"$eq": bson.A{"$$s.status", foundationjudge.JudgeStatusAC}},
 					},
 				},
 			},
 		}}},
-		{{"$project", bson.M{
-			"author_id":  "$_id.author_id",
-			"problem_id": "$_id.problem_id",
-
-			"first_ac_id":   "$first_ac_doc._id",
-			"first_ac_time": "$first_ac_doc.approve_time",
-
+		{{"$addFields", bson.M{
 			"attempt_count": bson.M{
 				"$cond": bson.A{
-					bson.M{"$ne": bson.A{"$first_ac_doc", bson.TypeNull}},
+					bson.M{"$ifNull": bson.A{"$first_ac._id", false}},
 					bson.M{
 						"$size": bson.M{
 							"$filter": bson.M{
-								"input": "$submissions",
+								"input": "$ac_list",
 								"as":    "s",
-								"cond":  bson.M{"$lt": bson.A{"$$s._id", "$first_ac_doc._id"}},
+								"cond":  bson.M{"$lt": bson.A{"$$s._id", "$first_ac._id"}},
 							},
 						},
 					},
-					bson.M{"$size": "$submissions"},
+					bson.M{"$size": "$ac_list"},
 				},
 			},
+		}}},
+		{{"$project", bson.M{
+			"author_id":     "$_id.author_id",
+			"problem_id":    "$_id.problem_id",
+			"first_ac_time": "$first_ac.approve_time",
+			"attempt_count": 1,
 		}}},
 	}
 

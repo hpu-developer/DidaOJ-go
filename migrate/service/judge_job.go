@@ -153,9 +153,10 @@ func (s *MigrateJudgeJobService) processCodeojJudgeJob(ctx context.Context) ([]*
 		err := codeojDB.Table("status AS s").
 			Select("s.status_id, s.problem_id, s.creator, s.language, s.insert_time, s.length, s.time, s.memory, s.result, s.score, s.judge_time, s.judger, c.code").
 			Joins("LEFT JOIN status_code c ON s.status_id = c.status_id").
+			Where("s.status_id > 98402").
+			Order("s.status_id ASC").
 			Limit(batchSize).
 			Offset(offset).
-			Where("s.status_id > 98402").
 			Scan(&rows).Error
 		if err != nil {
 			return nil, metaerror.Wrap(err, "query status failed")
@@ -219,6 +220,7 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 			Joins("LEFT JOIN source_code c ON s.solution_id = c.solution_id").
 			Joins("LEFT JOIN source_code_pr pr ON s.solution_id = pr.solution_id").
 			Where("s.problem_id > 0").
+			Order("s.solution_id ASC").
 			Limit(batchSize).
 			Offset(offset).
 			Scan(&rows).Error
