@@ -140,34 +140,6 @@ func (s *JudgeService) GetUserAcProblemIds(ctx context.Context, userId int) ([]s
 	return problemIds, nil
 }
 
-func (s *JudgeService) GetContestRanks(ctx context.Context, contestId int) ([]*foundationmodel.ContestRank, error) {
-	contestRanks, err := foundationdao.GetJudgeJobDao().GetContestRanks(ctx, contestId)
-	if err != nil {
-		return nil, err
-	}
-	if len(contestRanks) > 0 {
-		var userIds []int
-		for _, contestRank := range contestRanks {
-			userIds = append(userIds, contestRank.AuthorId)
-		}
-		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
-		if err != nil {
-			return nil, err
-		}
-		userMap := make(map[int]*foundationmodel.UserAccountInfo)
-		for _, user := range users {
-			userMap[user.Id] = user
-		}
-		for _, contestRank := range contestRanks {
-			if user, ok := userMap[contestRank.AuthorId]; ok {
-				contestRank.AuthorUsername = &user.Username
-				contestRank.AuthorNickname = &user.Nickname
-			}
-		}
-	}
-	return contestRanks, nil
-}
-
 func (s *JudgeService) UpdateJudge(ctx context.Context, id int, judgeJob *foundationmodel.JudgeJob) error {
 	return foundationdao.GetJudgeJobDao().UpdateJudgeJob(ctx, id, judgeJob)
 }

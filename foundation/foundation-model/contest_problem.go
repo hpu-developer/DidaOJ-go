@@ -6,9 +6,10 @@ type ContestProblem struct {
 	Score     int     `json:"score" bson:"score"`                               // 搭配ScoreType使用，定义题目分数，不填写则为0分
 	Index     int     `json:"index" bson:"index"`                               // 问题顺序，用于在展示时标识问题，为了方便标识，从1开始
 
-	Title   *string `json:"title,omitempty" bson:"title,omitempty"`     // 题目标题
-	Accept  int     `json:"accept,omitempty" bson:"accept,omitempty"`   // 题目通过数
-	Attempt int     `json:"attempt,omitempty" bson:"attempt,omitempty"` // 题目尝试数
+	Title *string `json:"title,omitempty" bson:"title,omitempty"` // 题目标题
+
+	Accept  int `json:"accept,omitempty" bson:"accept,omitempty"`   // 题目通过数（暂不存档，动态计算）
+	Attempt int `json:"attempt,omitempty" bson:"attempt,omitempty"` // 题目尝试数（暂不存档，动态计算）
 }
 
 type ContestProblemBuilder struct {

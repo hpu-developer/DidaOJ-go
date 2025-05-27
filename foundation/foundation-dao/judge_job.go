@@ -447,41 +447,60 @@ func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]st
 	return result, nil
 }
 
-func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int) ([]*foundationmodel.ContestRank, error) {
-	pipeline := mongo.Pipeline{
-		// Step 1: 筛选比赛提交记录
-		{{"$match", bson.M{"contest_id": id}}},
+func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int, startTime *time.Time, problemMap map[string]int) ([]*foundationmodel.ContestRank, error) {
+	ACStatus := foundationjudge.JudgeStatusAC
 
-		// Step 2: 按用户+题目分组，收集所有提交记录
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{
+			"contest_id":   id,
+			"approve_time": bson.M{"$gte": startTime},
+		}}},
 		{{"$group", bson.M{
 			"_id": bson.M{
 				"author_id":  "$author_id",
 				"problem_id": "$problem_id",
 			},
 			"submissions": bson.M{"$push": bson.M{
+				"_id":          "$_id",
 				"status":       "$status",
 				"approve_time": "$approve_time",
 			}},
 		}}},
-
-		// Step 3: 找出最早的 AC 时间（status == 4）
-		{{"$project", bson.M{
-			"author_id":   "$_id.author_id",
-			"problem_id":  "$_id.problem_id",
-			"submissions": 1,
-			"first_ac_time": bson.M{"$min": bson.M{
-				"$map": bson.M{
-					"input": "$submissions",
-					"as":    "s",
-					"in": bson.M{
-						"$cond": []interface{}{
-							bson.M{"$eq": []interface{}{"$$s.status", foundationjudge.JudgeStatusAC}},
-							"$$s.approve_time",
-							bson.TypeNull,
+		{{"$addFields", bson.M{
+			"first_ac_doc": bson.M{
+				"$first": bson.M{
+					"$filter": bson.M{
+						"input": "$submissions",
+						"as":    "s",
+						"cond": bson.M{
+							"$eq": bson.A{"$$s.status", ACStatus},
 						},
 					},
 				},
-			}},
+			},
+		}}},
+		{{"$project", bson.M{
+			"author_id":  "$_id.author_id",
+			"problem_id": "$_id.problem_id",
+
+			"first_ac_id":   "$first_ac_doc._id",
+			"first_ac_time": "$first_ac_doc.approve_time",
+
+			"attempt_count": bson.M{
+				"$cond": bson.A{
+					bson.M{"$ne": bson.A{"$first_ac_doc", bson.TypeNull}},
+					bson.M{
+						"$size": bson.M{
+							"$filter": bson.M{
+								"input": "$submissions",
+								"as":    "s",
+								"cond":  bson.M{"$lt": bson.A{"$$s._id", "$first_ac_doc._id"}},
+							},
+						},
+					},
+					bson.M{"$size": "$submissions"},
+				},
+			},
 		}}},
 	}
 
@@ -489,17 +508,24 @@ func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int) ([]*foundatio
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(ctx)
+	defer func() {
+		if err := cursor.Close(ctx); err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}()
 
-	type submission struct {
-		Status      int       `bson:"status"`
-		ApproveTime time.Time `bson:"approve_time"`
-	}
 	type entry struct {
-		AuthorId    int          `bson:"author_id"`
-		ProblemId   string       `bson:"problem_id"`
-		Submissions []submission `bson:"submissions"`
-		FirstAcTime *time.Time   `bson:"first_ac_time"`
+		AuthorId     int        `bson:"author_id"`
+		ProblemId    string     `bson:"problem_id"`
+		FirstAcTime  *time.Time `bson:"first_ac_time"`
+		AttemptCount int        `bson:"attempt_count"`
+	}
+
+	getProblemIndex := func(problemId string) int {
+		if index, ok := problemMap[problemId]; ok {
+			return index
+		}
+		return -1
 	}
 
 	rankMap := make(map[int]*foundationmodel.ContestRank)
@@ -510,44 +536,24 @@ func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int) ([]*foundatio
 			return nil, err
 		}
 
-		// 初始化用户排行榜项
 		if _, ok := rankMap[e.AuthorId]; !ok {
 			rankMap[e.AuthorId] = &foundationmodel.ContestRank{
 				AuthorId: e.AuthorId,
-				Problems: make(map[string]struct {
-					FirstAcTime *time.Time `json:"first_ac_time,omitempty" bson:"first_ac_time,omitempty"`
-					SubmitCount int        `json:"submit_count" bson:"submit_count"`
-				}),
 			}
 		}
 
-		count := 0
-		if e.FirstAcTime != nil {
-			for _, sub := range e.Submissions {
-				if sub.ApproveTime.Before(*e.FirstAcTime) {
-					count++
-				}
-			}
-		} else {
-			count = len(e.Submissions)
-		}
-
-		rankMap[e.AuthorId].Problems[e.ProblemId] = struct {
-			FirstAcTime *time.Time `json:"first_ac_time,omitempty" bson:"first_ac_time,omitempty"`
-			SubmitCount int        `json:"submit_count" bson:"submit_count"`
-		}{
-			FirstAcTime: e.FirstAcTime,
-			SubmitCount: count,
-		}
+		rankMap[e.AuthorId].Problems = append(rankMap[e.AuthorId].Problems, &foundationmodel.ContestRankProblem{
+			Index:   getProblemIndex(e.ProblemId),
+			Ac:      e.FirstAcTime,
+			Attempt: e.AttemptCount,
+		})
 	}
 
-	// 检查游标错误
 	if err := cursor.Err(); err != nil {
 		return nil, err
 	}
 
-	// 转换为 slice 返回
-	var result []*foundationmodel.ContestRank
+	result := make([]*foundationmodel.ContestRank, 0, len(rankMap))
 	for _, v := range rankMap {
 		result = append(result, v)
 	}

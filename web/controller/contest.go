@@ -80,7 +80,7 @@ func (c *ContestController) GetList(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
-func (c *JudgeController) GetRank(ctx *gin.Context) {
+func (c *ContestController) GetRank(ctx *gin.Context) {
 	id := ctx.Query("id")
 	if id == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
@@ -91,21 +91,21 @@ func (c *JudgeController) GetRank(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	list, err := foundationservice.GetJudgeService().GetContestRanks(ctx, contestId)
+	startTime, endTime, problems, ranks, err := foundationservice.GetContestService().GetContestRanks(ctx, contestId)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
-	if list == nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
-		return
-	}
 	responseData := struct {
-		Time time.Time                      `json:"time"`
-		List []*foundationmodel.ContestRank `json:"list"`
+		StartTime *time.Time                     `json:"start_time"`
+		EndTime   *time.Time                     `json:"end_time"` // 结束时间
+		Problems  []int                          `json:"problems"` // 题目索引列表
+		Ranks     []*foundationmodel.ContestRank `json:"ranks"`
 	}{
-		Time: metatime.GetTimeNow(),
-		List: list,
+		StartTime: startTime,
+		EndTime:   endTime,
+		Problems:  problems,
+		Ranks:     ranks,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }

@@ -5,6 +5,7 @@ import (
 	"foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	"meta/singleton"
+	"time"
 )
 
 type ContestService struct {
@@ -88,4 +89,44 @@ func (s *ContestService) GetContestList(ctx context.Context, page int, pageSize 
 
 func (s *ContestService) InsertContest(ctx context.Context, contest *foundationmodel.Contest) error {
 	return foundationdao.GetContestDao().InsertContest(ctx, contest)
+}
+
+func (s *ContestService) GetContestRanks(ctx context.Context, id int) (*time.Time, *time.Time, []int, []*foundationmodel.ContestRank, error) {
+	contestView, err := foundationdao.GetContestDao().GetContestRankView(ctx, id)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	problemMap := make(map[string]int)
+	for _, problem := range contestView.Problems {
+		problemMap[problem.ProblemId] = problem.Index
+	}
+	contestRanks, err := foundationdao.GetJudgeJobDao().GetContestRanks(ctx, id, contestView.StartTime, problemMap)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if len(contestRanks) > 0 {
+		var userIds []int
+		for _, contestRank := range contestRanks {
+			userIds = append(userIds, contestRank.AuthorId)
+		}
+		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		userMap := make(map[int]*foundationmodel.UserAccountInfo)
+		for _, user := range users {
+			userMap[user.Id] = user
+		}
+		for _, contestRank := range contestRanks {
+			if user, ok := userMap[contestRank.AuthorId]; ok {
+				contestRank.AuthorUsername = &user.Username
+				contestRank.AuthorNickname = &user.Nickname
+			}
+		}
+	}
+	var problemIndexes []int
+	for _, problem := range contestView.Problems {
+		problemIndexes = append(problemIndexes, problem.Index)
+	}
+	return contestView.StartTime, contestView.EndTime, problemIndexes, contestRanks, nil
 }

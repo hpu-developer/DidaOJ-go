@@ -105,6 +105,52 @@ func (d *ContestDao) GetContestTitle(ctx context.Context, id int) (*string, erro
 	return &contest.Title, nil
 }
 
+func (d *ContestDao) GetContestRankView(ctx context.Context, id int) (*foundationmodel.ContestRankView, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(bson.M{
+			"_id":        1,
+			"start_time": 1,
+			"end_time":   1,
+			"problems":   1,
+		})
+	var contest foundationmodel.Contest
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &foundationmodel.ContestRankView{
+		Id:        contest.Id,
+		StartTime: &contest.StartTime,
+		EndTime:   &contest.EndTime,
+		Problems:  contest.Problems,
+	}, nil
+}
+
+func (d *ContestDao) GetProblems(ctx context.Context, id int) ([]*foundationmodel.ContestProblem, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(bson.M{
+		"problems": 1,
+	})
+	var result struct {
+		Problems []*foundationmodel.ContestProblem `bson:"problems"`
+	}
+	err := d.collection.FindOne(ctx, filter, opts).Decode(&result)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problems error")
+	}
+	return result.Problems, nil
+}
+
 func (d *ContestDao) GetProblemIndex(ctx context.Context, id int, problemId *string) (int, error) {
 	filter := bson.M{
 		"_id": id,
