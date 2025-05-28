@@ -558,14 +558,96 @@ func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int, startTime *ti
 	return result, nil
 }
 
-func (d *JudgeJobDao) GetProblemRecommendByUser(ctx context.Context, userId int) ([]*foundationmodel.Problem, error) {
-	userAcProblems := d.GetUserAcProblemIds(ctx, userId)
-	
-	return nil, nil
+func (d *JudgeJobDao) GetProblemRecommendByUser(ctx context.Context, userId int) ([]string, error) {
+	return d.GetProblemRecommendByProblem(ctx, userId, "")
 }
 
-func (d *JudgeJobDao) GetProblemRecommendByProblem(ctx context.Context, problemId string) ([]*foundationmodel.Problem, error) {
-	return nil, nil
+func (d *JudgeJobDao) GetProblemRecommendByProblem(ctx context.Context, userId int, problemId string) ([]string, error) {
+	collection := d.collection
+
+	userAcProblems, err := d.GetUserAcProblemIds(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	match := bson.M{
+		"status": foundationjudge.JudgeStatusAC,
+	}
+	if problemId != "" {
+		match["problem_id"] = problemId // 只看当前题
+	}
+
+	// Step 1: 找出做过该题的用户
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: match}},
+		{{Key: "$group", Value: bson.M{
+			"_id": "$author_id",
+		}}},
+		{{Key: "$limit", Value: 1000}},
+	}
+	cursor, err := collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(cursor, ctx)
+	var acUserIDs []int
+	for cursor.Next(ctx) {
+		var result struct {
+			ID int `bson:"_id"`
+		}
+		if err := cursor.Decode(&result); err != nil {
+			return nil, err
+		}
+		acUserIDs = append(acUserIDs, result.ID)
+	}
+
+	// Step 2: 找出这些用户做过的其他题（排除当前题）
+	pipeline = mongo.Pipeline{
+		// 只看这些用户做过的题
+		{{Key: "$match", Value: bson.M{
+			"status":       foundationjudge.JudgeStatusAC, // AC
+			"approve_time": bson.M{"$exists": true},       // 确保有通过时间
+			"author_id":    bson.M{"$in": acUserIDs},
+			"problem_id":   bson.M{"$nin": userAcProblems}, // 排除当前题
+		}}},
+		// 分组统计每道题被多少人做过
+		{{Key: "$group", Value: bson.M{
+			"_id":   "$problem_id",
+			"count": bson.M{"$sum": 1},
+		}}},
+		// 排序
+		{{Key: "$sort", Value: bson.M{"count": -1}}},
+		// 限制返回条数
+		{{Key: "$limit", Value: 20}},
+	}
+
+	cursor, err = collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(cursor, ctx)
+
+	var results []struct {
+		ProblemID string `bson:"_id"`
+	}
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+	problemIDs := make([]string, 0, len(results))
+	for _, r := range results {
+		problemIDs = append(problemIDs, r.ProblemID)
+	}
+	return problemIDs, nil
 }
 
 // RequestJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的

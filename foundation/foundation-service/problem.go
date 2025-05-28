@@ -7,6 +7,8 @@ import (
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
+	"sort"
+	"strings"
 	"time"
 	"web/request"
 )
@@ -119,8 +121,36 @@ func (s *ProblemService) GetProblemListWithUser(ctx context.Context, userId int,
 	return problemList, totalCount, problemStatus, nil
 }
 
-func (s *ProblemService) GetProblemRecommendByUser(ctx context.Context, userId int) ([]*foundationmodel.Problem, error) {
-	return foundationdao.GetJudgeJobDao().GetProblemRecommendByUser(ctx, userId)
+func (s *ProblemService) GetProblemRecommend(ctx context.Context, userId int, problemId string) ([]*foundationmodel.Problem, error) {
+	var err error
+	var problemIds []string
+	if problemId == "" {
+		problemIds, err = foundationdao.GetJudgeJobDao().GetProblemRecommendByUser(ctx, userId)
+	} else {
+		problemIds, err = foundationdao.GetJudgeJobDao().GetProblemRecommendByProblem(ctx, userId, problemId)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(problemIds) == 0 {
+		return nil, nil
+	}
+	sort.Slice(problemIds, func(a, b int) bool {
+		lengthA := len(problemIds[a])
+		lengthB := len(problemIds[b])
+		if lengthA != lengthB {
+			return lengthA < lengthB
+		}
+		return strings.Compare(problemIds[a], problemIds[b]) < 0
+	})
+	problemList, err := foundationdao.GetProblemDao().GetProblems(ctx, problemIds)
+	if err != nil {
+		return nil, err
+	}
+	if len(problemList) == 0 {
+		return nil, nil
+	}
+	return problemList, nil
 }
 
 func (s *ProblemService) GetProblemTagList(ctx context.Context, maxCount int) ([]*foundationmodel.ProblemTag, int, error) {

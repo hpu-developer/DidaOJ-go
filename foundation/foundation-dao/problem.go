@@ -239,6 +239,37 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 	return list, int(totalCount), nil
 }
 
+func (d *ProblemDao) GetProblems(ctx context.Context, ids []string) ([]*foundationmodel.Problem, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	filter := bson.M{
+		"_id": bson.M{
+			"$in": ids,
+		},
+	}
+	opts := options.Find().SetProjection(bson.M{"_id": 1, "title": 1, "tags": 1, "accept": 1, "attempt": 1})
+	cursor, err := d.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find problems error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close cursor error"))
+		}
+	}(cursor, ctx)
+	var problems []*foundationmodel.Problem
+	for cursor.Next(ctx) {
+		var problem foundationmodel.Problem
+		if err := cursor.Decode(&problem); err != nil {
+			return nil, metaerror.Wrap(err, "decode problem error")
+		}
+		problems = append(problems, &problem)
+	}
+	return problems, nil
+}
+
 func (d *ProblemDao) UpdateProblems(ctx context.Context, tags []*foundationmodel.Problem) error {
 	var models []mongo.WriteModel
 	for _, tab := range tags {

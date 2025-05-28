@@ -28,6 +28,7 @@ import (
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	metazip "meta/meta-zip"
+	"meta/set"
 	"os"
 	"path"
 	"path/filepath"
@@ -173,16 +174,36 @@ func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 		return
 	}
 	problemService := foundationservice.GetProblemService()
-	_ := ctx.Query("problem_id")
-	list, err := problemService.GetProblemRecommendByUser(ctx, userId)
+	problemId := ctx.Query("problem_id")
+	list, err := problemService.GetProblemRecommend(ctx, userId, problemId)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
+	tagIdSet := set.New[int]()
+	for _, problem := range list {
+		if problem.Tags != nil {
+			for _, tagId := range problem.Tags {
+				tagIdSet.Add(tagId)
+			}
+		}
+	}
+	var tagIds []int
+	tagIdSet.Foreach(func(tagId *int) bool {
+		tagIds = append(tagIds, *tagId)
+		return true
+	})
+	tags, err := foundationservice.GetProblemService().GetProblemTagByIds(ctx, tagIds)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
 	responseData := struct {
-		List []*foundationmodel.Problem `json:"list"`
+		List []*foundationmodel.Problem    `json:"list"`
+		Tags []*foundationmodel.ProblemTag `json:"tags,omitempty"`
 	}{
 		List: list,
+		Tags: tags,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
