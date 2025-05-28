@@ -40,6 +40,7 @@ func GetCrawlHduService() *CrawlHduService {
 func (s *CrawlHduService) PostCrawlProblem(ctx context.Context, id string) (*string, error) {
 
 	nowTime := metatime.GetTimeNow()
+	newProblemId := fmt.Sprintf("HDU-%s", id)
 	baseURL := "https://acm.hdu.edu.cn/"
 	url := fmt.Sprintf("%sshowproblem.php?pid=%s", baseURL, id)
 
@@ -88,7 +89,7 @@ func (s *CrawlHduService) PostCrawlProblem(ctx context.Context, id string) (*str
 			// 如果需要 markdown 转换，这里调用自定义函数
 		} else if s.HasClass("panel_content") {
 			htmlContent, _ := s.Html()
-			htmlContent, err = foundationrender.HTMLToMarkdown(htmlContent, baseURL)
+			htmlContent, err = foundationrender.HTMLToMarkdown(newProblemId, htmlContent, baseURL)
 			if err != nil {
 				finalErr = metaerror.Join(finalErr, err)
 				return
@@ -138,7 +139,6 @@ func (s *CrawlHduService) PostCrawlProblem(ctx context.Context, id string) (*str
 	})
 
 	slog.Info("description", description)
-	newProblemId := fmt.Sprintf("HDU-%s", id)
 
 	originUrl := fmt.Sprintf("https://acm.hdu.edu.cn/showproblem.php?pid=%s", id)
 
