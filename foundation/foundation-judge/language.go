@@ -16,7 +16,8 @@ const (
 // IsLanguageNeedCompile 是否判题时需要执行编辑过程
 func IsLanguageNeedCompile(language JudgeLanguage) bool {
 	switch language {
-	case JudgeLanguageC, JudgeLanguageCpp, JudgeLanguageJava, JudgeLanguagePython, JudgeLanguagePascal:
+	case JudgeLanguageC, JudgeLanguageCpp, JudgeLanguageJava, JudgeLanguagePython,
+		JudgeLanguagePascal, JudgeLanguageGolang:
 		return true
 	default:
 		return false

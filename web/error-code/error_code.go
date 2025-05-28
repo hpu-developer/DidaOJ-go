@@ -9,4 +9,5 @@ const (
 	RegisterUserFail       metaerrorcode.ErrorCode = 100004
 	ForgetUserWithoutEmail metaerrorcode.ErrorCode = 100005
 	ForgetUserMailKeyError metaerrorcode.ErrorCode = 100006
+	ProblemTitleDuplicate  metaerrorcode.ErrorCode = 100007
 )

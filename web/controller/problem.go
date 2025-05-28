@@ -38,6 +38,7 @@ import (
 	"strings"
 	"time"
 	"web/config"
+	weberrorcode "web/error-code"
 	"web/request"
 	"web/service"
 )
@@ -798,6 +799,49 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		return
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+}
+
+func (c *ProblemController) PostCreate(ctx *gin.Context) {
+	var requestData request.ProblemEdit
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if requestData.Title == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if requestData.TimeLimit <= 0 || requestData.MemoryLimit <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	userId, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	ok, err = foundationservice.GetProblemService().HasProblemTitle(ctx, requestData.Title)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if ok {
+		metaresponse.NewResponse(ctx, weberrorcode.ProblemTitleDuplicate, nil)
+		return
+	}
+	problemId, err := foundationservice.GetProblemService().PostCreate(ctx, userId, &requestData)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemId)
 }
 
 func (c *ProblemController) PostEdit(ctx *gin.Context) {

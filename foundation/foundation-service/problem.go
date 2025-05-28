@@ -78,6 +78,10 @@ func (s *ProblemService) HasProblem(ctx context.Context, id string) (bool, error
 	return foundationdao.GetProblemDao().HasProblem(ctx, id)
 }
 
+func (s *ProblemService) HasProblemTitle(ctx *gin.Context, title string) (bool, error) {
+	return foundationdao.GetProblemDao().HasProblemTitle(ctx, title)
+}
+
 func (s *ProblemService) GetProblemList(ctx context.Context, oj string, title string, tag string, page int, pageSize int) ([]*foundationmodel.Problem, int, error) {
 	var tags []int
 	if tag != "" {
@@ -162,6 +166,10 @@ func (s *ProblemService) GetProblemTagList(ctx context.Context, maxCount int) ([
 
 func (s *ProblemService) GetProblemTagByIds(ctx context.Context, ids []int) ([]*foundationmodel.ProblemTag, error) {
 	return foundationdao.GetProblemTagDao().GetProblemTagByIds(ctx, ids)
+}
+
+func (s *ProblemService) PostCreate(ctx context.Context, userId int, requestData *request.ProblemEdit) (*string, error) {
+	return foundationdao.GetProblemDao().PostCreate(ctx, userId, requestData)
 }
 
 func (s *ProblemService) PostEdit(ctx context.Context, userId int, requestData *request.ProblemEdit) (*time.Time, error) {

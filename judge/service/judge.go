@@ -633,7 +633,8 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 	var args []string
 	var copyIns map[string]interface{}
 	switch job.Language {
-	case foundationjudge.JudgeLanguageC, foundationjudge.JudgeLanguageCpp, foundationjudge.JudgeLanguagePascal:
+	case foundationjudge.JudgeLanguageC, foundationjudge.JudgeLanguageCpp,
+		foundationjudge.JudgeLanguagePascal, foundationjudge.JudgeLanguageGolang:
 		args = []string{"a"}
 		fileId, ok := execFileIds["a"]
 		if !ok {

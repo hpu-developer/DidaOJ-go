@@ -67,6 +67,17 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 			},
 		}
 		copyOutCached = []string{"a"}
+	case JudgeLanguageGolang:
+		args = []string{"go", "build", "-o", "a"}
+		copyIns = map[string]interface{}{
+			"a.go": map[string]interface{}{
+				"content": code,
+			},
+			"go.mod": map[string]interface{}{
+				"content": "module main\n",
+			},
+		}
+		copyOutCached = []string{"a"}
 	default:
 		return nil, "compile failed, language not support.",
 			JudgeStatusJudgeFail,

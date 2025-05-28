@@ -14,6 +14,7 @@ import (
 	metatime "meta/meta-time"
 	"meta/singleton"
 	"regexp"
+	"strconv"
 	"time"
 	"web/request"
 )
@@ -82,6 +83,20 @@ func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *fou
 func (d *ProblemDao) HasProblem(ctx context.Context, id string) (bool, error) {
 	filter := bson.M{
 		"_id": id,
+	}
+	count, err := d.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, metaerror.Wrap(err, "failed to count documents")
+	}
+	if count == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (d *ProblemDao) HasProblemTitle(ctx context.Context, title string) (bool, error) {
+	filter := bson.M{
+		"title": title,
 	}
 	count, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {
@@ -328,7 +343,82 @@ func (d *ProblemDao) UpdateProblemsExcludeManualEdit(ctx context.Context, proble
 	return nil
 }
 
-func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.ProblemEdit) (*time.Time, error) {
+func (d *ProblemDao) InsertProblem(ctx context.Context, problem *foundationmodel.Problem) error {
+	mongoSubsystem := metamongo.GetSubsystem()
+	client := mongoSubsystem.GetClient()
+	sess, err := client.StartSession()
+	if err != nil {
+		return err
+	}
+	defer sess.EndSession(ctx)
+	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
+		seq, err := GetCounterDao().GetNextSequence(sc, "problem_id")
+		if err != nil {
+			return nil, err
+		}
+		problem.Id = strconv.Itoa(seq)
+		_, err = d.collection.InsertOne(sc, problem)
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *ProblemDao) PostCreate(ctx context.Context, userId int, requestData *request.ProblemEdit) (*string, error) {
+	session, err := d.collection.Database().Client().StartSession()
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to start mongo session")
+	}
+	defer session.EndSession(ctx)
+
+	nowTime := metatime.GetTimeNow()
+	var newProblemId *string
+	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+		var tagIds []int
+		for _, tagName := range requestData.Tags {
+			tag := foundationmodel.NewProblemTagBuilder().Name(tagName).Build()
+			err := GetProblemTagDao().InsertTag(sessCtx, tag)
+			if err != nil {
+				return nil, err
+			}
+			tagIds = append(tagIds, tag.Id)
+		}
+		problem := foundationmodel.NewProblemBuilder().
+			Title(requestData.Title).
+			Description(requestData.Description).
+			Source(requestData.Source).
+			TimeLimit(requestData.TimeLimit).
+			MemoryLimit(requestData.MemoryLimit).
+			InsertTime(nowTime).
+			UpdateTime(nowTime).
+			Tags(tagIds).
+			CreatorId(userId).
+			Build()
+		seq, err := GetCounterDao().GetNextSequence(sessCtx, "problem_id")
+		if err != nil {
+			return nil, err
+		}
+		problem.Id = strconv.Itoa(seq)
+		problem.Sort = len(problem.Id)
+		_, err = d.collection.InsertOne(sessCtx, problem)
+		if err != nil {
+			return nil, err
+		}
+		newProblemId = &problem.Id
+		return nil, nil
+	})
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to rejudge submissions in transaction")
+	}
+	return newProblemId, nil
+}
+
+func (d *ProblemDao) PostEdit(ctx context.Context, userId int, requestData *request.ProblemEdit) (*time.Time, error) {
 	session, err := d.collection.Database().Client().StartSession()
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to start mongo session")
@@ -339,7 +429,7 @@ func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.Problem
 	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 
 		var tagIds []int
-		for _, tagName := range data.Tags {
+		for _, tagName := range requestData.Tags {
 			tag := foundationmodel.NewProblemTagBuilder().Name(tagName).Build()
 			err := GetProblemTagDao().InsertTag(sessCtx, tag)
 			if err != nil {
@@ -347,15 +437,15 @@ func (d *ProblemDao) PostEdit(ctx context.Context, id int, data *request.Problem
 			}
 			tagIds = append(tagIds, tag.Id)
 		}
-		_, err = d.collection.UpdateOne(sessCtx, bson.M{"_id": data.Id}, bson.M{
+		_, err = d.collection.UpdateOne(sessCtx, bson.M{"_id": requestData.Id}, bson.M{
 			"$set": bson.M{
-				"title":        data.Title,
-				"description":  data.Description,
+				"title":        requestData.Title,
+				"description":  requestData.Description,
 				"tags":         tagIds,
 				"update_time":  nowTime,
-				"time_limit":   data.TimeLimit,
-				"memory_limit": data.MemoryLimit,
-				"source":       data.Source,
+				"time_limit":   requestData.TimeLimit,
+				"memory_limit": requestData.MemoryLimit,
+				"source":       requestData.Source,
 			},
 		})
 		if err != nil {
