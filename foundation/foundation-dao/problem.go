@@ -179,7 +179,7 @@ func (d *ProblemDao) GetProblemListTitle(ctx context.Context, ids []string) ([]*
 }
 
 func (d *ProblemDao) GetProblemList(ctx context.Context,
-	title string, tags []int,
+	oj string, title string, tags []int,
 	page int,
 	pageSize int,
 ) ([]*foundationmodel.Problem,
@@ -187,6 +187,13 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 	error,
 ) {
 	filter := bson.M{}
+	if oj == "didaoj" {
+		filter["origin_oj"] = bson.M{
+			"$exists": false, // 如果oj为空，则查询没有origin_oj的记录
+		}
+	} else if oj != "" {
+		filter["origin_oj"] = oj
+	}
 	if title != "" {
 		filter["title"] = bson.M{
 			"$regex":   regexp.QuoteMeta(title),
@@ -313,7 +320,7 @@ func (d *ProblemDao) UpdateProblemsExcludeManualEdit(ctx context.Context, proble
 			SetUpsert(true)
 		models = append(models, updateModel)
 	}
-	bulkOptions := options.BulkWrite().SetOrdered(false) // 设置是否按顺序执行
+	bulkOptions := options.BulkWrite().SetOrdered(true) // 设置是否按顺序执行
 	_, err := d.collection.BulkWrite(ctx, models, bulkOptions)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to perform bulk update")
@@ -377,6 +384,29 @@ func (d *ProblemDao) UpdateProblemJudgeInfo(ctx context.Context, id string, judg
 	_, err := d.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update judge md5")
+	}
+	return nil
+}
+
+func (d *ProblemDao) UpdateProblemCrawl(ctx context.Context, id string, problem *foundationmodel.Problem) error {
+	filter := bson.M{
+		"_id": id,
+	}
+	onlyInsertFields := []string{
+		"insert_time",
+		"accept",
+		"attempt",
+	}
+	setData := metamongo.StructToMapExclude(problem, onlyInsertFields...)
+	setInsertData := metamongo.StructToMapInclude(problem, onlyInsertFields...)
+	update := bson.M{
+		"$set":         setData,
+		"$setOnInsert": setInsertData,
+	}
+	opts := options.Update().SetUpsert(true)
+	_, err := d.collection.UpdateOne(ctx, filter, update, opts)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update problem crawl time")
 	}
 	return nil
 }

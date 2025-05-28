@@ -78,7 +78,7 @@ func (s *ProblemService) HasProblem(ctx context.Context, id string) (bool, error
 	return foundationdao.GetProblemDao().HasProblem(ctx, id)
 }
 
-func (s *ProblemService) GetProblemList(ctx context.Context, title string, tag string, page int, pageSize int) ([]*foundationmodel.Problem, int, error) {
+func (s *ProblemService) GetProblemList(ctx context.Context, oj string, title string, tag string, page int, pageSize int) ([]*foundationmodel.Problem, int, error) {
 	var tags []int
 	if tag != "" {
 		var err error
@@ -90,10 +90,10 @@ func (s *ProblemService) GetProblemList(ctx context.Context, title string, tag s
 			return nil, 0, nil
 		}
 	}
-	return foundationdao.GetProblemDao().GetProblemList(ctx, title, tags, page, pageSize)
+	return foundationdao.GetProblemDao().GetProblemList(ctx, oj, title, tags, page, pageSize)
 }
 
-func (s *ProblemService) GetProblemListWithUser(ctx context.Context, userId int, title string, tag string, page int, pageSize int,
+func (s *ProblemService) GetProblemListWithUser(ctx context.Context, userId int, oj string, title string, tag string, page int, pageSize int,
 ) ([]*foundationmodel.Problem, int, map[string]foundationmodel.ProblemAttemptStatus, error) {
 	var tags []int
 	if tag != "" {
@@ -106,9 +106,12 @@ func (s *ProblemService) GetProblemListWithUser(ctx context.Context, userId int,
 			return nil, 0, nil, nil
 		}
 	}
-	problemList, totalCount, err := foundationdao.GetProblemDao().GetProblemList(ctx, title, tags, page, pageSize)
+	problemList, totalCount, err := foundationdao.GetProblemDao().GetProblemList(ctx, oj, title, tags, page, pageSize)
 	if err != nil {
 		return nil, 0, nil, err
+	}
+	if len(problemList) <= 0 {
+		return nil, 0, nil, nil
 	}
 	var problemIds []string
 	for _, problem := range problemList {

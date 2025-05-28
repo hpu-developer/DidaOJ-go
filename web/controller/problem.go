@@ -7,6 +7,7 @@ import (
 	foundationauth "foundation/foundation-auth"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	foundationoj "foundation/foundation-oj"
 	foundationservice "foundation/foundation-service"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -38,6 +39,7 @@ import (
 	"time"
 	"web/config"
 	"web/request"
+	"web/service"
 )
 
 type ProblemJudgeData struct {
@@ -101,6 +103,9 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 		// 比赛时隐藏一些信息
 		problem.Id = ""
 		problem.Source = ""
+		problem.OriginOj = nil
+		problem.OriginId = nil
+		problem.OriginUrl = nil
 	} else {
 		if problem.Tags != nil {
 			tags, err = problemService.GetProblemTagByIds(ctx, problem.Tags)
@@ -121,9 +126,6 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 }
 
 func (c *ProblemController) GetList(ctx *gin.Context) {
-	problemService := foundationservice.GetProblemService()
-	title := ctx.Query("title")
-	tag := ctx.Query("tag")
 	pageStr := ctx.DefaultQuery("page", "1")
 	pageSizeStr := ctx.DefaultQuery("page_size", "50")
 	page, err := strconv.Atoi(pageStr)
@@ -140,14 +142,25 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	problemService := foundationservice.GetProblemService()
+	oj := ctx.Query("oj")
+	title := ctx.Query("title")
+	tag := ctx.Query("tag")
+	if oj != "" {
+		oj = foundationoj.GetOriginOjKey(oj)
+		if oj == "" {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+	}
 	var list []*foundationmodel.Problem
 	var totalCount int
 	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err == nil {
-		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, title, tag, page, pageSize)
+		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, oj, title, tag, page, pageSize)
 	} else {
-		list, totalCount, err = problemService.GetProblemList(ctx, title, tag, page, pageSize)
+		list, totalCount, err = problemService.GetProblemList(ctx, oj, title, tag, page, pageSize)
 	}
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
@@ -351,6 +364,45 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 		return
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, urlStr)
+}
+
+func (c *ProblemController) PostCrawl(ctx *gin.Context) {
+	var requestData struct {
+		OJ string `json:"oj",binding:"required"`
+		Id string `json:"id",binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if requestData.OJ == "" || requestData.Id == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	oj := strings.ToLower(requestData.OJ)
+	id := strings.TrimSpace(requestData.Id)
+	if oj == "didaoj" {
+		ok, err := foundationservice.GetProblemService().HasProblem(ctx, id)
+		if err != nil {
+			return
+		}
+		if !ok {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+			return
+		}
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, id)
+		return
+	}
+	newId, err := service.GetProblemCrawlService().PostCrawlProblem(ctx, oj, id)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if newId == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, newId)
 }
 
 func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
