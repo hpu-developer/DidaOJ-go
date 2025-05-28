@@ -558,6 +558,16 @@ func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int, startTime *ti
 	return result, nil
 }
 
+func (d *JudgeJobDao) GetProblemRecommendByUser(ctx context.Context, userId int) ([]*foundationmodel.Problem, error) {
+	userAcProblems := d.GetUserAcProblemIds(ctx, userId)
+	
+	return nil, nil
+}
+
+func (d *JudgeJobDao) GetProblemRecommendByProblem(ctx context.Context, problemId string) ([]*foundationmodel.Problem, error) {
+	return nil, nil
+}
+
 // RequestJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的
 func (d *JudgeJobDao) RequestJudgeJobListPendingJudge(ctx context.Context, maxCount int, judger string) ([]*foundationmodel.JudgeJob, error) {
 	var result []*foundationmodel.JudgeJob

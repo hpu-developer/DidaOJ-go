@@ -166,6 +166,27 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ProblemController) GetRecommend(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	problemService := foundationservice.GetProblemService()
+	_ := ctx.Query("problem_id")
+	list, err := problemService.GetProblemRecommendByUser(ctx, userId)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	responseData := struct {
+		List []*foundationmodel.Problem `json:"list"`
+	}{
+		List: list,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
 func (c *ProblemController) GetTagList(ctx *gin.Context) {
 	problemService := foundationservice.GetProblemService()
 	maxCountStr := ctx.DefaultQuery("max_count", "-1")

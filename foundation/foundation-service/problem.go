@@ -119,6 +119,10 @@ func (s *ProblemService) GetProblemListWithUser(ctx context.Context, userId int,
 	return problemList, totalCount, problemStatus, nil
 }
 
+func (s *ProblemService) GetProblemRecommendByUser(ctx context.Context, userId int) ([]*foundationmodel.Problem, error) {
+	return foundationdao.GetJudgeJobDao().GetProblemRecommendByUser(ctx, userId)
+}
+
 func (s *ProblemService) GetProblemTagList(ctx context.Context, maxCount int) ([]*foundationmodel.ProblemTag, int, error) {
 	return foundationdao.GetProblemTagDao().GetProblemTagList(ctx, maxCount)
 }
