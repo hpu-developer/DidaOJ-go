@@ -542,7 +542,7 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 
 		jobKey := uuid.New().String()
 
-		execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(jobKey, runUrl, language, codeContent)
+		execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(jobKey, runUrl, language, codeContent, nil)
 		if extraMessage != "" {
 			slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
 		}
