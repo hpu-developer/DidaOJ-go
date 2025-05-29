@@ -527,9 +527,8 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 			return
 		}
 
-		// 考虑编译机性能影响，暂时仅允许C/C++
-		if language != foundationjudge.JudgeLanguageC &&
-			language != foundationjudge.JudgeLanguageCpp {
+		// 考虑编译机性能影响，暂时仅允许部分语言
+		if !foundationjudge.IsValidSpecialJudgeLanguage(language) {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 			return
 		}

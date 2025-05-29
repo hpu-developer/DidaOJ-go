@@ -23,6 +23,7 @@ import (
 	metastring "meta/meta-string"
 	"meta/routine"
 	"meta/singleton"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
@@ -51,6 +52,7 @@ type JudgeService struct {
 
 	// 题目号对应的特判程序文件ID
 	specialFileIds map[string]string
+	configFileIds  map[string]string
 }
 
 var singletonJudgeService = singleton.Singleton[JudgeService]{}
@@ -69,6 +71,11 @@ func (s *JudgeService) Start() error {
 	err := s.cleanGoJudge()
 	if err != nil {
 		return err
+	}
+
+	err = s.uploadFiles()
+	if err != nil {
+		return metaerror.Wrap(err, "error uploading files")
 	}
 
 	c := cron.NewWithSeconds()
@@ -96,6 +103,17 @@ func (s *JudgeService) getSpecialFileId(problemId string) string {
 		return ""
 	}
 	fileId, ok := s.specialFileIds[problemId]
+	if !ok {
+		return ""
+	}
+	return fileId
+}
+
+func (s *JudgeService) GetConfigFileId(fileKey string) string {
+	if s.configFileIds == nil {
+		return ""
+	}
+	fileId, ok := s.configFileIds[fileKey]
 	if !ok {
 		return ""
 	}
@@ -134,6 +152,78 @@ func (s *JudgeService) cleanGoJudge() error {
 	}
 
 	return nil
+}
+
+func (s *JudgeService) uploadFiles() error {
+	client := &http.Client{}
+	filesConfig := config.GetFilesConfig()
+
+	for fileKey, filePath := range filesConfig {
+		fileId, err := s.uploadFile(client, filePath)
+		if err != nil {
+			return metaerror.Wrap(err, "failed to upload file: %s", filePath)
+		}
+		slog.Info("file uploaded successfully", "fileId", fileId)
+		if s.configFileIds == nil {
+			s.configFileIds = make(map[string]string)
+		}
+		s.configFileIds[fileKey] = *fileId
+	}
+
+	return nil
+}
+
+func (s *JudgeService) uploadFile(client *http.Client, filePath string) (*string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to open file: %s", filePath)
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close file: %s", filePath))
+		}
+	}(file)
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to create form file part")
+	}
+	_, err = io.Copy(part, file)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to copy file content")
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to close multipart writer")
+	}
+	goJudgeUrl := config.GetConfig().GoJudge.Url
+	uploadUrl := metahttp.UrlJoin(goJudgeUrl, "file")
+	request, err := http.NewRequest(http.MethodPost, uploadUrl, body)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to create upload request for file: %s", filePath)
+	}
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to upload file: %s", filePath)
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close response body for file: %s", filePath))
+		}
+	}(response.Body)
+	if response.StatusCode != http.StatusOK {
+		return nil, metaerror.New("failed to upload file: %s, status code: %d", filePath, response.StatusCode)
+	}
+	var fileId string
+	err = json.NewDecoder(response.Body).Decode(&fileId)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to decode upload response for file: %s", filePath)
+	}
+	return &fileId, nil
 }
 
 func (s *JudgeService) handleStart() error {
@@ -395,10 +485,9 @@ func (s *JudgeService) compileSpecialJudge(job *foundationmodel.JudgeJob, md5 st
 		return "", metaerror.New("invalid language: %s", jobConfig.SpecialJudge.Language)
 	}
 
-	// 考虑编译机性能影响，暂时仅允许C/C++
-	if language != foundationjudge.JudgeLanguageC &&
-		language != foundationjudge.JudgeLanguageCpp {
-		return "", metaerror.New("language %s not c/cpp", jobConfig.SpecialJudge.Language)
+	// 考虑编译机性能影响，暂时仅允许部分语言
+	if !foundationjudge.IsValidSpecialJudgeLanguage(language) {
+		return "", metaerror.New("language %s not valid special language", jobConfig.SpecialJudge.Language)
 	}
 
 	judgeDataDir := path.Join(".judge_data", problemId, md5)
@@ -409,7 +498,7 @@ func (s *JudgeService) compileSpecialJudge(job *foundationmodel.JudgeJob, md5 st
 		return "", metaerror.Wrap(err, "failed to read special judge code file")
 	}
 
-	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, language, codeContent)
+	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, language, codeContent, nil)
 	if extraMessage != "" {
 		slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
 	}
@@ -435,7 +524,7 @@ func (s *JudgeService) compileSpecialJudge(job *foundationmodel.JudgeJob, md5 st
 func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]string, string, foundationjudge.JudgeStatus, error) {
 	goJudgeUrl := config.GetConfig().GoJudge.Url
 	runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
-	return foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, job.Language, job.Code)
+	return foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, job.Language, job.Code, s.configFileIds)
 }
 
 func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.JudgeJob,
@@ -670,6 +759,28 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 		copyIns = map[string]interface{}{
 			"a.py": map[string]interface{}{
 				"content": job.Code,
+			},
+		}
+	case foundationjudge.JudgeLanguageLua:
+		args = []string{"luajit", "a.lua"}
+		copyIns = map[string]interface{}{
+			"a.lua": map[string]interface{}{
+				"content": job.Code,
+			},
+		}
+	case foundationjudge.JudgeLanguageTypeScript:
+		args = []string{"node", "a.js"}
+		fileId, ok := execFileIds["a.js"]
+		if !ok {
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			if markErr != nil {
+				metapanic.ProcessError(markErr)
+			}
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("fileId not found")
+		}
+		copyIns = map[string]interface{}{
+			"a.js": map[string]interface{}{
+				"fileId": fileId,
 			},
 		}
 	default:

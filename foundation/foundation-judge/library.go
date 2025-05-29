@@ -13,14 +13,17 @@ import (
 	"net/http"
 )
 
-func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code string) (map[string]string, string, JudgeStatus, error) {
+func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code string, configFiles map[string]string) (map[string]string, string, JudgeStatus, error) {
 	slog.Info("compile code", "job", jobKey)
 
 	var args []string
 	var copyIns map[string]interface{}
 	var copyOutCached []string
 
-	env := []string{"PATH=/usr/bin:/bin"}
+	cpuLimit := 10000000000      // 10秒
+	memoryLimit := 1048576 * 256 // 256MB
+
+	env := []string{"PATH=/usr/bin:/usr/local/bin:/bin"}
 
 	switch language {
 	case JudgeLanguageC:
@@ -81,6 +84,20 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 			},
 		}
 		copyOutCached = []string{"a"}
+	case JudgeLanguageTypeScript:
+		args = []string{"bash", "-c", "tar -xzf ts-env.tar.gz && npx tsc"}
+		env = append(env, "HOME=/tmp/judge")
+		copyIns = map[string]interface{}{
+			"a.ts": map[string]interface{}{
+				"content": code,
+			},
+			"ts-env.tar.gz": map[string]interface{}{
+				"fileId": configFiles["ts-env"],
+			},
+		}
+		copyOutCached = []string{"a.js"}
+		cpuLimit = cpuLimit + 5000000000        // TypeScript 编译时间可能较长，增加5秒
+		memoryLimit = memoryLimit + 1048576*128 // TypeScript 编译可能需要更多内存，增加128MB
 	default:
 		return nil, "compile failed, language not support.",
 			JudgeStatusJudgeFail,
@@ -98,11 +115,11 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 					{"name": "stdout", "max": 10240},
 					{"name": "stderr", "max": 10240},
 				},
-				"cpuLimit":      10000000000,
-				"memoryLimit":   1048576 * 256, // 256MB
+				"cpuLimit":      cpuLimit,    // 10秒
+				"memoryLimit":   memoryLimit, // 256MB
 				"procLimit":     50,
 				"copyIn":        copyIns,
-				"copyOut":       []string{"stdout", "stderr"},
+				"copyOut?":      []string{"stdout", "stderr"},
 				"copyOutCached": copyOutCached,
 			},
 		},
@@ -131,7 +148,12 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 			Stderr string `json:"stderr"`
 			Stdout string `json:"stdout"`
 		} `json:"files"`
-		FileIds map[string]string `json:"fileIds"`
+		FileIds   map[string]string `json:"fileIds"`
+		FileError []struct {
+			Name    string `json:"name"`
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"fileError"`
 	}
 	err = json.NewDecoder(resp.Body).Decode(&responseDataList)
 	if err != nil {
@@ -153,6 +175,13 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 			errorMessage += "\n"
 		}
 		errorMessage += responseData.Files.Stdout
+	}
+	if errorMessage == "" {
+		if len(responseData.FileError) > 0 {
+			for _, fileError := range responseData.FileError {
+				errorMessage += fmt.Sprintf("File: %s, Type: %s, Message: %s\n", fileError.Name, fileError.Type, fileError.Message)
+			}
+		}
 	}
 	errorMessage = metastring.GetTextEllipsis(errorMessage, 1000)
 	if responseData.Status != gojudge.StatusAccepted {
