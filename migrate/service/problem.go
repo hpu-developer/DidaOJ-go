@@ -30,7 +30,7 @@ func GetMigrateProblemService() *MigrateProblemService {
 }
 
 // GORM 模型定义
-type JolProblem struct {
+type CodeojProblem struct {
 	ProblemID   int       `gorm:"column:problem_id"`
 	Title       string    `gorm:"column:title"`
 	Description string    `gorm:"column:description"`
@@ -47,16 +47,16 @@ type JolProblem struct {
 	UpdateTime  time.Time `gorm:"column:update_time"`
 }
 
-func (JolProblem) TableName() string {
+func (CodeojProblem) TableName() string {
 	return "problem"
 }
 
-type JolProblemTag struct {
+type CodeojProblemTag struct {
 	ProblemID int    `gorm:"column:problem_id"`
 	Name      string `gorm:"column:name"`
 }
 
-func (JolProblemTag) TableName() string {
+func (CodeojProblemTag) TableName() string {
 	return "problem_tag"
 }
 
@@ -115,9 +115,9 @@ func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error 
 	codeojDB := metamysql.GetSubsystem().GetClient("codeoj")
 
 	// 查询所有唯一标签
-	var tags []JolProblemTag
+	var tags []CodeojProblemTag
 	if err := codeojDB.
-		Model(&JolProblemTag{}).
+		Model(&CodeojProblemTag{}).
 		Select("DISTINCT name").
 		Where("name IS NOT NULL").
 		Scan(&tags).Error; err != nil {
@@ -147,9 +147,9 @@ func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error 
 	}
 
 	// 查询题目和标签关系表
-	var tagModels []JolProblemTag
+	var tagModels []CodeojProblemTag
 	if err := codeojDB.
-		Model(&JolProblemTag{}).
+		Model(&CodeojProblemTag{}).
 		Where("name IS NOT NULL").
 		Find(&tagModels).Error; err != nil {
 		return metaerror.Wrap(err, "query problem_tag rels failed")
@@ -163,7 +163,7 @@ func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error 
 	}
 
 	// 查询题目主表并构造 Mongo 对象
-	var problems []JolProblem
+	var problems []CodeojProblem
 	if err := codeojDB.Find(&problems).Error; err != nil {
 		return metaerror.Wrap(err, "query problems failed")
 	}

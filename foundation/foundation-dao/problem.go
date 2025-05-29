@@ -331,16 +331,17 @@ func (d *ProblemDao) UpdateProblems(ctx context.Context, tags []*foundationmodel
 func (d *ProblemDao) UpdateProblemsExcludeManualEdit(ctx context.Context, problems []*foundationmodel.Problem) error {
 	var models []mongo.WriteModel
 	for _, problem := range problems {
-		setFields := metamongo.StructToMapExclude(problem, "description", "judge_md5")
+		onlyInsertFields := []string{
+			"judge_md5",
+		}
+		setData := metamongo.StructToMapExclude(problem, onlyInsertFields...)
+		setInsertData := metamongo.StructToMapInclude(problem, onlyInsertFields...)
 		filter := bson.D{
 			{"_id", problem.Id},
 		}
 		update := bson.M{
-			"$set": setFields,
-			"$setOnInsert": bson.M{
-				"description": problem.Description,
-				"judge_md5":   problem.JudgeMd5,
-			},
+			"$set":         setData,
+			"$setOnInsert": setInsertData,
 		}
 		updateModel := mongo.NewUpdateManyModel().
 			SetFilter(filter).
