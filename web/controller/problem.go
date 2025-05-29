@@ -148,8 +148,6 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	}
 	problemService := foundationservice.GetProblemService()
 	oj := ctx.Query("oj")
-	title := ctx.Query("title")
-	tag := ctx.Query("tag")
 	if oj != "" {
 		oj = foundationoj.GetOriginOjKey(oj)
 		if oj == "" {
@@ -157,6 +155,8 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 			return
 		}
 	}
+	title := ctx.Query("title")
+	tag := ctx.Query("tag")
 	var list []*foundationmodel.Problem
 	var totalCount int
 	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
@@ -167,7 +167,8 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 		return
 	}
 	if userId > 0 {
-		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, ok, oj, title, tag, page, pageSize)
+		private := ctx.Query("private") != "0"
+		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, ok, oj, title, tag, private, page, pageSize)
 	} else {
 		list, totalCount, err = problemService.GetProblemList(ctx, oj, title, tag, page, pageSize)
 	}

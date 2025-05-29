@@ -222,7 +222,7 @@ func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *fou
 }
 
 func (d *ProblemDao) GetProblemList(ctx context.Context,
-	oj string, title string, tags []int,
+	oj string, title string, tags []int, private bool,
 	userId int, hasAuth bool,
 	page int,
 	pageSize int,
@@ -241,6 +241,10 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 			filter["private"] = bson.M{
 				"$exists": false,
 			}
+		}
+	} else {
+		if private {
+			filter["private"] = private
 		}
 	}
 	if oj == "didaoj" {
@@ -468,6 +472,7 @@ func (d *ProblemDao) PostCreate(ctx context.Context, userId int, requestData *re
 			UpdateTime(nowTime).
 			Tags(tagIds).
 			CreatorId(userId).
+			Private(requestData.Private).
 			Build()
 		seq, err := GetCounterDao().GetNextSequence(sessCtx, "problem_id")
 		if err != nil {
@@ -507,16 +512,24 @@ func (d *ProblemDao) PostEdit(ctx context.Context, userId int, requestData *requ
 			}
 			tagIds = append(tagIds, tag.Id)
 		}
+		setData := bson.M{
+			"title":        requestData.Title,
+			"description":  requestData.Description,
+			"tags":         tagIds,
+			"update_time":  nowTime,
+			"time_limit":   requestData.TimeLimit,
+			"memory_limit": requestData.MemoryLimit,
+			"source":       requestData.Source,
+		}
+		unsetData := bson.M{}
+		if requestData.Private {
+			setData["private"] = requestData.Private
+		} else {
+			unsetData["private"] = 1
+		}
 		_, err = d.collection.UpdateOne(sessCtx, bson.M{"_id": requestData.Id}, bson.M{
-			"$set": bson.M{
-				"title":        requestData.Title,
-				"description":  requestData.Description,
-				"tags":         tagIds,
-				"update_time":  nowTime,
-				"time_limit":   requestData.TimeLimit,
-				"memory_limit": requestData.MemoryLimit,
-				"source":       requestData.Source,
-			},
+			"$set":   setData,
+			"$unset": unsetData,
 		})
 		if err != nil {
 			return nil, err

@@ -5,6 +5,7 @@ type ProblemEdit struct {
 	Title       string   `json:"title,omitempty" bson:"title,omitempty"`
 	Description string   `json:"description,omitempty" bson:"description,omitempty"`
 	Source      string   `json:"source,omitempty" bson:"source,omitempty"`
+	Private     bool     `json:"private,omitempty" bson:"private,omitempty"`
 	TimeLimit   int      `json:"time_limit,omitempty" bson:"time_limit,omitempty"`
 	MemoryLimit int      `json:"memory_limit,omitempty" bson:"memory_limit,omitempty"`
 	Tags        []string `json:"tags,omitempty" bson:"tags,omitempty"`
