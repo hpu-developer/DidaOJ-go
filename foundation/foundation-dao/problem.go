@@ -58,6 +58,19 @@ func (d *ProblemDao) InitDao(ctx context.Context) error {
 			},
 			Options: options.Index().SetName("idx_origin_id"),
 		},
+		{
+			// 文本索引，用于全文搜索（title 和 description），但由于中文占比高不太好用
+			Keys: bson.D{
+				{Key: "title", Value: "text"},
+				{Key: "description", Value: "text"},
+			},
+			Options: options.Index().
+				SetName("idx_text_search").
+				SetWeights(bson.D{
+					{Key: "title", Value: 10},      // 提高 title 权重
+					{Key: "description", Value: 2}, // 降低 description 权重
+				}),
+		},
 	})
 	if err != nil {
 		return metaerror.Wrap(err, "failed to create index for problem collection")
