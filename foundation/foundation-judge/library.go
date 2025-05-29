@@ -20,6 +20,8 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 	var copyIns map[string]interface{}
 	var copyOutCached []string
 
+	env := []string{"PATH=/usr/bin:/bin"}
+
 	switch language {
 	case JudgeLanguageC:
 		args = []string{"gcc", "-fno-asm", "-fmax-errors=10", "-Wall", "--static", "-DONLINE_JUDGE", "-o", "a", "a.c", "-lm"}
@@ -68,6 +70,7 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 		}
 		copyOutCached = []string{"a"}
 	case JudgeLanguageGolang:
+		env = append(env, "GOCACHE=/tmp/go_cache")
 		args = []string{"go", "build", "-o", "a"}
 		copyIns = map[string]interface{}{
 			"a.go": map[string]interface{}{
@@ -89,7 +92,7 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 		"cmd": []map[string]interface{}{
 			{
 				"args": args,
-				"env":  []string{"PATH=/usr/bin:/bin"},
+				"env":  env,
 				"files": []map[string]interface{}{
 					{"content": ""},
 					{"name": "stdout", "max": 10240},
