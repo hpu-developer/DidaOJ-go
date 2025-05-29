@@ -37,7 +37,6 @@ type Problem struct {
 	CreatorUsername *string `json:"creator_username,omitempty" bson:"creator_username,omitempty"`
 	CreatorNickname *string `json:"creator_nickname,omitempty" bson:"creator_nickname,omitempty"`
 
-	Privilege   int                       `json:"privilege" bson:"privilege"`
 	TimeLimit   int                       `json:"time_limit" bson:"time_limit"`
 	MemoryLimit int                       `json:"memory_limit" bson:"memory_limit"` // 题目内存限制，单位为KB
 	Tags        []int                     `json:"tags,omitempty" bson:"tags,omitempty"`
@@ -48,6 +47,9 @@ type Problem struct {
 
 	Accept  int `json:"accept" bson:"accept"`
 	Attempt int `json:"attempt" bson:"attempt"`
+
+	Private   bool  `json:"private,omitempty" bson:"private,omitempty"`
+	AuthUsers []int `json:"auth_users,omitempty" bson:"auth_users,omitempty"` // 访问权限用户列表，只有在私有题目时才有意义
 }
 
 type ProblemViewTitle struct {
@@ -124,8 +126,8 @@ func (b *ProblemBuilder) CreatorNickname(creatorNickname string) *ProblemBuilder
 	return b
 }
 
-func (b *ProblemBuilder) Privilege(privilege int) *ProblemBuilder {
-	b.item.Privilege = privilege
+func (b *ProblemBuilder) Private(private bool) *ProblemBuilder {
+	b.item.Private = private
 	return b
 }
 

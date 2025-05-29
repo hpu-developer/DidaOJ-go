@@ -279,7 +279,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if err != nil {
 		return metaerror.Wrap(err, "failed to start process judge job")
 	}
-	problem, err := foundationdao.GetProblemDao().GetProblem(ctx, job.ProblemId)
+	problem, err := foundationdao.GetProblemDao().GetProblemViewJudge(ctx, job.ProblemId)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to get problem")
 	}

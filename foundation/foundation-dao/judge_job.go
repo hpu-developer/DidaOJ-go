@@ -558,11 +558,11 @@ func (d *JudgeJobDao) GetContestRanks(ctx context.Context, id int, startTime *ti
 	return result, nil
 }
 
-func (d *JudgeJobDao) GetProblemRecommendByUser(ctx context.Context, userId int) ([]string, error) {
-	return d.GetProblemRecommendByProblem(ctx, userId, "")
+func (d *JudgeJobDao) GetProblemRecommendByUser(ctx context.Context, userId int, hasAuth bool) ([]string, error) {
+	return d.GetProblemRecommendByProblem(ctx, userId, hasAuth, "")
 }
 
-func (d *JudgeJobDao) GetProblemRecommendByProblem(ctx context.Context, userId int, problemId string) ([]string, error) {
+func (d *JudgeJobDao) GetProblemRecommendByProblem(ctx context.Context, userId int, hasAuth bool, problemId string) ([]string, error) {
 	collection := d.collection
 
 	userAcProblems, err := d.GetUserAcProblemIds(ctx, userId)
@@ -608,23 +608,51 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(ctx context.Context, userId i
 
 	// Step 2: 找出这些用户做过的其他题（排除当前题）
 	pipeline = mongo.Pipeline{
-		// 只看这些用户做过的题
+		// 第一步：筛选评测记录
 		{{Key: "$match", Value: bson.M{
-			"status":       foundationjudge.JudgeStatusAC, // AC
-			"approve_time": bson.M{"$exists": true},       // 确保有通过时间
+			"status":       foundationjudge.JudgeStatusAC,
+			"approve_time": bson.M{"$exists": true},
 			"author_id":    bson.M{"$in": acUserIDs},
-			"problem_id":   bson.M{"$nin": userAcProblems}, // 排除当前题
+			"problem_id":   bson.M{"$nin": userAcProblems},
 		}}},
-		// 分组统计每道题被多少人做过
+		// 第二步：分组
 		{{Key: "$group", Value: bson.M{
 			"_id":   "$problem_id",
 			"count": bson.M{"$sum": 1},
 		}}},
-		// 排序
-		{{Key: "$sort", Value: bson.M{"count": -1}}},
-		// 限制返回条数
-		{{Key: "$limit", Value: 20}},
+		// 第三步：关联 problem 信息
+		{{Key: "$lookup", Value: bson.M{
+			"from":         "problem",
+			"localField":   "_id",
+			"foreignField": "_id",
+			"as":           "look_problem",
+		}}},
+		// 第四步：展开关联的 problem（通常每个 problem_id 只对应一个问题）
+		{{Key: "$unwind", Value: "$look_problem"}},
 	}
+	// 过滤掉没有权限的题目
+	if !hasAuth {
+		var filter bson.M
+		if userId > 0 {
+			filter = bson.M{
+				"$or": []bson.M{
+					{"look_problem.private": bson.M{"$exists": false}},
+					{"look_problem.auth_users": userId},
+				},
+			}
+		} else {
+			filter = bson.M{
+				"look_problem.private": bson.M{"$exists": false},
+			}
+		}
+		pipeline = append(pipeline, bson.D{
+			{Key: "$match", Value: filter},
+		})
+	}
+	pipeline = append(pipeline,
+		bson.D{{Key: "$sort", Value: bson.M{"count": -1}}},
+		bson.D{{Key: "$limit", Value: 20}},
+	)
 
 	cursor, err = collection.Aggregate(ctx, pipeline)
 	if err != nil {

@@ -59,6 +59,13 @@ func (d *ProblemDao) InitDao(ctx context.Context) error {
 			Options: options.Index().SetName("idx_origin_id"),
 		},
 		{
+			// 对private字段建立索引，方便查询公开题目
+			Keys: bson.D{
+				{Key: "private", Value: 1},
+			},
+			Options: options.Index().SetName("idx_private"),
+		},
+		{
 			// 文本索引，用于全文搜索（title 和 description），但由于中文占比高不太好用
 			Keys: bson.D{
 				{Key: "title", Value: "text"},
@@ -74,21 +81,6 @@ func (d *ProblemDao) InitDao(ctx context.Context) error {
 	})
 	if err != nil {
 		return metaerror.Wrap(err, "failed to create index for problem collection")
-	}
-	return nil
-}
-
-func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *foundationmodel.Problem) error {
-	filter := bson.D{
-		{"_id", key},
-	}
-	update := bson.M{
-		"$set": problem,
-	}
-	updateOptions := options.Update().SetUpsert(true)
-	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
 	}
 	return nil
 }
@@ -121,12 +113,48 @@ func (d *ProblemDao) HasProblemTitle(ctx context.Context, title string) (bool, e
 	return true, nil
 }
 
-func (d *ProblemDao) GetProblem(ctx context.Context, id string) (*foundationmodel.Problem, error) {
+func (d *ProblemDao) GetProblemView(ctx context.Context, id string, userId int, hasAuth bool) (*foundationmodel.Problem, error) {
 	filter := bson.M{
 		"_id": id,
 	}
+	if !hasAuth {
+		if userId > 0 {
+			filter["$or"] = []bson.M{
+				{"private": bson.M{"$exists": false}},
+				{"auth_users": userId},
+			}
+		} else {
+			filter["private"] = bson.M{
+				"$exists": false,
+			}
+		}
+	}
+	opts := options.FindOne().SetProjection(bson.M{
+		"auth_users": 0,
+	})
 	var problem foundationmodel.Problem
-	if err := d.collection.FindOne(ctx, filter).Decode(&problem); err != nil {
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem error")
+	}
+	return &problem, nil
+}
+
+func (d *ProblemDao) GetProblemViewJudge(ctx context.Context, id string) (*foundationmodel.Problem, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(bson.M{
+		"_id":          1,
+		"time_limit":   1,
+		"memory_limit": 1,
+		"judge_type":   1,
+		"judge_md5":    1,
+	})
+	var problem foundationmodel.Problem
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
@@ -178,36 +206,24 @@ func (d *ProblemDao) GetProblemJudge(ctx context.Context, id string) (*foundatio
 	return &problem, nil
 }
 
-func (d *ProblemDao) GetProblemListTitle(ctx context.Context, ids []string) ([]*foundationmodel.ProblemViewTitle, error) {
-	filter := bson.M{
-		"_id": bson.M{
-			"$in": ids,
-		},
+func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *foundationmodel.Problem) error {
+	filter := bson.D{
+		{"_id", key},
 	}
-	findOptions := options.Find().SetProjection(bson.M{"_id": 1, "title": 1})
-	cursor, err := d.collection.Find(ctx, filter, findOptions)
+	update := bson.M{
+		"$set": problem,
+	}
+	updateOptions := options.Update().SetUpsert(true)
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
-		return nil, metaerror.Wrap(err, "find user account info error")
+		return metaerror.Wrap(err, "failed to save tapd subscription")
 	}
-	defer func(cursor *mongo.Cursor, ctx context.Context) {
-		err := cursor.Close(ctx)
-		if err != nil {
-			metapanic.ProcessError(err, "close cursor error")
-		}
-	}(cursor, ctx)
-	var result []*foundationmodel.ProblemViewTitle
-	for cursor.Next(ctx) {
-		var problems foundationmodel.ProblemViewTitle
-		if err := cursor.Decode(&problems); err != nil {
-			return nil, metaerror.Wrap(err, "decode user account info error")
-		}
-		result = append(result, &problems)
-	}
-	return result, nil
+	return nil
 }
 
 func (d *ProblemDao) GetProblemList(ctx context.Context,
 	oj string, title string, tags []int,
+	userId int, hasAuth bool,
 	page int,
 	pageSize int,
 ) ([]*foundationmodel.Problem,
@@ -215,6 +231,18 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 	error,
 ) {
 	filter := bson.M{}
+	if !hasAuth {
+		if userId > 0 {
+			filter["$or"] = []bson.M{
+				{"private": bson.M{"$exists": false}},
+				{"auth_users": userId},
+			}
+		} else {
+			filter["private"] = bson.M{
+				"$exists": false,
+			}
+		}
+	}
 	if oj == "didaoj" {
 		filter["origin_oj"] = bson.M{
 			"$exists": false, // 如果oj为空，则查询没有origin_oj的记录
@@ -272,6 +300,34 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 		return nil, 0, metaerror.Wrap(err, "failed to decode documents, page: %d", page)
 	}
 	return list, int(totalCount), nil
+}
+
+func (d *ProblemDao) GetProblemListTitle(ctx context.Context, ids []string) ([]*foundationmodel.ProblemViewTitle, error) {
+	filter := bson.M{
+		"_id": bson.M{
+			"$in": ids,
+		},
+	}
+	findOptions := options.Find().SetProjection(bson.M{"_id": 1, "title": 1})
+	cursor, err := d.collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find user account info error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(err, "close cursor error")
+		}
+	}(cursor, ctx)
+	var result []*foundationmodel.ProblemViewTitle
+	for cursor.Next(ctx) {
+		var problems foundationmodel.ProblemViewTitle
+		if err := cursor.Decode(&problems); err != nil {
+			return nil, metaerror.Wrap(err, "decode user account info error")
+		}
+		result = append(result, &problems)
+	}
+	return result, nil
 }
 
 func (d *ProblemDao) GetProblems(ctx context.Context, ids []string) ([]*foundationmodel.Problem, error) {

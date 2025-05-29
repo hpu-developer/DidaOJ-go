@@ -156,12 +156,12 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	problem, err := foundationservice.GetProblemService().GetProblem(ctx, problemId)
+	ok, err := foundationservice.GetProblemService().HasProblem(ctx, problemId)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	if problem == nil {
+	if !ok {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}

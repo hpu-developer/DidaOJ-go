@@ -161,7 +161,7 @@ func (s *UserService) CheckUserAuth(ctx *gin.Context, auth foundationauth.AuthTy
 		return 0, false, err
 	}
 	if !ok {
-		return 0, false, nil
+		return userId, false, nil
 	}
 	return userId, true, nil
 }

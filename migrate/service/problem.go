@@ -192,7 +192,7 @@ func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error 
 			Description(description).
 			Source(p.Source).
 			CreatorNickname(p.Creator).
-			Privilege(p.Privilege).
+			Private(p.Privilege != 0).
 			TimeLimit(p.TimeLimit*1000).
 			MemoryLimit(p.MemoryLimit*1024).
 			JudgeType(foundationjudge.JudgeType(p.JudgeType)).

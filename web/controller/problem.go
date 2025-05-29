@@ -90,7 +90,10 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 		id = *idPtr
 		isContest = true
 	}
-	problem, err := problemService.GetProblem(ctx, id)
+
+	userId, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+
+	problem, err := problemService.GetProblemView(ctx, id, userId, ok)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -157,9 +160,14 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	var list []*foundationmodel.Problem
 	var totalCount int
 	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
-	userId, err := foundationauth.GetUserIdFromContext(ctx)
-	if err == nil {
-		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, oj, title, tag, page, pageSize)
+	userId, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if userId > 0 {
+		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, ok, oj, title, tag, page, pageSize)
 	} else {
 		list, totalCount, err = problemService.GetProblemList(ctx, oj, title, tag, page, pageSize)
 	}
@@ -182,35 +190,43 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 }
 
 func (c *ProblemController) GetRecommend(ctx *gin.Context) {
-	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
 	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if userId <= 0 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
 	problemService := foundationservice.GetProblemService()
 	problemId := ctx.Query("problem_id")
-	list, err := problemService.GetProblemRecommend(ctx, userId, problemId)
+	list, err := problemService.GetProblemRecommend(ctx, userId, hasAuth, problemId)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
-	tagIdSet := set.New[int]()
-	for _, problem := range list {
-		if problem.Tags != nil {
-			for _, tagId := range problem.Tags {
-				tagIdSet.Add(tagId)
+	var tags []*foundationmodel.ProblemTag
+	if len(list) > 0 {
+		tagIdSet := set.New[int]()
+		for _, problem := range list {
+			if problem.Tags != nil {
+				for _, tagId := range problem.Tags {
+					tagIdSet.Add(tagId)
+				}
 			}
 		}
-	}
-	var tagIds []int
-	tagIdSet.Foreach(func(tagId *int) bool {
-		tagIds = append(tagIds, *tagId)
-		return true
-	})
-	tags, err := foundationservice.GetProblemService().GetProblemTagByIds(ctx, tagIds)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
+		var tagIds []int
+		tagIdSet.Foreach(func(tagId *int) bool {
+			tagIds = append(tagIds, *tagId)
+			return true
+		})
+		tags, err = foundationservice.GetProblemService().GetProblemTagByIds(ctx, tagIds)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
 	}
 	responseData := struct {
 		List []*foundationmodel.Problem    `json:"list"`
