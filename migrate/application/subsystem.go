@@ -35,6 +35,15 @@ func (s *Subsystem) startSubSystem() error {
 
 	var err error
 
+	err = service.GetMigrateProblemCopyService().Start()
+	if err != nil {
+		return err
+	}
+
+	if true {
+		return nil
+	}
+
 	err = service.GetMongoInitService().Start()
 	if err != nil {
 		return err

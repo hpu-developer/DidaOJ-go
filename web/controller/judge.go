@@ -109,14 +109,15 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		}
 	}
 	statusStr := ctx.Query("status")
-	status := foundationjudge.JudgeStatusUnknown
+	status := foundationjudge.JudgeStatusMax
 	if statusStr != "" {
 		statusInt, err := strconv.Atoi(statusStr)
 		if err == nil && foundationjudge.IsValidJudgeStatus(statusInt) {
 			status = foundationjudge.JudgeStatus(statusInt)
 		}
 	}
-	list, totalCount, err := judgeService.GetJudgeList(ctx,
+	list, totalCount, err := judgeService.GetJudgeList(
+		ctx,
 		contestId, constProblemIndex,
 		problemId, username, language, status,
 		page, pageSize,
@@ -225,16 +226,22 @@ func (c *JudgeController) PostRejudge(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }
 
-func (c *JudgeController) PostRejudgeProblem(ctx *gin.Context) {
+func (c *JudgeController) PostRejudgeSearch(ctx *gin.Context) {
 	var requestData struct {
-		Id string `json:"id"`
+		ProblemId string                        `json:"problem_id"`
+		Language  foundationjudge.JudgeLanguage `json:"language"`
+		Status    foundationjudge.JudgeStatus   `json:"status"`
 	}
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	id := requestData.Id
-	if id == "" {
+	problemId := requestData.ProblemId
+	language := requestData.Language
+	status := requestData.Status
+	if problemId == "" &&
+		!foundationjudge.IsValidJudgeLanguage(int(language)) &&
+		!foundationjudge.IsValidJudgeStatus(int(status)) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -254,7 +261,7 @@ func (c *JudgeController) PostRejudgeProblem(ctx *gin.Context) {
 		return
 	}
 
-	err = foundationservice.GetJudgeService().PostRejudgeProblem(ctx, id)
+	err = foundationservice.GetJudgeService().PostRejudgeSearch(ctx, problemId, language, status)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
