@@ -15,12 +15,12 @@ import (
 	"web/request"
 )
 
-type ContestController struct {
+type CollectionController struct {
 	metacontroller.Controller
 }
 
-func (c *ContestController) Get(ctx *gin.Context) {
-	contestService := foundationservice.GetContestService()
+func (c *CollectionController) Get(ctx *gin.Context) {
+	collectionService := foundationservice.GetCollectionService()
 	idStr := ctx.Query("id")
 	if idStr == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
@@ -31,20 +31,20 @@ func (c *ContestController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	contest, err := contestService.GetContest(ctx, id)
+	collection, err := collectionService.GetCollection(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	if contest == nil {
+	if collection == nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, collection)
 }
 
-func (c *ContestController) GetList(ctx *gin.Context) {
-	contestService := foundationservice.GetContestService()
+func (c *CollectionController) GetList(ctx *gin.Context) {
+	collectionService := foundationservice.GetCollectionService()
 	pageStr := ctx.DefaultQuery("page", "1")
 	pageSizeStr := ctx.DefaultQuery("page_size", "50")
 	page, err := strconv.Atoi(pageStr)
@@ -61,17 +61,17 @@ func (c *ContestController) GetList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	var list []*foundationmodel.Contest
+	var list []*foundationmodel.Collection
 	var totalCount int
-	list, totalCount, err = contestService.GetContestList(ctx, page, pageSize)
+	list, totalCount, err = collectionService.GetCollectionList(ctx, page, pageSize)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	responseData := struct {
-		Time       time.Time                  `json:"time"`
-		TotalCount int                        `json:"total_count"`
-		List       []*foundationmodel.Contest `json:"list"`
+		Time       time.Time                     `json:"time"`
+		TotalCount int                           `json:"total_count"`
+		List       []*foundationmodel.Collection `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
@@ -80,27 +80,30 @@ func (c *ContestController) GetList(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
-func (c *ContestController) GetRank(ctx *gin.Context) {
+func (c *CollectionController) GetRank(ctx *gin.Context) {
 	id := ctx.Query("id")
 	if id == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	contestId, err := strconv.Atoi(id)
-	if err != nil || contestId <= 0 {
+	collectionId, err := strconv.Atoi(id)
+	if err != nil || collectionId <= 0 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	startTime, endTime, problems, ranks, err := foundationservice.GetContestService().GetContestRanks(ctx, contestId)
+	startTime, endTime, problems, ranks, err := foundationservice.GetCollectionService().GetCollectionRanks(
+		ctx,
+		collectionId,
+	)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
 	responseData := struct {
-		StartTime *time.Time                     `json:"start_time"`
-		EndTime   *time.Time                     `json:"end_time"` // 结束时间
-		Problems  []int                          `json:"problems"` // 题目索引列表
-		Ranks     []*foundationmodel.ContestRank `json:"ranks"`
+		StartTime *time.Time                        `json:"start_time"`
+		EndTime   *time.Time                        `json:"end_time"` // 结束时间
+		Problems  []string                          `json:"problems"` // 题目索引列表
+		Ranks     []*foundationmodel.CollectionRank `json:"ranks"`
 	}{
 		StartTime: startTime,
 		EndTime:   endTime,
@@ -110,8 +113,8 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
-func (c *ContestController) PostCreate(ctx *gin.Context) {
-	var requestData request.ContestCreate
+func (c *CollectionController) PostCreate(ctx *gin.Context) {
+	var requestData request.CollectionCreate
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
@@ -136,22 +139,22 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		return
 	}
 
-	contestService := foundationservice.GetContestService()
+	collectionService := foundationservice.GetCollectionService()
 
-	contest := foundationmodel.NewContestBuilder().
+	collection := foundationmodel.NewCollectionBuilder().
 		Title(requestData.Title).
-		Descriptions(requestData.Descriptions).
-		StartTime(*startTime).
-		EndTime(*endTime).
+		Description(requestData.Description).
+		StartTime(startTime).
+		EndTime(endTime).
 		OwnerId(userId).
 		CreateTime(metatime.GetTimeNow()).
 		Build()
 
-	err = contestService.InsertContest(ctx, contest)
+	err = collectionService.InsertCollection(ctx, collection)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, collection)
 }

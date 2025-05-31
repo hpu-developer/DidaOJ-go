@@ -61,7 +61,7 @@ type Contest struct {
 	// 权限相关
 	Auth     ContestAuth `json:"auth" bson:"auth"`                             // 比赛权限
 	Password *string     `json:"password,omitempty" bson:"password,omitempty"` // 比赛密码
-	Members  []string    `json:"members,omitempty" bson:"members,omitempty"`   // 比赛成员，只有在私有比赛时才会使用
+	Members  []int       `json:"members,omitempty" bson:"members,omitempty"`   // 比赛成员，只有在私有比赛时才会使用
 
 	// 排名相关
 	Type          ContestType      `json:"type" bson:"type"`                                         // 比赛类型
@@ -152,7 +152,7 @@ func (b *ContestBuilder) Password(password *string) *ContestBuilder {
 	return b
 }
 
-func (b *ContestBuilder) Members(members []string) *ContestBuilder {
+func (b *ContestBuilder) Members(members []int) *ContestBuilder {
 	b.item.Members = members
 	return b
 }

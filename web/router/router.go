@@ -49,6 +49,12 @@ func RegisterRoutes(r *gin.Engine) {
 	metahttp.AutoRegisterRoute(r, "/judge", new(controller.JudgeController), metahttp.AuthMiddlewareTypeOptional)
 	metahttp.AutoRegisterRoute(r, "/user", new(controller.UserController), metahttp.AuthMiddlewareTypeOptional)
 	metahttp.AutoRegisterRoute(r, "/contest", new(controller.ContestController), metahttp.AuthMiddlewareTypeOptional)
+	metahttp.AutoRegisterRoute(
+		r,
+		"/collection",
+		new(controller.CollectionController),
+		metahttp.AuthMiddlewareTypeOptional,
+	)
 	metahttp.AutoRegisterRoute(r, "/discuss", new(controller.DiscussController), metahttp.AuthMiddlewareTypeOptional)
 	metahttp.AutoRegisterRoute(r, "/rank", new(controller.RankController), metahttp.AuthMiddlewareTypeNone)
 

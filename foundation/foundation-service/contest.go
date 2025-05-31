@@ -48,7 +48,7 @@ func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmod
 			contestProblem.Title = &problem.Title
 		}
 	}
-	judgeAccepts, err := foundationdao.GetJudgeJobDao().GetProblemViewAttempt(ctx, id, problemIds)
+	judgeAccepts, err := foundationdao.GetJudgeJobDao().GetProblemContestViewAttempt(ctx, id, problemIds)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,11 @@ func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmod
 	return contest, err
 }
 
-func (s *ContestService) GetContestList(ctx context.Context, page int, pageSize int) ([]*foundationmodel.Contest, int, error) {
+func (s *ContestService) GetContestList(ctx context.Context, page int, pageSize int) (
+	[]*foundationmodel.Contest,
+	int,
+	error,
+) {
 	contests, totalCount, err := foundationdao.GetContestDao().GetContestList(ctx, page, pageSize)
 	if err != nil {
 		return nil, 0, err
@@ -91,7 +95,13 @@ func (s *ContestService) InsertContest(ctx context.Context, contest *foundationm
 	return foundationdao.GetContestDao().InsertContest(ctx, contest)
 }
 
-func (s *ContestService) GetContestRanks(ctx context.Context, id int) (*time.Time, *time.Time, []int, []*foundationmodel.ContestRank, error) {
+func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
+	*time.Time,
+	*time.Time,
+	[]int,
+	[]*foundationmodel.ContestRank,
+	error,
+) {
 	contestView, err := foundationdao.GetContestDao().GetContestRankView(ctx, id)
 	if err != nil {
 		return nil, nil, nil, nil, err
