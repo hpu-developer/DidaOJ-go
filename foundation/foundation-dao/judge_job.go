@@ -192,10 +192,10 @@ func (d *JudgeJobDao) GetJudgeJobList(
 	if userId > 0 {
 		filter["author_id"] = userId
 	}
-	if language != foundationjudge.JudgeLanguageUnknown {
+	if foundationjudge.IsValidJudgeLanguage(int(language)) {
 		filter["language"] = language
 	}
-	if status != foundationjudge.JudgeStatusUnknown {
+	if foundationjudge.IsValidJudgeStatus(int(status)) {
 		filter["status"] = status
 	}
 	limit := int64(pageSize)
