@@ -66,6 +66,16 @@ func (s *UserService) GetEmailByUsername(ctx context.Context, username string) (
 	return foundationdao.GetUserDao().GetEmailByUsername(ctx, username)
 }
 
+func (s *UserService) GetUserAccountInfoByUsernames(ctx context.Context, usernames []string) (
+	[]*foundationmodel.UserAccountInfo, error,
+) {
+	return foundationdao.GetUserDao().GetUserAccountInfoByUsernames(ctx, usernames)
+}
+
+func (s *UserService) GetUserIds(ctx *gin.Context, usernames []string) ([]int, error) {
+	return foundationdao.GetUserDao().GetUserIds(ctx, usernames)
+}
+
 func (s *UserService) InsertUser(ctx context.Context, user *foundationmodel.User) error {
 	return foundationdao.GetUserDao().InsertUser(ctx, user)
 }
@@ -156,7 +166,7 @@ func (s *UserService) CheckUserAuth(ctx *gin.Context, auth foundationauth.AuthTy
 	if err != nil {
 		return 0, false, nil
 	}
-	ok, err := s.CheckUserAuthByUserId(ctx, userId, foundationauth.AuthTypeManageProblem)
+	ok, err := s.CheckUserAuthByUserId(ctx, userId, auth)
 	if err != nil {
 		return 0, false, err
 	}
@@ -166,7 +176,10 @@ func (s *UserService) CheckUserAuth(ctx *gin.Context, auth foundationauth.AuthTy
 	return userId, true, nil
 }
 
-func (s *UserService) CheckUserAuthByUserId(ctx context.Context, userId int, auth foundationauth.AuthType) (bool, error) {
+func (s *UserService) CheckUserAuthByUserId(ctx context.Context, userId int, auth foundationauth.AuthType) (
+	bool,
+	error,
+) {
 	userRoles, err := foundationdao.GetUserDao().GetUserRoles(ctx, userId)
 	if err != nil {
 		return false, err
@@ -175,7 +188,10 @@ func (s *UserService) CheckUserAuthByUserId(ctx context.Context, userId int, aut
 	return ok, nil
 }
 
-func (s *UserService) CheckUserAuthsByUserId(ctx context.Context, userId int, auths []foundationauth.AuthType) (bool, error) {
+func (s *UserService) CheckUserAuthsByUserId(ctx context.Context, userId int, auths []foundationauth.AuthType) (
+	bool,
+	error,
+) {
 	userRoles, err := foundationdao.GetUserDao().GetUserRoles(ctx, userId)
 	if err != nil {
 		return false, err
@@ -186,4 +202,8 @@ func (s *UserService) CheckUserAuthsByUserId(ctx context.Context, userId int, au
 
 func (s *UserService) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
 	return foundationdao.GetUserDao().GetRankAcAll(ctx, page, pageSize)
+}
+
+func (s *UserService) FilterValidUserIds(ctx *gin.Context, userIds []int) ([]int, error) {
+	return foundationdao.GetUserDao().FilterValidUserIds(ctx, userIds)
 }

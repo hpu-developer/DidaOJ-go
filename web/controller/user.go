@@ -17,8 +17,10 @@ import (
 	metamath "meta/meta-math"
 	metaredis "meta/meta-redis"
 	"meta/meta-response"
+	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	"strconv"
+	"strings"
 	"time"
 	"web/config"
 	weberrorcode "web/error-code"
@@ -56,6 +58,35 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 	}{
 		User:       userInfo,
 		ProblemsAc: acProblems,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
+func (c *UserController) PostParse(ctx *gin.Context) {
+	var requestData struct {
+		Users string `json:"users" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 根据空格切分
+	userSplits := strings.Fields(requestData.Users)
+	var usernameList []string
+	for _, user := range userSplits {
+		usernameList = append(usernameList, strings.Split(user, ",")...)
+	}
+	// 去除空项
+	usernameList = metastring.RemoveEmpty(usernameList)
+	userAccountInfos, err := foundationservice.GetUserService().GetUserAccountInfoByUsernames(ctx, usernameList)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	responseData := struct {
+		Users []*foundationmodel.UserAccountInfo `json:"users"`
+	}{
+		Users: userAccountInfos,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
@@ -112,11 +143,20 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 	}
 
 	subject := fmt.Sprintf("[DidaOJ] - 邮件验证码")
-	body := fmt.Sprintf("%s：\n\n您好！\n欢迎您使用DidaOJ，以下是您的邮箱验证码：\n\n%s\n\n本验证码用于您注册本系统的账号，请勿泄露给他人。\n请在10分钟之内使用本验证码，过期请重新申请。\n如有疑问，请联系管理员。\n\n祝好！\nDidaOJ团队\nhttps://oj.didapipa.com",
-		email, code)
+	body := fmt.Sprintf(
+		"%s：\n\n您好！\n欢迎您使用DidaOJ，以下是您的邮箱验证码：\n\n%s\n\n本验证码用于您注册本系统的账号，请勿泄露给他人。\n请在10分钟之内使用本验证码，过期请重新申请。\n如有疑问，请联系管理员。\n\n祝好！\nDidaOJ团队\nhttps://oj.didapipa.com",
+		email, code,
+	)
 
-	err = metaemail.SendEmail(config.GetConfig().Email.Email, config.GetConfig().Email.Password, config.GetConfig().Email.Host, config.GetConfig().Email.Port,
-		requestData.Email, subject, body)
+	err = metaemail.SendEmail(
+		config.GetConfig().Email.Email,
+		config.GetConfig().Email.Password,
+		config.GetConfig().Email.Host,
+		config.GetConfig().Email.Port,
+		requestData.Email,
+		subject,
+		body,
+	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, weberrorcode.RegisterMailSendFail, nil)
 		return
@@ -256,11 +296,20 @@ func (c *UserController) PostForget(ctx *gin.Context) {
 	}
 
 	subject := fmt.Sprintf("[DidaOJ] - 邮件验证码")
-	body := fmt.Sprintf("%s：\n\n您好！\n欢迎您使用DidaOJ，以下是您的邮箱验证码：\n\n%s\n\n本验证码用于重置本系统的账号，请勿泄露给他人。\n请在10分钟之内使用本验证码，过期请重新申请。\n如有疑问，请联系管理员。\n\n祝好！\nDidaOJ团队\nhttps://oj.didapipa.com",
-		*userEmail, code)
+	body := fmt.Sprintf(
+		"%s：\n\n您好！\n欢迎您使用DidaOJ，以下是您的邮箱验证码：\n\n%s\n\n本验证码用于重置本系统的账号，请勿泄露给他人。\n请在10分钟之内使用本验证码，过期请重新申请。\n如有疑问，请联系管理员。\n\n祝好！\nDidaOJ团队\nhttps://oj.didapipa.com",
+		*userEmail, code,
+	)
 
-	err = metaemail.SendEmail(config.GetConfig().Email.Email, config.GetConfig().Email.Password, config.GetConfig().Email.Host, config.GetConfig().Email.Port,
-		*userEmail, subject, body)
+	err = metaemail.SendEmail(
+		config.GetConfig().Email.Email,
+		config.GetConfig().Email.Password,
+		config.GetConfig().Email.Host,
+		config.GetConfig().Email.Port,
+		*userEmail,
+		subject,
+		body,
+	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, weberrorcode.RegisterMailSendFail, nil)
 		return
@@ -351,7 +400,11 @@ func (c *UserController) PostLogin(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	loginResponse, err := foundationservice.GetUserService().Login(ctx, userLoginRequest.Username, userLoginRequest.Password)
+	loginResponse, err := foundationservice.GetUserService().Login(
+		ctx,
+		userLoginRequest.Username,
+		userLoginRequest.Password,
+	)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err, nil)
 		return

@@ -168,7 +168,17 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	}
 	if userId > 0 {
 		private := ctx.Query("private") != "0"
-		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(ctx, userId, ok, oj, title, tag, private, page, pageSize)
+		list, totalCount, problemStatus, err = problemService.GetProblemListWithUser(
+			ctx,
+			userId,
+			ok,
+			oj,
+			title,
+			tag,
+			private,
+			page,
+			pageSize,
+		)
 	} else {
 		list, totalCount, err = problemService.GetProblemList(ctx, oj, title, tag, page, pageSize)
 	}
@@ -219,10 +229,12 @@ func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 			}
 		}
 		var tagIds []int
-		tagIdSet.Foreach(func(tagId *int) bool {
-			tagIds = append(tagIds, *tagId)
-			return true
-		})
+		tagIdSet.Foreach(
+			func(tagId *int) bool {
+				tagIds = append(tagIds, *tagId)
+				return true
+			},
+		)
 		tags, err = foundationservice.GetProblemService().GetProblemTagByIds(ctx, tagIds)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
@@ -305,17 +317,19 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 
 	var judges []*ProblemJudgeData
 
-	err = r2Client.ListObjectsV2PagesWithContext(ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
-		for _, obj := range page.Contents {
-			judgeData := &ProblemJudgeData{
-				Key:          strings.TrimPrefix(*obj.Key, prefixKey),
-				Size:         obj.Size,
-				LastModified: obj.LastModified,
+	err = r2Client.ListObjectsV2PagesWithContext(
+		ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+			for _, obj := range page.Contents {
+				judgeData := &ProblemJudgeData{
+					Key:          strings.TrimPrefix(*obj.Key, prefixKey),
+					Size:         obj.Size,
+					LastModified: obj.LastModified,
+				}
+				judges = append(judges, judgeData)
 			}
-			judges = append(judges, judgeData)
-		}
-		return true
-	})
+			return true
+		},
+	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -371,10 +385,12 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 	}
 	// 生成预签名链接
 	objectKey := filepath.ToSlash(path.Join(id, key))
-	req, _ := r2Client.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String("didaoj-judge"),
-		Key:    aws.String(objectKey),
-	})
+	req, _ := r2Client.GetObjectRequest(
+		&s3.GetObjectInput{
+			Bucket: aws.String("didaoj-judge"),
+			Key:    aws.String(objectKey),
+		},
+	)
 	expire := 10 * time.Minute
 	urlStr, err := req.Presign(expire)
 	if err != nil {
@@ -382,6 +398,41 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 		return
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, urlStr)
+}
+
+func (c *ProblemController) PostParse(ctx *gin.Context) {
+	var requestData struct {
+		Problems string `json:"problems" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 根据空格切分
+	problemSplits := strings.Fields(requestData.Problems)
+	var problemList []string
+	for _, problem := range problemSplits {
+		problemList = append(problemList, strings.Split(problem, ",")...)
+	}
+	// 去除空项
+	problemList = metastring.RemoveEmpty(problemList)
+	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	problemTitles, err := foundationservice.GetProblemService().GetProblemTitles(ctx, userId, hasAuth, problemList)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	responseData := struct {
+		Problems []*foundationmodel.ProblemViewTitle `json:"problems"`
+	}{
+		Problems: problemTitles,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
 func (c *ProblemController) PostCrawl(ctx *gin.Context) {
@@ -477,19 +528,21 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 	}
 
 	// 如果包含文件夹，认为失败
-	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			// 跳过根目录本身
-			if path != unzipDir {
-				return metaerror.New("<UNK>: " + path + " is not a directory")
+	err = filepath.Walk(
+		unzipDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				// 跳过根目录本身
+				if path != unzipDir {
+					return metaerror.New("<UNK>: " + path + " is not a directory")
+				}
+				return nil
 			}
 			return nil
-		}
-		return nil
-	})
+		},
+	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError)
 		return
@@ -559,7 +612,13 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 
 		jobKey := uuid.New().String()
 
-		execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(jobKey, runUrl, language, codeContent, nil)
+		execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
+			jobKey,
+			runUrl,
+			language,
+			codeContent,
+			nil,
+		)
 		if extraMessage != "" {
 			slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
 		}
@@ -605,9 +664,11 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		for key, _ := range taskKeyMap {
 			taskKeys = append(taskKeys, key)
 		}
-		taskKeys = metaslice.RemoveAllFunc(taskKeys, func(key string) bool {
-			return !hasInFiles[key] && !hasOutFiles[key]
-		})
+		taskKeys = metaslice.RemoveAllFunc(
+			taskKeys, func(key string) bool {
+				return !hasInFiles[key] && !hasOutFiles[key]
+			},
+		)
 		taskCount := len(taskKeys)
 
 		if taskCount <= 0 {
@@ -615,9 +676,11 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 			return
 		}
 
-		sort.Slice(taskKeys, func(i, j int) bool {
-			return taskKeys[i] < taskKeys[j]
-		})
+		sort.Slice(
+			taskKeys, func(i, j int) bool {
+				return taskKeys[i] < taskKeys[j]
+			},
+		)
 
 		for _, key := range taskKeys {
 			if !hasInFiles[key] && !hasOutFiles[key] {
@@ -692,43 +755,47 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 	}
 
 	// 把所有文件的换行改为Linux格式
-	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
+	err = filepath.Walk(
+		unzipDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return metaerror.Wrap(err, "<UNK>: "+path+" is not readable")
+			}
+			// 将 CRLF (\r\n) 和 CR (\r) 替换为 LF (\n)
+			normalized := bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+			normalized = bytes.ReplaceAll(normalized, []byte("\r"), []byte("\n"))
+			// 写回文件
+			err = os.WriteFile(path, normalized, 0644)
+			if err != nil {
+				return fmt.Errorf("写入文件失败: %s, %w", path, err)
+			}
 			return nil
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return metaerror.Wrap(err, "<UNK>: "+path+" is not readable")
-		}
-		// 将 CRLF (\r\n) 和 CR (\r) 替换为 LF (\n)
-		normalized := bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
-		normalized = bytes.ReplaceAll(normalized, []byte("\r"), []byte("\n"))
-		// 写回文件
-		err = os.WriteFile(path, normalized, 0644)
-		if err != nil {
-			return fmt.Errorf("写入文件失败: %s, %w", path, err)
-		}
-		return nil
-	})
+		},
+	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 
 	var files []string
-	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
+	err = filepath.Walk(
+		unzipDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			files = append(files, path)
 			return nil
-		}
-		files = append(files, path)
-		return nil
-	})
+		},
+	)
 
 	judgeDataMd5, err := metamd5.MultiFileMD5(files)
 	if err != nil {
@@ -749,41 +816,45 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		return
 	}
 	// 遍历解压目录并上传文件
-	err = filepath.Walk(unzipDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		relativePath, err := filepath.Rel(unzipDir, path)
-		if err != nil {
-			return err
-		}
-		key := filepath.ToSlash(filepath.Join(id, judgeDataMd5, relativePath))
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer func(file *os.File) {
-			err := file.Close()
+	err = filepath.Walk(
+		unzipDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
-				metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
+				return err
 			}
-		}(file)
-		slog.Info("put object start", "key", key)
-		_, err = r2Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
-			Bucket: aws.String("didaoj-judge"),
-			Key:    aws.String(key),
-			Body:   file,
-		})
-		if err != nil {
-			slog.Info("put object error", "key", key)
-			return metaerror.Wrap(err, "put object error, key:%s", key)
-		}
-		slog.Info("put object success", "key", key)
-		return nil
-	})
+			if info.IsDir() {
+				return nil
+			}
+			relativePath, err := filepath.Rel(unzipDir, path)
+			if err != nil {
+				return err
+			}
+			key := filepath.ToSlash(filepath.Join(id, judgeDataMd5, relativePath))
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer func(file *os.File) {
+				err := file.Close()
+				if err != nil {
+					metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
+				}
+			}(file)
+			slog.Info("put object start", "key", key)
+			_, err = r2Client.PutObjectWithContext(
+				ctx, &s3.PutObjectInput{
+					Bucket: aws.String("didaoj-judge"),
+					Key:    aws.String(key),
+					Body:   file,
+				},
+			)
+			if err != nil {
+				slog.Info("put object error", "key", key)
+				return metaerror.Wrap(err, "put object error, key:%s", key)
+			}
+			slog.Info("put object success", "key", key)
+			return nil
+		},
+	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, fmt.Sprintf("上传失败: %v", err))
 		return
@@ -795,19 +866,23 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 			Bucket: aws.String("didaoj-judge"),
 			Prefix: aws.String(prefix),
 		}
-		err = r2Client.ListObjectsV2PagesWithContext(ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
-			for _, obj := range page.Contents {
-				_, err := r2Client.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
-					Bucket: aws.String("didaoj-judge"),
-					Key:    obj.Key,
-				})
-				if err != nil {
-					metapanic.ProcessError(metaerror.Wrap(err, "delete object error, key:%s", obj.Key))
-					return false
+		err = r2Client.ListObjectsV2PagesWithContext(
+			ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+				for _, obj := range page.Contents {
+					_, err := r2Client.DeleteObjectWithContext(
+						ctx, &s3.DeleteObjectInput{
+							Bucket: aws.String("didaoj-judge"),
+							Key:    obj.Key,
+						},
+					)
+					if err != nil {
+						metapanic.ProcessError(metaerror.Wrap(err, "delete object error, key:%s", obj.Key))
+						return false
+					}
 				}
-			}
-			return true
-		})
+				return true
+			},
+		)
 	}
 	err = problemService.UpdateProblemJudgeInfo(ctx, id, judgeType, judgeDataMd5)
 	if err != nil {

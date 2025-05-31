@@ -15,6 +15,7 @@ type Collection struct {
 	OwnerNickname *string    `json:"owner_nickname,omitempty" bson:"owner_nickname,omitempty"` // 题集组织者昵称
 
 	CreateTime time.Time `json:"create_time" bson:"create_time"` // 创建时间
+	UpdateTime time.Time `json:"update_time" bson:"update_time"` // 更新时间
 
 	// 权限相关
 	Auth     ContestAuth `json:"auth" bson:"auth"`                             // 题集权限
@@ -78,6 +79,11 @@ func (b *CollectionBuilder) CreateTime(createTime time.Time) *CollectionBuilder 
 	return b
 }
 
+func (b *CollectionBuilder) UpdateTime(updateTime time.Time) *CollectionBuilder {
+	b.item.UpdateTime = updateTime
+	return b
+}
+
 func (b *CollectionBuilder) Auth(auth ContestAuth) *CollectionBuilder {
 	b.item.Auth = auth
 	return b
@@ -90,6 +96,11 @@ func (b *CollectionBuilder) Password(password *string) *CollectionBuilder {
 
 func (b *CollectionBuilder) Problems(problems []string) *CollectionBuilder {
 	b.item.Problems = problems
+	return b
+}
+
+func (b *CollectionBuilder) Members(members []int) *CollectionBuilder {
+	b.item.Members = members
 	return b
 }
 

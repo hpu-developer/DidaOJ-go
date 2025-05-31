@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
+	metapanic "meta/meta-panic"
 	"meta/meta-response"
 	metatime "meta/meta-time"
 	"strconv"
@@ -46,6 +47,50 @@ func (c *CollectionController) Get(ctx *gin.Context) {
 	}{
 		Collection: collection,
 		Problems:   problems,
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
+func (c *CollectionController) GetEdit(ctx *gin.Context) {
+	collectionService := foundationservice.GetCollectionService()
+	idStr := ctx.Query("id")
+	if idStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, hasAuth, err := collectionService.CheckUserAuth(ctx, id)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	collection, problems, users, err := collectionService.GetCollectionEdit(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if collection == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	responseData := struct {
+		Collection *foundationmodel.Collection          `json:"collection"`
+		Problems   []*foundationmodel.CollectionProblem `json:"problems"` // 题目列表
+		Users      []*foundationmodel.UserAccountInfo   `json:"users"`    // 用户列表
+	}{
+		Collection: collection,
+		Problems:   problems,
+		Users:      users,
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
@@ -122,7 +167,7 @@ func (c *CollectionController) GetRank(ctx *gin.Context) {
 }
 
 func (c *CollectionController) PostCreate(ctx *gin.Context) {
-	var requestData request.CollectionCreate
+	var requestData request.CollectionEdit
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
@@ -159,6 +204,73 @@ func (c *CollectionController) PostCreate(ctx *gin.Context) {
 		Build()
 
 	err = collectionService.InsertCollection(ctx, collection)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, collection)
+}
+
+func (c *CollectionController) PostEdit(ctx *gin.Context) {
+	var requestData request.CollectionEdit
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if requestData.Title == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	startTime, err := metatime.GetTimeByDateString(requestData.StartTime)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	endTime, err := metatime.GetTimeByDateString(requestData.EndTime)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, hasAuth, err := foundationservice.GetCollectionService().CheckUserAuth(ctx, requestData.Id)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	userIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Users)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	problemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, requestData.Problems)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	collectionService := foundationservice.GetCollectionService()
+
+	collection := foundationmodel.NewCollectionBuilder().
+		Title(requestData.Title).
+		Description(requestData.Description).
+		StartTime(startTime).
+		EndTime(endTime).
+		OwnerId(userId).
+		Problems(problemIds).
+		Members(userIds).
+		Build()
+
+	err = collectionService.UpdateCollection(ctx, requestData.Id, collection)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return

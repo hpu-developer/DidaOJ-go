@@ -10,6 +10,7 @@ import (
 	metaerror "meta/meta-error"
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
+	metatime "meta/meta-time"
 	"meta/singleton"
 )
 
@@ -42,17 +43,27 @@ func (d *CollectionDao) InitDao(ctx context.Context) error {
 
 func (d *CollectionDao) UpdateCollection(
 	ctx context.Context,
-	key string,
+	id int,
 	collection *foundationmodel.Collection,
 ) error {
 	filter := bson.D{
-		{"_id", key},
+		{"_id", id},
 	}
+	collection.UpdateTime = metatime.GetTimeNow()
+	setData := metamongo.StructToMapInclude(
+		collection,
+		"title",
+		"description",
+		"start_time",
+		"end_time",
+		"problems",
+		"members",
+		"update_time",
+	)
 	update := bson.M{
-		"$set": collection,
+		"$set": setData,
 	}
-	updateOptions := options.Update().SetUpsert(true)
-	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	_, err := d.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to save tapd subscription")
 	}
@@ -66,19 +77,17 @@ func (d *CollectionDao) GetCollection(ctx context.Context, id int) (*foundationm
 	opts := options.FindOne().
 		SetProjection(
 			bson.M{
-				"_id":          1,
-				"title":        1,
-				"start_time":   1,
-				"end_time":     1,
-				"owner_id":     1,
-				"create_time":  1,
-				"problems":     1,
-				"auth":         1,
-				"type":         1,
-				"score_type":   1,
-				"always_lock":  1,
-				"descriptions": 1,
-				"notification": 1,
+				"_id":         1,
+				"title":       1,
+				"description": 1,
+				"start_time":  1,
+				"end_time":    1,
+				"owner_id":    1,
+				"create_time": 1,
+				"update_time": 1,
+				"problems":    1,
+				"auth":        1,
+				"members":     1,
 			},
 		)
 	var collection foundationmodel.Collection
@@ -89,6 +98,60 @@ func (d *CollectionDao) GetCollection(ctx context.Context, id int) (*foundationm
 		return nil, metaerror.Wrap(err, "find collection error")
 	}
 	return &collection, nil
+}
+
+func (d *CollectionDao) GetCollectionEdit(ctx context.Context, id int) (*foundationmodel.Collection, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":         1,
+				"title":       1,
+				"description": 1,
+				"start_time":  1,
+				"end_time":    1,
+				"owner_id":    1,
+				"create_time": 1,
+				"update_time": 1,
+				"problems":    1,
+				"auth":        1,
+				"members":     1,
+			},
+		)
+	var collection foundationmodel.Collection
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&collection); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find collection error")
+	}
+	return &collection, nil
+}
+
+func (d *CollectionDao) GetCollectionOwnerId(ctx context.Context, id int) (int, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":      1,
+				"owner_id": 1,
+			},
+		)
+	var collection struct {
+		Id      int `bson:"_id"`
+		OwnerId int `bson:"owner_id"`
+	}
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&collection); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return 0, nil
+		}
+		return 0, metaerror.Wrap(err, "find collection error")
+	}
+	return collection.OwnerId, nil
 }
 
 func (d *CollectionDao) GetCollectionTitle(ctx context.Context, id int) (*string, error) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -43,42 +44,46 @@ func GetProblemDao() *ProblemDao {
 }
 
 func (d *ProblemDao) InitDao(ctx context.Context) error {
-	_, err := d.collection.Indexes().CreateMany(ctx, []mongo.IndexModel{
-		{
-			Keys: bson.D{
-				{Key: "sort", Value: 1},
-				{Key: "_id", Value: 1},
+	_, err := d.collection.Indexes().CreateMany(
+		ctx, []mongo.IndexModel{
+			{
+				Keys: bson.D{
+					{Key: "sort", Value: 1},
+					{Key: "_id", Value: 1},
+				},
+				Options: options.Index().SetName("idx_sort_id"),
 			},
-			Options: options.Index().SetName("idx_sort_id"),
-		},
-		{
-			Keys: bson.D{
-				{Key: "origin_oj", Value: 1},
-				{Key: "origin_id", Value: 1},
+			{
+				Keys: bson.D{
+					{Key: "origin_oj", Value: 1},
+					{Key: "origin_id", Value: 1},
+				},
+				Options: options.Index().SetName("idx_origin_id"),
 			},
-			Options: options.Index().SetName("idx_origin_id"),
-		},
-		{
-			// 对private字段建立索引，方便查询公开题目
-			Keys: bson.D{
-				{Key: "private", Value: 1},
+			{
+				// 对private字段建立索引，方便查询公开题目
+				Keys: bson.D{
+					{Key: "private", Value: 1},
+				},
+				Options: options.Index().SetName("idx_private"),
 			},
-			Options: options.Index().SetName("idx_private"),
-		},
-		{
-			// 文本索引，用于全文搜索（title 和 description），但由于中文占比高不太好用
-			Keys: bson.D{
-				{Key: "title", Value: "text"},
-				{Key: "description", Value: "text"},
+			{
+				// 文本索引，用于全文搜索（title 和 description），但由于中文占比高不太好用
+				Keys: bson.D{
+					{Key: "title", Value: "text"},
+					{Key: "description", Value: "text"},
+				},
+				Options: options.Index().
+					SetName("idx_text_search").
+					SetWeights(
+						bson.D{
+							{Key: "title", Value: 10},      // 提高 title 权重
+							{Key: "description", Value: 2}, // 降低 description 权重
+						},
+					),
 			},
-			Options: options.Index().
-				SetName("idx_text_search").
-				SetWeights(bson.D{
-					{Key: "title", Value: 10},      // 提高 title 权重
-					{Key: "description", Value: 2}, // 降低 description 权重
-				}),
 		},
-	})
+	)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to create index for problem collection")
 	}
@@ -113,7 +118,10 @@ func (d *ProblemDao) HasProblemTitle(ctx context.Context, title string) (bool, e
 	return true, nil
 }
 
-func (d *ProblemDao) GetProblemView(ctx context.Context, id string, userId int, hasAuth bool) (*foundationmodel.Problem, error) {
+func (d *ProblemDao) GetProblemView(ctx context.Context, id string, userId int, hasAuth bool) (
+	*foundationmodel.Problem,
+	error,
+) {
 	filter := bson.M{
 		"_id": id,
 	}
@@ -121,6 +129,7 @@ func (d *ProblemDao) GetProblemView(ctx context.Context, id string, userId int, 
 		if userId > 0 {
 			filter["$or"] = []bson.M{
 				{"private": bson.M{"$exists": false}},
+				{"creator_id": userId},
 				{"auth_users": userId},
 			}
 		} else {
@@ -129,9 +138,11 @@ func (d *ProblemDao) GetProblemView(ctx context.Context, id string, userId int, 
 			}
 		}
 	}
-	opts := options.FindOne().SetProjection(bson.M{
-		"auth_users": 0,
-	})
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"auth_users": 0,
+		},
+	)
 	var problem foundationmodel.Problem
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -146,13 +157,15 @@ func (d *ProblemDao) GetProblemViewJudge(ctx context.Context, id string) (*found
 	filter := bson.M{
 		"_id": id,
 	}
-	opts := options.FindOne().SetProjection(bson.M{
-		"_id":          1,
-		"time_limit":   1,
-		"memory_limit": 1,
-		"judge_type":   1,
-		"judge_md5":    1,
-	})
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"_id":          1,
+			"time_limit":   1,
+			"memory_limit": 1,
+			"judge_type":   1,
+			"judge_md5":    1,
+		},
+	)
 	var problem foundationmodel.Problem
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -167,10 +180,12 @@ func (d *ProblemDao) GetProblemTitle(ctx context.Context, id *string) (*string, 
 	filter := bson.M{
 		"_id": id,
 	}
-	opts := options.FindOne().SetProjection(bson.M{
-		"_id":   1,
-		"title": 1,
-	})
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"_id":   1,
+			"title": 1,
+		},
+	)
 	var problem foundationmodel.Problem
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -182,20 +197,76 @@ func (d *ProblemDao) GetProblemTitle(ctx context.Context, id *string) (*string, 
 
 }
 
+func (d *ProblemDao) GetProblemTitles(
+	ctx context.Context,
+	userId int,
+	hasAuth bool,
+	ids []string,
+) ([]*foundationmodel.ProblemViewTitle, error) {
+	filter := bson.M{
+		"_id": bson.M{
+			"$in": ids,
+		},
+	}
+	if !hasAuth {
+		if userId > 0 {
+			filter["$or"] = []bson.M{
+				{"private": bson.M{"$exists": false}},
+				{"creator_id": userId},
+				{"auth_users": userId},
+			}
+		} else {
+			filter["private"] = bson.M{
+				"$exists": false,
+			}
+		}
+	}
+	opts := options.Find().SetProjection(
+		bson.M{
+			"_id":   1,
+			"title": 1,
+		},
+	)
+	cursor, err := d.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find problem titles error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close cursor error"))
+		}
+	}(cursor, ctx)
+	var titles []*foundationmodel.ProblemViewTitle
+	for cursor.Next(ctx) {
+		var problem foundationmodel.ProblemViewTitle
+		if err := cursor.Decode(&problem); err != nil {
+			return nil, metaerror.Wrap(err, "decode problem title error")
+		}
+		titles = append(titles, &problem)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, metaerror.Wrap(err, "cursor error")
+	}
+	return titles, nil
+}
+
 func (d *ProblemDao) GetProblemJudge(ctx context.Context, id string) (*foundationmodel.Problem, error) {
 	filter := bson.M{
 		"_id": id,
 	}
-	opts := options.FindOne().SetProjection(bson.M{
-		"_id":              1,
-		"title":            1,
-		"insert_time":      1,
-		"update_time":      1,
-		"creator_id":       1,
-		"creator_nickname": 1,
-		"judge_md5":        1,
-		"judge_type":       1,
-	})
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"_id":              1,
+			"title":            1,
+			"insert_time":      1,
+			"update_time":      1,
+			"creator_id":       1,
+			"creator_nickname": 1,
+			"judge_md5":        1,
+			"judge_type":       1,
+		},
+	)
 	var problem foundationmodel.Problem
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -221,12 +292,14 @@ func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *fou
 	return nil
 }
 
-func (d *ProblemDao) GetProblemList(ctx context.Context,
+func (d *ProblemDao) GetProblemList(
+	ctx context.Context,
 	oj string, title string, tags []int, private bool,
 	userId int, hasAuth bool,
 	page int,
 	pageSize int,
-) ([]*foundationmodel.Problem,
+) (
+	[]*foundationmodel.Problem,
 	int,
 	error,
 ) {
@@ -235,6 +308,7 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 		if userId > 0 {
 			filter["$or"] = []bson.M{
 				{"private": bson.M{"$exists": false}},
+				{"creator_id": userId},
 				{"auth_users": userId},
 			}
 		} else {
@@ -270,19 +344,23 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 
 	// 只获取id、title、tags、accept
 	opts := options.Find().
-		SetProjection(bson.M{
-			"_id":     1,
-			"title":   1,
-			"tags":    1,
-			"accept":  1,
-			"attempt": 1,
-		}).
+		SetProjection(
+			bson.M{
+				"_id":     1,
+				"title":   1,
+				"tags":    1,
+				"accept":  1,
+				"attempt": 1,
+			},
+		).
 		SetSkip(skip).
 		SetLimit(limit).
-		SetSort(bson.D{
-			{Key: "sort", Value: 1},
-			{Key: "_id", Value: 1},
-		})
+		SetSort(
+			bson.M{
+				"sort": 1,
+				"_id":  1,
+			},
+		)
 	// 查询总记录数
 	totalCount, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {
@@ -306,7 +384,10 @@ func (d *ProblemDao) GetProblemList(ctx context.Context,
 	return list, int(totalCount), nil
 }
 
-func (d *ProblemDao) GetProblemListTitle(ctx context.Context, ids []string) ([]*foundationmodel.ProblemViewTitle, error) {
+func (d *ProblemDao) GetProblemListTitle(ctx context.Context, ids []string) (
+	[]*foundationmodel.ProblemViewTitle,
+	error,
+) {
 	filter := bson.M{
 		"_id": bson.M{
 			"$in": ids,
@@ -363,6 +444,40 @@ func (d *ProblemDao) GetProblems(ctx context.Context, ids []string) ([]*foundati
 		problems = append(problems, &problem)
 	}
 	return problems, nil
+}
+
+func (d *ProblemDao) FilterValidProblemIds(ctx *gin.Context, ids []string) ([]string, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	filter := bson.M{
+		"_id": bson.M{
+			"$in": ids,
+		},
+	}
+	opts := options.Find().SetProjection(bson.M{"_id": 1})
+	cursor, err := d.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find problems error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close cursor error"))
+		}
+	}(cursor, ctx)
+	var validIds []string
+	for cursor.Next(ctx) {
+		var problem foundationmodel.Problem
+		if err := cursor.Decode(&problem); err != nil {
+			return nil, metaerror.Wrap(err, "decode problem error")
+		}
+		validIds = append(validIds, problem.Id)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, metaerror.Wrap(err, "cursor error")
+	}
+	return validIds, nil
 }
 
 func (d *ProblemDao) UpdateProblems(ctx context.Context, tags []*foundationmodel.Problem) error {
@@ -425,18 +540,20 @@ func (d *ProblemDao) InsertProblem(ctx context.Context, problem *foundationmodel
 		return err
 	}
 	defer sess.EndSession(ctx)
-	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
-		seq, err := GetCounterDao().GetNextSequence(sc, "problem_id")
-		if err != nil {
-			return nil, err
-		}
-		problem.Id = strconv.Itoa(seq)
-		_, err = d.collection.InsertOne(sc, problem)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
+	_, err = sess.WithTransaction(
+		ctx, func(sc mongo.SessionContext) (interface{}, error) {
+			seq, err := GetCounterDao().GetNextSequence(sc, "problem_id")
+			if err != nil {
+				return nil, err
+			}
+			problem.Id = strconv.Itoa(seq)
+			_, err = d.collection.InsertOne(sc, problem)
+			if err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -452,41 +569,43 @@ func (d *ProblemDao) PostCreate(ctx context.Context, userId int, requestData *re
 
 	nowTime := metatime.GetTimeNow()
 	var newProblemId *string
-	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
-		var tagIds []int
-		for _, tagName := range requestData.Tags {
-			tag := foundationmodel.NewProblemTagBuilder().Name(tagName).Build()
-			err := GetProblemTagDao().InsertTag(sessCtx, tag)
+	_, err = session.WithTransaction(
+		ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+			var tagIds []int
+			for _, tagName := range requestData.Tags {
+				tag := foundationmodel.NewProblemTagBuilder().Name(tagName).Build()
+				err := GetProblemTagDao().InsertTag(sessCtx, tag)
+				if err != nil {
+					return nil, err
+				}
+				tagIds = append(tagIds, tag.Id)
+			}
+			problem := foundationmodel.NewProblemBuilder().
+				Title(requestData.Title).
+				Description(requestData.Description).
+				Source(requestData.Source).
+				TimeLimit(requestData.TimeLimit).
+				MemoryLimit(requestData.MemoryLimit).
+				InsertTime(nowTime).
+				UpdateTime(nowTime).
+				Tags(tagIds).
+				CreatorId(userId).
+				Private(requestData.Private).
+				Build()
+			seq, err := GetCounterDao().GetNextSequence(sessCtx, "problem_id")
 			if err != nil {
 				return nil, err
 			}
-			tagIds = append(tagIds, tag.Id)
-		}
-		problem := foundationmodel.NewProblemBuilder().
-			Title(requestData.Title).
-			Description(requestData.Description).
-			Source(requestData.Source).
-			TimeLimit(requestData.TimeLimit).
-			MemoryLimit(requestData.MemoryLimit).
-			InsertTime(nowTime).
-			UpdateTime(nowTime).
-			Tags(tagIds).
-			CreatorId(userId).
-			Private(requestData.Private).
-			Build()
-		seq, err := GetCounterDao().GetNextSequence(sessCtx, "problem_id")
-		if err != nil {
-			return nil, err
-		}
-		problem.Id = strconv.Itoa(seq)
-		problem.Sort = len(problem.Id)
-		_, err = d.collection.InsertOne(sessCtx, problem)
-		if err != nil {
-			return nil, err
-		}
-		newProblemId = &problem.Id
-		return nil, nil
-	})
+			problem.Id = strconv.Itoa(seq)
+			problem.Sort = len(problem.Id)
+			_, err = d.collection.InsertOne(sessCtx, problem)
+			if err != nil {
+				return nil, err
+			}
+			newProblemId = &problem.Id
+			return nil, nil
+		},
+	)
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to rejudge submissions in transaction")
 	}
@@ -501,48 +620,57 @@ func (d *ProblemDao) PostEdit(ctx context.Context, userId int, requestData *requ
 	defer session.EndSession(ctx)
 
 	nowTime := metatime.GetTimeNow()
-	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+	_, err = session.WithTransaction(
+		ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 
-		var tagIds []int
-		for _, tagName := range requestData.Tags {
-			tag := foundationmodel.NewProblemTagBuilder().Name(tagName).Build()
-			err := GetProblemTagDao().InsertTag(sessCtx, tag)
+			var tagIds []int
+			for _, tagName := range requestData.Tags {
+				tag := foundationmodel.NewProblemTagBuilder().Name(tagName).Build()
+				err := GetProblemTagDao().InsertTag(sessCtx, tag)
+				if err != nil {
+					return nil, err
+				}
+				tagIds = append(tagIds, tag.Id)
+			}
+			setData := bson.M{
+				"title":        requestData.Title,
+				"description":  requestData.Description,
+				"tags":         tagIds,
+				"update_time":  nowTime,
+				"time_limit":   requestData.TimeLimit,
+				"memory_limit": requestData.MemoryLimit,
+				"source":       requestData.Source,
+			}
+			unsetData := bson.M{}
+			if requestData.Private {
+				setData["private"] = requestData.Private
+			} else {
+				unsetData["private"] = 1
+			}
+			_, err = d.collection.UpdateOne(
+				sessCtx, bson.M{"_id": requestData.Id}, bson.M{
+					"$set":   setData,
+					"$unset": unsetData,
+				},
+			)
 			if err != nil {
 				return nil, err
 			}
-			tagIds = append(tagIds, tag.Id)
-		}
-		setData := bson.M{
-			"title":        requestData.Title,
-			"description":  requestData.Description,
-			"tags":         tagIds,
-			"update_time":  nowTime,
-			"time_limit":   requestData.TimeLimit,
-			"memory_limit": requestData.MemoryLimit,
-			"source":       requestData.Source,
-		}
-		unsetData := bson.M{}
-		if requestData.Private {
-			setData["private"] = requestData.Private
-		} else {
-			unsetData["private"] = 1
-		}
-		_, err = d.collection.UpdateOne(sessCtx, bson.M{"_id": requestData.Id}, bson.M{
-			"$set":   setData,
-			"$unset": unsetData,
-		})
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
+			return nil, nil
+		},
+	)
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to rejudge submissions in transaction")
 	}
 	return &nowTime, nil
 }
 
-func (d *ProblemDao) UpdateProblemJudgeInfo(ctx context.Context, id string, judgeType foundationjudge.JudgeType, md5 string) error {
+func (d *ProblemDao) UpdateProblemJudgeInfo(
+	ctx context.Context,
+	id string,
+	judgeType foundationjudge.JudgeType,
+	md5 string,
+) error {
 	nowTime := metatime.GetTimeNow()
 	filter := bson.M{
 		"_id": id,
