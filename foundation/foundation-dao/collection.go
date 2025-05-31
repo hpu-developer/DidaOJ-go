@@ -198,21 +198,17 @@ func (d *CollectionDao) GetCollectionRankView(ctx context.Context, id int) (
 				"start_time": 1,
 				"end_time":   1,
 				"problems":   1,
+				"members":    1,
 			},
 		)
-	var collection foundationmodel.Collection
+	var collection foundationmodel.CollectionRankView
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&collection); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
 		return nil, metaerror.Wrap(err, "find collection error")
 	}
-	return &foundationmodel.CollectionRankView{
-		Id:        collection.Id,
-		StartTime: collection.StartTime,
-		EndTime:   collection.EndTime,
-		Problems:  collection.Problems,
-	}, nil
+	return &collection, nil
 }
 
 func (d *CollectionDao) UpdateCollections(ctx context.Context, tags []*foundationmodel.Collection) error {

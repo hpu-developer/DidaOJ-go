@@ -1,7 +1,7 @@
 package foundationmodel
 
 type CollectionProblem struct {
-	ProblemId string `json:"problem_id,omitempty" bson:"problem_id,omitempty"` // 实际的题目Id，添加的那一刻需要具有对应问题权限
+	Id string `json:"id,omitempty" bson:"id,omitempty"` // 实际的题目Id，添加的那一刻需要具有对应问题权限
 
 	Title *string `json:"title,omitempty" bson:"title,omitempty"` // 题目标题
 
@@ -17,8 +17,8 @@ func NewCollectionProblemBuilder() *CollectionProblemBuilder {
 	return &CollectionProblemBuilder{item: &CollectionProblem{}}
 }
 
-func (b *CollectionProblemBuilder) ProblemId(problemId string) *CollectionProblemBuilder {
-	b.item.ProblemId = problemId
+func (b *CollectionProblemBuilder) Id(problemId string) *CollectionProblemBuilder {
+	b.item.Id = problemId
 	return b
 }
 

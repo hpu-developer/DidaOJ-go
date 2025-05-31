@@ -31,7 +31,7 @@ func (c *CollectionController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	collection, err := collectionService.GetCollection(ctx, id)
+	collection, problems, err := collectionService.GetCollection(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -40,7 +40,15 @@ func (c *CollectionController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, collection)
+	responseData := struct {
+		Collection *foundationmodel.Collection          `json:"collection"`
+		Problems   []*foundationmodel.CollectionProblem `json:"problems"` // 题目列表
+	}{
+		Collection: collection,
+		Problems:   problems,
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
 func (c *CollectionController) GetList(ctx *gin.Context) {

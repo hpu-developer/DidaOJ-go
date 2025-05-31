@@ -384,9 +384,11 @@ func (d *JudgeJobDao) GetProblemTimeViewAttempt(
 	startTime *time.Time,
 	endTime *time.Time,
 	problemIds []string,
+	members []int,
 ) ([]*foundationmodel.ProblemViewAttempt, error) {
 	match := bson.M{
 		"problem_id": bson.M{"$in": problemIds},
+		"author_id":  bson.M{"$in": members},
 	}
 
 	timeCond := bson.M{}
@@ -1351,7 +1353,12 @@ func (d *JudgeJobDao) RejudgeJob(ctx context.Context, id int) error {
 	return nil
 }
 
-func (d *JudgeJobDao) RejudgeProblem(ctx context.Context, id string) error {
+func (d *JudgeJobDao) RejudgeSearch(
+	ctx context.Context,
+	problemId string,
+	language foundationjudge.JudgeLanguage,
+	status foundationjudge.JudgeStatus,
+) error {
 	session, err := d.collection.Database().Client().StartSession()
 	if err != nil {
 		return metaerror.Wrap(err, "failed to start mongo session")
@@ -1360,8 +1367,17 @@ func (d *JudgeJobDao) RejudgeProblem(ctx context.Context, id string) error {
 
 	_, err = session.WithTransaction(
 		ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
-			// 1. 查找最近提交
-			findFilter := bson.D{{"problem_id", id}}
+			// 1. 查找提交
+			findFilter := bson.M{}
+			if problemId != "" {
+				findFilter["problem_id"] = problemId
+			}
+			if foundationjudge.IsValidJudgeLanguage(int(language)) {
+				findFilter["language"] = language
+			}
+			if foundationjudge.IsValidJudgeStatus(int(status)) {
+				findFilter["status"] = status
+			}
 			findOpts := options.Find().
 				SetSort(bson.D{{"_id", -1}}).
 				SetProjection(

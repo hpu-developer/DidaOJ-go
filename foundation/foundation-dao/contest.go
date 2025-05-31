@@ -61,21 +61,23 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.C
 		"_id": id,
 	}
 	opts := options.FindOne().
-		SetProjection(bson.M{
-			"_id":          1,
-			"title":        1,
-			"start_time":   1,
-			"end_time":     1,
-			"owner_id":     1,
-			"create_time":  1,
-			"problems":     1,
-			"auth":         1,
-			"type":         1,
-			"score_type":   1,
-			"always_lock":  1,
-			"descriptions": 1,
-			"notification": 1,
-		})
+		SetProjection(
+			bson.M{
+				"_id":          1,
+				"title":        1,
+				"start_time":   1,
+				"end_time":     1,
+				"owner_id":     1,
+				"create_time":  1,
+				"problems":     1,
+				"auth":         1,
+				"type":         1,
+				"score_type":   1,
+				"always_lock":  1,
+				"descriptions": 1,
+				"notification": 1,
+			},
+		)
 	var contest foundationmodel.Contest
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -91,10 +93,12 @@ func (d *ContestDao) GetContestTitle(ctx context.Context, id int) (*string, erro
 		"_id": id,
 	}
 	opts := options.FindOne().
-		SetProjection(bson.M{
-			"_id":   1,
-			"title": 1,
-		})
+		SetProjection(
+			bson.M{
+				"_id":   1,
+				"title": 1,
+			},
+		)
 	var contest foundationmodel.Contest
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -110,34 +114,33 @@ func (d *ContestDao) GetContestRankView(ctx context.Context, id int) (*foundatio
 		"_id": id,
 	}
 	opts := options.FindOne().
-		SetProjection(bson.M{
-			"_id":        1,
-			"start_time": 1,
-			"end_time":   1,
-			"problems":   1,
-		})
-	var contest foundationmodel.Contest
+		SetProjection(
+			bson.M{
+				"_id":        1,
+				"start_time": 1,
+				"end_time":   1,
+				"problems":   1,
+			},
+		)
+	var contest foundationmodel.ContestRankView
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
 		return nil, metaerror.Wrap(err, "find contest error")
 	}
-	return &foundationmodel.ContestRankView{
-		Id:        contest.Id,
-		StartTime: &contest.StartTime,
-		EndTime:   &contest.EndTime,
-		Problems:  contest.Problems,
-	}, nil
+	return &contest, nil
 }
 
 func (d *ContestDao) GetProblems(ctx context.Context, id int) ([]*foundationmodel.ContestProblem, error) {
 	filter := bson.M{
 		"_id": id,
 	}
-	opts := options.FindOne().SetProjection(bson.M{
-		"problems": 1,
-	})
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"problems": 1,
+		},
+	)
 	var result struct {
 		Problems []*foundationmodel.ContestProblem `bson:"problems"`
 	}
@@ -155,13 +158,15 @@ func (d *ContestDao) GetProblemIndex(ctx context.Context, id int, problemId *str
 	filter := bson.M{
 		"_id": id,
 	}
-	opts := options.FindOne().SetProjection(bson.M{
-		"problems": bson.M{
-			"$elemMatch": bson.M{
-				"problem_id": *problemId,
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"problems": bson.M{
+				"$elemMatch": bson.M{
+					"problem_id": *problemId,
+				},
 			},
 		},
-	})
+	)
 	var result struct {
 		Problems []struct {
 			Index int `bson:"index"`
@@ -181,13 +186,15 @@ func (d *ContestDao) GetProblemIdByContest(ctx context.Context, id int, problemI
 	filter := bson.M{
 		"_id": id,
 	}
-	opts := options.FindOne().SetProjection(bson.M{
-		"problems": bson.M{
-			"$elemMatch": bson.M{
-				"index": problemIndex,
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"problems": bson.M{
+				"$elemMatch": bson.M{
+					"index": problemIndex,
+				},
 			},
 		},
-	})
+	)
 	var result struct {
 		Problems []struct {
 			ProblemId string `bson:"problem_id"`
@@ -203,10 +210,12 @@ func (d *ContestDao) GetProblemIdByContest(ctx context.Context, id int, problemI
 	return &result.Problems[0].ProblemId, nil
 }
 
-func (d *ContestDao) GetContestList(ctx context.Context,
+func (d *ContestDao) GetContestList(
+	ctx context.Context,
 	page int,
 	pageSize int,
-) ([]*foundationmodel.Contest,
+) (
+	[]*foundationmodel.Contest,
 	int,
 	error,
 ) {
@@ -216,13 +225,15 @@ func (d *ContestDao) GetContestList(ctx context.Context,
 
 	// 只获取id、title、tags、accept
 	opts := options.Find().
-		SetProjection(bson.M{
-			"_id":        1,
-			"title":      1,
-			"start_time": 1,
-			"end_time":   1,
-			"owner_id":   1,
-		}).
+		SetProjection(
+			bson.M{
+				"_id":        1,
+				"title":      1,
+				"start_time": 1,
+				"end_time":   1,
+				"owner_id":   1,
+			},
+		).
 		SetSkip(skip).
 		SetLimit(limit).
 		SetSort(bson.M{"_id": -1})
@@ -280,21 +291,23 @@ func (d *ContestDao) InsertContest(ctx context.Context, contest *foundationmodel
 		return err
 	}
 	defer sess.EndSession(ctx)
-	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
-		// 获取下一个序列号
-		seq, err := GetCounterDao().GetNextSequence(sc, "contest_id")
-		if err != nil {
-			return nil, err
-		}
-		// 更新 Contest 的 ID
-		contest.Id = seq
-		// 插入新的 Contest
-		_, err = d.collection.InsertOne(sc, contest)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
+	_, err = sess.WithTransaction(
+		ctx, func(sc mongo.SessionContext) (interface{}, error) {
+			// 获取下一个序列号
+			seq, err := GetCounterDao().GetNextSequence(sc, "contest_id")
+			if err != nil {
+				return nil, err
+			}
+			// 更新 Contest 的 ID
+			contest.Id = seq
+			// 插入新的 Contest
+			_, err = d.collection.InsertOne(sc, contest)
+			if err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	)
 	if err != nil {
 		return err
 	}
