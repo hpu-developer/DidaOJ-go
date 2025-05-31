@@ -119,46 +119,52 @@ func (s *CollectionService) InsertCollection(ctx context.Context, collection *fo
 func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
 	*time.Time,
 	*time.Time,
-	[]string,
+	int,
 	[]*foundationmodel.CollectionRank,
 	error,
 ) {
 	collectionView, err := foundationdao.GetCollectionDao().GetCollectionRankView(ctx, id)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, 0, nil, err
 	}
 	var collectionRanks []*foundationmodel.CollectionRank
 	if len(collectionView.Members) > 0 {
-		collectionRanks, err = foundationdao.GetJudgeJobDao().GetCollectionRanks(
-			ctx,
-			collectionView.StartTime,
-			collectionView.EndTime,
-			collectionView.Problems,
-			collectionView.Members,
-		)
+		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, collectionView.Members)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, 0, nil, err
 		}
-		if len(collectionRanks) > 0 {
-			var userIds []int
-			for _, collectionRank := range collectionRanks {
-				userIds = append(userIds, collectionRank.AuthorId)
+		userMap := make(map[int]*foundationmodel.UserAccountInfo)
+		for _, user := range users {
+			userMap[user.Id] = user
+		}
+		for _, authorId := range collectionView.Members {
+			if user, ok := userMap[authorId]; ok {
+				collectionRanks = append(
+					collectionRanks, &foundationmodel.CollectionRank{
+						AuthorId:       authorId,
+						AuthorUsername: &user.Username,
+						AuthorNickname: &user.Nickname,
+					},
+				)
 			}
-			users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
+		}
+		if len(collectionView.Problems) > 0 {
+			userAcMap, err := foundationdao.GetJudgeJobDao().GetAcceptedProblemCount(
+				ctx,
+				collectionView.StartTime,
+				collectionView.EndTime,
+				collectionView.Problems,
+				collectionView.Members,
+			)
 			if err != nil {
-				return nil, nil, nil, nil, err
-			}
-			userMap := make(map[int]*foundationmodel.UserAccountInfo)
-			for _, user := range users {
-				userMap[user.Id] = user
+				return nil, nil, 0, nil, err
 			}
 			for _, collectionRank := range collectionRanks {
-				if user, ok := userMap[collectionRank.AuthorId]; ok {
-					collectionRank.AuthorUsername = &user.Username
-					collectionRank.AuthorNickname = &user.Nickname
+				if acCount, ok := userAcMap[collectionRank.AuthorId]; ok {
+					collectionRank.Accept = acCount
 				}
 			}
 		}
 	}
-	return collectionView.StartTime, collectionView.EndTime, collectionView.Problems, collectionRanks, nil
+	return collectionView.StartTime, collectionView.EndTime, len(collectionView.Problems), collectionRanks, nil
 }

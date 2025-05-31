@@ -110,12 +110,12 @@ func (c *CollectionController) GetRank(ctx *gin.Context) {
 	responseData := struct {
 		StartTime *time.Time                        `json:"start_time"`
 		EndTime   *time.Time                        `json:"end_time"` // 结束时间
-		Problems  []string                          `json:"problems"` // 题目索引列表
+		Problem   int                               `json:"problem"`  // 题目数量
 		Ranks     []*foundationmodel.CollectionRank `json:"ranks"`
 	}{
 		StartTime: startTime,
 		EndTime:   endTime,
-		Problems:  problems,
+		Problem:   problems,
 		Ranks:     ranks,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)

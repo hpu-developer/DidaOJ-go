@@ -23,5 +23,5 @@ type CollectionRank struct {
 	AuthorUsername *string `json:"author_username,omitempty" bson:"author_username,omitempty"` // 提交者用户名
 	AuthorNickname *string `json:"author_nickname,omitempty" bson:"author_nickname,omitempty"` // 提交者昵称
 
-	Problems []*CollectionRankProblem `json:"problems" bson:"problems"` // 题目提交情况
+	Accept int `json:"accept" bson:"accept"` // 通过数
 }
