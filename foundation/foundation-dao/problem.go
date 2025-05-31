@@ -356,9 +356,9 @@ func (d *ProblemDao) GetProblemList(
 		SetSkip(skip).
 		SetLimit(limit).
 		SetSort(
-			bson.M{
-				"sort": 1,
-				"_id":  1,
+			bson.D{
+				{"sort", 1},
+				{"_id", 1},
 			},
 		)
 	// 查询总记录数

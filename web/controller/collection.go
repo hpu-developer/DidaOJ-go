@@ -181,18 +181,10 @@ func (c *CollectionController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	startTime, err := metatime.GetTimeByDateString(requestData.StartTime)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	endTime, err := metatime.GetTimeByDateString(requestData.EndTime)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-
 	collectionService := foundationservice.GetCollectionService()
+
+	startTime := requestData.StartTime
+	endTime := requestData.EndTime
 
 	collection := foundationmodel.NewCollectionBuilder().
 		Title(requestData.Title).
@@ -227,16 +219,6 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	startTime, err := metatime.GetTimeByDateString(requestData.StartTime)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	endTime, err := metatime.GetTimeByDateString(requestData.EndTime)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
 	_, hasAuth, err := foundationservice.GetCollectionService().CheckUserAuth(ctx, requestData.Id)
 	if err != nil {
 		metapanic.ProcessError(err)
@@ -260,6 +242,8 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 
 	collectionService := foundationservice.GetCollectionService()
 
+	startTime := requestData.StartTime
+	endTime := requestData.EndTime
 	collection := foundationmodel.NewCollectionBuilder().
 		Title(requestData.Title).
 		Description(requestData.Description).
@@ -276,5 +260,5 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, collection)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, collection.UpdateTime)
 }
