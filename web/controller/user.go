@@ -17,10 +17,8 @@ import (
 	metamath "meta/meta-math"
 	metaredis "meta/meta-redis"
 	"meta/meta-response"
-	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	"strconv"
-	"strings"
 	"time"
 	"web/config"
 	weberrorcode "web/error-code"
@@ -64,20 +62,13 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 
 func (c *UserController) PostParse(ctx *gin.Context) {
 	var requestData struct {
-		Users string `json:"users" binding:"required"`
+		Users []string `json:"users" binding:"required"`
 	}
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	// 根据空格切分
-	userSplits := strings.Fields(requestData.Users)
-	var usernameList []string
-	for _, user := range userSplits {
-		usernameList = append(usernameList, strings.Split(user, ",")...)
-	}
-	// 去除空项
-	usernameList = metastring.RemoveEmpty(usernameList)
+	usernameList := requestData.Users
 	userAccountInfos, err := foundationservice.GetUserService().GetUserAccountInfoByUsernames(ctx, usernameList)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)

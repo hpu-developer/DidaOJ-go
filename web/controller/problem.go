@@ -402,20 +402,13 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 
 func (c *ProblemController) PostParse(ctx *gin.Context) {
 	var requestData struct {
-		Problems string `json:"problems" binding:"required"`
+		Problems []string `json:"problems" binding:"required"`
 	}
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	// 根据空格切分
-	problemSplits := strings.Fields(requestData.Problems)
-	var problemList []string
-	for _, problem := range problemSplits {
-		problemList = append(problemList, strings.Split(problem, ",")...)
-	}
-	// 去除空项
-	problemList = metastring.RemoveEmpty(problemList)
+	problemList := requestData.Problems
 	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
 	if err != nil {
 		metapanic.ProcessError(err)

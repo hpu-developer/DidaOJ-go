@@ -47,6 +47,10 @@ func (s *CollectionService) CheckUserAuth(ctx *gin.Context, collectionId int) (
 	return userId, true, nil
 }
 
+func (s *CollectionService) HasCollectionTitle(ctx *gin.Context, id int, title string) (bool, error) {
+	return foundationdao.GetCollectionDao().HasCollectionTitle(ctx, id, title)
+}
+
 func (s *CollectionService) GetCollection(ctx context.Context, id int) (
 	*foundationmodel.Collection,
 	[]*foundationmodel.CollectionProblem,
@@ -111,8 +115,6 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int) (
 		for _, problem := range collection.Problems {
 			collectionProblemList = append(collectionProblemList, collectionProblems[problem])
 		}
-		// 这个字段可以不返回
-		collection.Problems = nil
 	}
 	return collection, collectionProblemList, err
 }
@@ -171,8 +173,6 @@ func (s *CollectionService) GetCollectionEdit(ctx context.Context, id int) (
 		for _, problem := range collection.Problems {
 			collectionProblemList = append(collectionProblemList, collectionProblems[problem])
 		}
-		// 这个字段可以不返回
-		collection.Problems = nil
 	}
 	return collection, collectionProblemList, users, err
 }

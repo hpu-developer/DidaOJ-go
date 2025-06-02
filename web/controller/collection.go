@@ -10,9 +10,12 @@ import (
 	"meta/error-code"
 	metapanic "meta/meta-panic"
 	"meta/meta-response"
+	metastring "meta/meta-string"
 	metatime "meta/meta-time"
+	"meta/set"
 	"strconv"
 	"time"
+	weberrorcode "web/error-code"
 	"web/request"
 )
 
@@ -182,9 +185,45 @@ func (c *CollectionController) PostCreate(ctx *gin.Context) {
 		return
 	}
 	collectionService := foundationservice.GetCollectionService()
-
+	// 控制创建时的标题唯一，一定程度上防止误重复创建
+	ok, err := collectionService.HasCollectionTitle(ctx, userId, requestData.Title)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if ok {
+		metaresponse.NewResponse(ctx, weberrorcode.CollectionTitleDuplicate, nil)
+		return
+	}
+	userIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Users)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	//requestData.Problems去重
+	if len(requestData.Problems) == 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 去重
+	problemIds := metastring.RemoveDuplicate(requestData.Problems)
+	validProblemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, problemIds)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	validProblemIdSet := set.FromSlice(validProblemIds)
+	var realProblemIds []string
+	// 保持输入的problemIds顺序
+	for _, problemId := range problemIds {
+		if validProblemIdSet.Contains(problemId) {
+			realProblemIds = append(realProblemIds, problemId)
+		}
+	}
 	startTime := requestData.StartTime
 	endTime := requestData.EndTime
+
+	nowTime := metatime.GetTimeNow()
 
 	collection := foundationmodel.NewCollectionBuilder().
 		Title(requestData.Title).
@@ -192,7 +231,10 @@ func (c *CollectionController) PostCreate(ctx *gin.Context) {
 		StartTime(startTime).
 		EndTime(endTime).
 		OwnerId(userId).
-		CreateTime(metatime.GetTimeNow()).
+		Problems(realProblemIds).
+		Members(userIds).
+		CreateTime(nowTime).
+		UpdateTime(nowTime).
 		Build()
 
 	err = collectionService.InsertCollection(ctx, collection)
@@ -201,7 +243,7 @@ func (c *CollectionController) PostCreate(ctx *gin.Context) {
 		return
 	}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, collection)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, collection.Id)
 }
 
 func (c *CollectionController) PostEdit(ctx *gin.Context) {
@@ -234,10 +276,25 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
-	problemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, requestData.Problems)
+	//requestData.Problems去重
+	if len(requestData.Problems) == 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 去重
+	problemIds := metastring.RemoveDuplicate(requestData.Problems)
+	validProblemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, problemIds)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
+	}
+	validProblemIdSet := set.FromSlice(validProblemIds)
+	var realProblemIds []string
+	// 保持输入的problemIds顺序
+	for _, problemId := range problemIds {
+		if validProblemIdSet.Contains(problemId) {
+			realProblemIds = append(realProblemIds, problemId)
+		}
 	}
 
 	collectionService := foundationservice.GetCollectionService()
@@ -250,8 +307,9 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 		StartTime(startTime).
 		EndTime(endTime).
 		OwnerId(userId).
-		Problems(problemIds).
+		Problems(realProblemIds).
 		Members(userIds).
+		UpdateTime(metatime.GetTimeNow()).
 		Build()
 
 	err = collectionService.UpdateCollection(ctx, requestData.Id, collection)

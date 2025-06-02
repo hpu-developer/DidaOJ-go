@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	foundationmodel "foundation/foundation-model"
+	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	metaerror "meta/meta-error"
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
-	metatime "meta/meta-time"
 	"meta/singleton"
 )
 
@@ -41,33 +41,16 @@ func (d *CollectionDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
-func (d *CollectionDao) UpdateCollection(
-	ctx context.Context,
-	id int,
-	collection *foundationmodel.Collection,
-) error {
-	filter := bson.D{
-		{"_id", id},
+func (d *CollectionDao) HasCollectionTitle(ctx *gin.Context, id int, title string) (bool, error) {
+	filter := bson.M{
+		"title": title,
 	}
-	collection.UpdateTime = metatime.GetTimeNow()
-	setData := metamongo.StructToMapInclude(
-		collection,
-		"title",
-		"description",
-		"start_time",
-		"end_time",
-		"problems",
-		"members",
-		"update_time",
-	)
-	update := bson.M{
-		"$set": setData,
-	}
-	_, err := d.collection.UpdateOne(ctx, filter, update)
+	filter["_id"] = bson.M{"$ne": id}
+	count, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
+		return false, metaerror.Wrap(err, "failed to count documents")
 	}
-	return nil
+	return count > 0, nil
 }
 
 func (d *CollectionDao) GetCollection(ctx context.Context, id int) (*foundationmodel.Collection, error) {
@@ -272,6 +255,34 @@ func (d *CollectionDao) GetCollectionRankView(ctx context.Context, id int) (
 		return nil, metaerror.Wrap(err, "find collection error")
 	}
 	return &collection, nil
+}
+
+func (d *CollectionDao) UpdateCollection(
+	ctx context.Context,
+	id int,
+	collection *foundationmodel.Collection,
+) error {
+	filter := bson.D{
+		{"_id", id},
+	}
+	setData := metamongo.StructToMapInclude(
+		collection,
+		"title",
+		"description",
+		"start_time",
+		"end_time",
+		"problems",
+		"members",
+		"update_time",
+	)
+	update := bson.M{
+		"$set": setData,
+	}
+	_, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to save tapd subscription")
+	}
+	return nil
 }
 
 func (d *CollectionDao) UpdateCollections(ctx context.Context, tags []*foundationmodel.Collection) error {
