@@ -45,17 +45,16 @@ type VirtualReplay struct {
 }
 
 type Contest struct {
-	Id            int                   `json:"id" bson:"_id"`                                        // 数据库索引时真正的Id
-	Title         string                `json:"title" bson:"title"`                                   // 比赛标题
-	Descriptions  []*ContestDescription `json:"descriptions,omitempty" bson:"descriptions,omitempty"` // 比赛描述
-	Description   string                `json:"description" bson:"description"`
-	Notification  string                `json:"notification,omitempty" bson:"notification,omitempty"`     // 比赛通知，会醒目的出现在大部分页面
-	StartTime     time.Time             `json:"start_time" bson:"start_time"`                             // 比赛开始时间
-	EndTime       time.Time             `json:"end_time" bson:"end_time"`                                 // 比赛结束时间
-	OwnerId       int                   `json:"owner_id" bson:"owner_id"`                                 // 比赛组织者
-	OwnerUsername *string               `json:"owner_username,omitempty" bson:"owner_username,omitempty"` // 比赛组织者用户名
-	OwnerNickname *string               `json:"owner_nickname,omitempty" bson:"owner_nickname,omitempty"` // 比赛组织者昵称
-	Languages     []string              `json:"languages,omitempty" bson:"languages,omitempty"`           // 允许的语言
+	Id            int       `json:"id" bson:"_id"`      // 数据库索引时真正的Id
+	Title         string    `json:"title" bson:"title"` // 比赛标题
+	Description   string    `json:"description" bson:"description"`
+	Notification  string    `json:"notification,omitempty" bson:"notification,omitempty"`     // 比赛通知，会醒目的出现在大部分页面
+	StartTime     time.Time `json:"start_time" bson:"start_time"`                             // 比赛开始时间
+	EndTime       time.Time `json:"end_time" bson:"end_time"`                                 // 比赛结束时间
+	OwnerId       int       `json:"owner_id" bson:"owner_id"`                                 // 比赛组织者
+	OwnerUsername *string   `json:"owner_username,omitempty" bson:"owner_username,omitempty"` // 比赛组织者用户名
+	OwnerNickname *string   `json:"owner_nickname,omitempty" bson:"owner_nickname,omitempty"` // 比赛组织者昵称
+	Languages     []string  `json:"languages,omitempty" bson:"languages,omitempty"`           // 允许的语言
 
 	CreateTime time.Time `json:"create_time" bson:"create_time"` // 创建时间
 	UpdateTime time.Time `json:"update_time" bson:"update_time"` // 更新时间
@@ -103,11 +102,6 @@ func (b *ContestBuilder) Title(title string) *ContestBuilder {
 
 func (b *ContestBuilder) Description(description string) *ContestBuilder {
 	b.item.Description = description
-	return b
-}
-
-func (b *ContestBuilder) Descriptions(descriptions []*ContestDescription) *ContestBuilder {
-	b.item.Descriptions = descriptions
 	return b
 }
 

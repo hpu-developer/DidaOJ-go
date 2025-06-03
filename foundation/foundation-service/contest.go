@@ -64,33 +64,35 @@ func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmod
 	}
 	contest.OwnerUsername = &ownerUser.Username
 	contest.OwnerNickname = &ownerUser.Nickname
-	contestProblems := map[string]*foundationmodel.ContestProblem{}
-	for _, problem := range contest.Problems {
-		contestProblems[problem.ProblemId] = problem
-	}
-	var problemIds []string
-	for _, problem := range contest.Problems {
-		problemIds = append(problemIds, problem.ProblemId)
-		// 隐藏题目Id
-		problem.ProblemId = ""
-	}
-	problems, err := foundationdao.GetProblemDao().GetProblemListTitle(ctx, problemIds)
-	if err != nil {
-		return nil, err
-	}
-	for _, problem := range problems {
-		if contestProblem, ok := contestProblems[problem.Id]; ok {
-			contestProblem.Title = &problem.Title
+	if len(contest.Problems) > 0 {
+		contestProblems := map[string]*foundationmodel.ContestProblem{}
+		for _, problem := range contest.Problems {
+			contestProblems[problem.ProblemId] = problem
 		}
-	}
-	judgeAccepts, err := foundationdao.GetJudgeJobDao().GetProblemContestViewAttempt(ctx, id, problemIds)
-	if err != nil {
-		return nil, err
-	}
-	for _, judgeAccept := range judgeAccepts {
-		if contestProblem, ok := contestProblems[judgeAccept.Id]; ok {
-			contestProblem.Accept = judgeAccept.Accept
-			contestProblem.Attempt = judgeAccept.Attempt
+		var problemIds []string
+		for _, problem := range contest.Problems {
+			problemIds = append(problemIds, problem.ProblemId)
+			// 隐藏题目Id
+			problem.ProblemId = ""
+		}
+		problems, err := foundationdao.GetProblemDao().GetProblemListTitle(ctx, problemIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, problem := range problems {
+			if contestProblem, ok := contestProblems[problem.Id]; ok {
+				contestProblem.Title = &problem.Title
+			}
+		}
+		judgeAccepts, err := foundationdao.GetJudgeJobDao().GetProblemContestViewAttempt(ctx, id, problemIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, judgeAccept := range judgeAccepts {
+			if contestProblem, ok := contestProblems[judgeAccept.Id]; ok {
+				contestProblem.Accept = judgeAccept.Accept
+				contestProblem.Attempt = judgeAccept.Attempt
+			}
 		}
 	}
 	return contest, err
