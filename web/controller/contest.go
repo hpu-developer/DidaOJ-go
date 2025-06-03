@@ -91,21 +91,23 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	startTime, endTime, problems, ranks, err := foundationservice.GetContestService().GetContestRanks(ctx, contestId)
+	contest, problems, ranks, err := foundationservice.GetContestService().GetContestRanks(ctx, contestId)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
+	if contest == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
 	responseData := struct {
-		StartTime *time.Time                     `json:"start_time"`
-		EndTime   *time.Time                     `json:"end_time"` // 结束时间
-		Problems  []int                          `json:"problems"` // 题目索引列表
-		Ranks     []*foundationmodel.ContestRank `json:"ranks"`
+		Contest  *foundationmodel.ContestRankView `json:"contest"`
+		Problems []int                            `json:"problems"` // 题目索引列表
+		Ranks    []*foundationmodel.ContestRank   `json:"ranks"`
 	}{
-		StartTime: startTime,
-		EndTime:   endTime,
-		Problems:  problems,
-		Ranks:     ranks,
+		Contest:  contest,
+		Problems: problems,
+		Ranks:    ranks,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }

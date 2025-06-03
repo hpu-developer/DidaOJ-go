@@ -68,6 +68,8 @@ type Contest struct {
 	ScoreType     ContestScoreType `json:"score_type" bson:"score_type"`                             // 分数类型
 	VirtualReplay *VirtualReplay   `json:"virtual_replay,omitempty" bson:"virtual_replay,omitempty"` // 虚拟赛信息
 
+	VMembers []int `json:"v_members,omitempty" bson:"v_members,omitempty"` // 忽略排名的成员列表
+
 	AlwaysLock       bool           `json:"always_lock" bson:"always_lock"`                                   // 比赛结束后是否锁定排名，如果锁定则需要手动关闭（关闭时此值设为false）
 	LockRankDuration *time.Duration `json:"lock_rank_duration,omitempty" bson:"lock_rank_duration,omitempty"` // 比赛结束前锁定排名的时长，空则不锁榜，锁榜期间榜单仅展示尝试次数，ACM模式下只可以查看自己的提交结果，OI模式下无法查看所有的提交结果
 

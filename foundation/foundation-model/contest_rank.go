@@ -7,8 +7,9 @@ import (
 type ContestRankView struct {
 	Id        int               `json:"id" bson:"_id"` // 比赛Id
 	StartTime *time.Time        `json:"start_time,omitempty" bson:"start_time,omitempty"`
-	EndTime   *time.Time        `json:"end_time,omitempty" bson:"end_time,omitempty"` // 结束时间
-	Problems  []*ContestProblem `json:"problems,omitempty" bson:"problems,omitempty"` // 题目Id列表
+	EndTime   *time.Time        `json:"end_time,omitempty" bson:"end_time,omitempty"`   // 结束时间
+	Problems  []*ContestProblem `json:"problems,omitempty" bson:"problems,omitempty"`   // 题目Id列表
+	VMembers  []int             `json:"v_members,omitempty" bson:"v_members,omitempty"` // 忽略排名成员列表
 }
 
 type ContestRankProblem struct {

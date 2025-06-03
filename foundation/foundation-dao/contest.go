@@ -120,6 +120,7 @@ func (d *ContestDao) GetContestRankView(ctx context.Context, id int) (*foundatio
 				"start_time": 1,
 				"end_time":   1,
 				"problems":   1,
+				"v_members":  1,
 			},
 		)
 	var contest foundationmodel.ContestRankView
