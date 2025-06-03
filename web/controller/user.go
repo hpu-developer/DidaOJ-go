@@ -60,6 +60,27 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *UserController) PostAccountInfos(ctx *gin.Context) {
+	var requestData struct {
+		Users []int `json:"users" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userAccountInfos, err := foundationservice.GetUserService().GetUserAccountInfos(ctx, requestData.Users)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	responseData := struct {
+		Users []*foundationmodel.UserAccountInfo `json:"users"`
+	}{
+		Users: userAccountInfos,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
 func (c *UserController) PostParse(ctx *gin.Context) {
 	var requestData struct {
 		Users []string `json:"users" binding:"required"`

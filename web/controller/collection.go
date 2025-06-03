@@ -77,7 +77,7 @@ func (c *CollectionController) GetEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	collection, problems, users, err := collectionService.GetCollectionEdit(ctx, id)
+	collection, err := collectionService.GetCollectionEdit(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -87,13 +87,9 @@ func (c *CollectionController) GetEdit(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Collection *foundationmodel.Collection          `json:"collection"`
-		Problems   []*foundationmodel.CollectionProblem `json:"problems"` // 题目列表
-		Users      []*foundationmodel.UserAccountInfo   `json:"users"`    // 用户列表
+		Collection *foundationmodel.Collection `json:"collection"`
 	}{
 		Collection: collection,
-		Problems:   problems,
-		Users:      users,
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
@@ -195,7 +191,7 @@ func (c *CollectionController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.CollectionTitleDuplicate, nil)
 		return
 	}
-	userIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Users)
+	memberIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Members)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
@@ -232,7 +228,7 @@ func (c *CollectionController) PostCreate(ctx *gin.Context) {
 		EndTime(endTime).
 		OwnerId(userId).
 		Problems(realProblemIds).
-		Members(userIds).
+		Members(memberIds).
 		CreateTime(nowTime).
 		UpdateTime(nowTime).
 		Build()
@@ -271,7 +267,7 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	userIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Users)
+	memberIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Members)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
@@ -308,7 +304,7 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 		EndTime(endTime).
 		OwnerId(userId).
 		Problems(realProblemIds).
-		Members(userIds).
+		Members(memberIds).
 		UpdateTime(metatime.GetTimeNow()).
 		Build()
 

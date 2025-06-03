@@ -121,60 +121,22 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int) (
 
 func (s *CollectionService) GetCollectionEdit(ctx context.Context, id int) (
 	*foundationmodel.Collection,
-	[]*foundationmodel.CollectionProblem,
-	[]*foundationmodel.UserAccountInfo,
 	error,
 ) {
 	collection, err := foundationdao.GetCollectionDao().GetCollectionEdit(ctx, id)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	if collection == nil {
-		return nil, nil, nil, nil
+		return nil, nil
 	}
 	ownerUser, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, collection.OwnerId)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	collection.OwnerUsername = &ownerUser.Username
 	collection.OwnerNickname = &ownerUser.Nickname
-
-	var users []*foundationmodel.UserAccountInfo
-	if len(collection.Members) > 0 {
-		users, err = foundationdao.GetUserDao().GetUsersAccountInfo(ctx, collection.Members)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		// 这个字段可以不返回
-		collection.Members = nil
-	}
-
-	var collectionProblemList []*foundationmodel.CollectionProblem
-	if len(collection.Problems) > 0 {
-		collectionProblems := map[string]*foundationmodel.CollectionProblem{}
-		for _, problem := range collection.Problems {
-			collectionProblems[problem] = &foundationmodel.CollectionProblem{
-				Id: problem,
-			}
-		}
-		var problemIds []string
-		for _, problem := range collection.Problems {
-			problemIds = append(problemIds, problem)
-		}
-		problems, err := foundationdao.GetProblemDao().GetProblemListTitle(ctx, problemIds)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		for _, problem := range problems {
-			if collectionProblem, ok := collectionProblems[problem.Id]; ok {
-				collectionProblem.Title = &problem.Title
-			}
-		}
-		for _, problem := range collection.Problems {
-			collectionProblemList = append(collectionProblemList, collectionProblems[problem])
-		}
-	}
-	return collection, collectionProblemList, users, err
+	return collection, err
 }
 
 func (s *CollectionService) GetCollectionList(

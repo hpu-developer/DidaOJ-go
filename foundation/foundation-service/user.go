@@ -66,6 +66,12 @@ func (s *UserService) GetEmailByUsername(ctx context.Context, username string) (
 	return foundationdao.GetUserDao().GetEmailByUsername(ctx, username)
 }
 
+func (s *UserService) GetUserAccountInfos(ctx context.Context, userIds []int) (
+	[]*foundationmodel.UserAccountInfo, error,
+) {
+	return foundationdao.GetUserDao().GetUserAccountInfos(ctx, userIds)
+}
+
 func (s *UserService) GetUserAccountInfoByUsernames(ctx context.Context, usernames []string) (
 	[]*foundationmodel.UserAccountInfo, error,
 ) {

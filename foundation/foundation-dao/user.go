@@ -169,6 +169,37 @@ func (d *UserDao) GetUsersAccountInfo(ctx context.Context, userId []int) ([]*fou
 	return result, nil
 }
 
+func (d *UserDao) GetUserAccountInfos(
+	ctx context.Context,
+	userIds []int,
+) ([]*foundationmodel.UserAccountInfo, error) {
+	filter := bson.M{
+		"_id": bson.M{
+			"$in": userIds,
+		},
+	}
+	findOptions := options.Find().SetProjection(bson.M{"_id": 1, "username": 1, "nickname": 1})
+	cursor, err := d.collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find user account info error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(err, "close cursor error")
+		}
+	}(cursor, ctx)
+	var result []*foundationmodel.UserAccountInfo
+	for cursor.Next(ctx) {
+		var user foundationmodel.UserAccountInfo
+		if err := cursor.Decode(&user); err != nil {
+			return nil, metaerror.Wrap(err, "decode user account info error")
+		}
+		result = append(result, &user)
+	}
+	return result, nil
+}
+
 func (d *UserDao) GetUserAccountInfoByUsernames(
 	ctx context.Context,
 	usernames []string,
