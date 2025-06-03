@@ -2,8 +2,10 @@ package foundationservice
 
 import (
 	"context"
+	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
+	"github.com/gin-gonic/gin"
 	"meta/singleton"
 )
 
@@ -20,6 +22,34 @@ func GetContestService() *ContestService {
 	)
 }
 
+func (s *ContestService) CheckUserAuth(ctx *gin.Context, id int) (
+	int,
+	bool,
+	error,
+) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageContest)
+	if err != nil {
+		return userId, false, err
+	}
+	if userId <= 0 {
+		return userId, false, nil
+	}
+	if !hasAuth {
+		ownerId, err := foundationdao.GetContestDao().GetContestOwnerId(ctx, id)
+		if err != nil {
+			return userId, false, err
+		}
+		if ownerId != userId {
+			return userId, false, nil
+		}
+	}
+	return userId, true, nil
+}
+
+func (s *ContestService) HasContestTitle(ctx *gin.Context, userId int, title string) (bool, error) {
+	return foundationdao.GetContestDao().HasContestTitle(ctx, userId, title)
+}
+
 func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmodel.Contest, error) {
 	contest, err := foundationdao.GetContestDao().GetContest(ctx, id)
 	if err != nil {
@@ -28,6 +58,12 @@ func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmod
 	if contest == nil {
 		return nil, nil
 	}
+	ownerUser, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, contest.OwnerId)
+	if err != nil {
+		return nil, err
+	}
+	contest.OwnerUsername = &ownerUser.Username
+	contest.OwnerNickname = &ownerUser.Nickname
 	contestProblems := map[string]*foundationmodel.ContestProblem{}
 	for _, problem := range contest.Problems {
 		contestProblems[problem.ProblemId] = problem
@@ -58,6 +94,28 @@ func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmod
 		}
 	}
 	return contest, err
+}
+
+func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundationmodel.Contest, []string, error) {
+	contest, err := foundationdao.GetContestDao().GetContestEdit(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	if contest == nil {
+		return nil, nil, nil
+	}
+	ownerUser, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, contest.OwnerId)
+	if err != nil {
+		return nil, nil, err
+	}
+	contest.OwnerUsername = &ownerUser.Username
+	contest.OwnerNickname = &ownerUser.Nickname
+	var problemIds []string
+	for _, problem := range contest.Problems {
+		problemIds = append(problemIds, problem.ProblemId)
+	}
+	contest.Problems = nil
+	return contest, problemIds, nil
 }
 
 func (s *ContestService) GetContestList(ctx context.Context, page int, pageSize int) (
@@ -139,4 +197,8 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
 	// 隐藏题目详细信息
 	contestView.Problems = nil
 	return contestView, problemIndexes, contestRanks, nil
+}
+
+func (s *ContestService) UpdateContest(ctx *gin.Context, id int, contest *foundationmodel.Contest) error {
+	return foundationdao.GetContestDao().UpdateContest(ctx, id, contest)
 }

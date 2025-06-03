@@ -8,10 +8,14 @@ import (
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
+	metapanic "meta/meta-panic"
 	"meta/meta-response"
+	metastring "meta/meta-string"
 	metatime "meta/meta-time"
+	"meta/set"
 	"strconv"
 	"time"
+	weberrorcode "web/error-code"
 	"web/request"
 )
 
@@ -31,6 +35,7 @@ func (c *ContestController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	// TODO 判断权限
 	contest, err := contestService.GetContest(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
@@ -41,6 +46,38 @@ func (c *ContestController) Get(ctx *gin.Context) {
 		return
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest)
+}
+
+func (c *ContestController) GetEdit(ctx *gin.Context) {
+	contestService := foundationservice.GetContestService()
+	idStr := ctx.Query("id")
+	if idStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// TODO 判断权限
+	contest, problems, err := contestService.GetContestEdit(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if contest == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	responseData := struct {
+		Contest  *foundationmodel.Contest `json:"contest"`
+		Problems []string                 `json:"problems"` // 题目索引列表
+	}{
+		Contest:  contest,
+		Problems: problems,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
 func (c *ContestController) GetList(ctx *gin.Context) {
@@ -113,7 +150,7 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 }
 
 func (c *ContestController) PostCreate(ctx *gin.Context) {
-	var requestData request.ContestCreate
+	var requestData request.ContestEdit
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
@@ -127,26 +164,31 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	startTime, err := metatime.GetTimeByDateString(requestData.StartTime)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	endTime, err := metatime.GetTimeByDateString(requestData.EndTime)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-
 	contestService := foundationservice.GetContestService()
+	// 控制创建时的标题唯一，一定程度上防止误重复创建
+	ok, err := contestService.HasContestTitle(ctx, userId, requestData.Title)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if ok {
+		metaresponse.NewResponse(ctx, weberrorcode.ContestTitleDuplicate, nil)
+		return
+	}
+	startTime := requestData.StartTime
+	endTime := requestData.EndTime
+
+	nowTime := metatime.GetTimeNow()
 
 	contest := foundationmodel.NewContestBuilder().
 		Title(requestData.Title).
-		Descriptions(requestData.Descriptions).
-		StartTime(*startTime).
-		EndTime(*endTime).
+		Description(requestData.Description).
+		Notification(requestData.Notification).
+		StartTime(startTime).
+		EndTime(endTime).
 		OwnerId(userId).
-		CreateTime(metatime.GetTimeNow()).
+		CreateTime(nowTime).
+		UpdateTime(nowTime).
 		Build()
 
 	err = contestService.InsertContest(ctx, contest)
@@ -156,4 +198,104 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest)
+}
+
+func (c *ContestController) PostEdit(ctx *gin.Context) {
+	var requestData request.ContestEdit
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if requestData.Title == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, hasAuth, err := foundationservice.GetContestService().CheckUserAuth(ctx, requestData.Id)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	memberIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Members)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	//requestData.Problems去重
+	if len(requestData.Problems) == 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 去重
+	problemIds := metastring.RemoveDuplicate(requestData.Problems)
+	validProblemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, problemIds)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	validProblemIdSet := set.FromSlice(validProblemIds)
+	var realProblemIds []string
+	// 保持输入的problemIds顺序
+	for _, problemId := range problemIds {
+		if validProblemIdSet.Contains(problemId) {
+			realProblemIds = append(realProblemIds, problemId)
+		}
+	}
+	if len(realProblemIds) < 1 {
+		metaresponse.NewResponse(ctx, weberrorcode.ContestNotFoundProblem)
+		return
+	}
+	if len(realProblemIds) > 26 {
+		metaresponse.NewResponse(ctx, weberrorcode.ContestTooManyProblem)
+		return
+	}
+
+	contestService := foundationservice.GetContestService()
+
+	startTime := requestData.StartTime
+	endTime := requestData.EndTime
+
+	nowTime := metatime.GetTimeNow()
+
+	var problems []*foundationmodel.ContestProblem
+	for _, problemId := range realProblemIds {
+		problems = append(
+			problems, foundationmodel.NewContestProblemBuilder().
+				ProblemId(problemId).
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
+				Index(len(problems)+1). // 索引从1开始
+				Build(),
+		)
+	}
+
+	contest := foundationmodel.NewContestBuilder().
+		Title(requestData.Title).
+		Description(requestData.Description).
+		Notification(requestData.Notification).
+		StartTime(startTime).
+		EndTime(endTime).
+		OwnerId(userId).
+		CreateTime(nowTime).
+		UpdateTime(nowTime).
+		Problems(problems).
+		Members(memberIds).
+		Build()
+
+	err = contestService.UpdateContest(ctx, requestData.Id, contest)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest.UpdateTime)
 }

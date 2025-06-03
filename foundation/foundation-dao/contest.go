@@ -41,19 +41,16 @@ func (d *ContestDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
-func (d *ContestDao) UpdateContest(ctx context.Context, key string, contest *foundationmodel.Contest) error {
-	filter := bson.D{
-		{"_id", key},
+func (d *ContestDao) HasContestTitle(ctx context.Context, ownerId int, title string) (bool, error) {
+	filter := bson.M{
+		"title":    title,
+		"owner_id": bson.M{"$ne": ownerId},
 	}
-	update := bson.M{
-		"$set": contest,
-	}
-	updateOptions := options.Update().SetUpsert(true)
-	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	count, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
+		return false, metaerror.Wrap(err, "failed to count documents")
 	}
-	return nil
+	return count > 0, nil
 }
 
 func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.Contest, error) {
@@ -69,6 +66,7 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.C
 				"end_time":     1,
 				"owner_id":     1,
 				"create_time":  1,
+				"update_time":  1,
 				"problems":     1,
 				"auth":         1,
 				"type":         1,
@@ -76,6 +74,40 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.C
 				"always_lock":  1,
 				"descriptions": 1,
 				"notification": 1,
+			},
+		)
+	var contest foundationmodel.Contest
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &contest, nil
+}
+
+func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationmodel.Contest, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":          1,
+				"title":        1,
+				"start_time":   1,
+				"end_time":     1,
+				"owner_id":     1,
+				"create_time":  1,
+				"update_time":  1,
+				"problems":     1,
+				"auth":         1,
+				"type":         1,
+				"score_type":   1,
+				"always_lock":  1,
+				"descriptions": 1,
+				"notification": 1,
+				"members":      1,
 			},
 		)
 	var contest foundationmodel.Contest
@@ -211,6 +243,30 @@ func (d *ContestDao) GetProblemIdByContest(ctx context.Context, id int, problemI
 	return &result.Problems[0].ProblemId, nil
 }
 
+func (d *ContestDao) GetContestOwnerId(ctx context.Context, id int) (int, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":      1,
+				"owner_id": 1,
+			},
+		)
+	var contest struct {
+		Id      int `bson:"_id"`
+		OwnerId int `bson:"owner_id"`
+	}
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return 0, nil
+		}
+		return 0, metaerror.Wrap(err, "find contest error")
+	}
+	return contest.OwnerId, nil
+}
+
 func (d *ContestDao) GetContestList(
 	ctx context.Context,
 	page int,
@@ -259,6 +315,31 @@ func (d *ContestDao) GetContestList(
 		return nil, 0, metaerror.Wrap(err, "failed to decode documents, page: %d", page)
 	}
 	return list, int(totalCount), nil
+}
+
+func (d *ContestDao) UpdateContest(ctx context.Context, contestId int, contest *foundationmodel.Contest) error {
+	filter := bson.D{
+		{"_id", contestId},
+	}
+	setData := metamongo.StructToMapInclude(
+		contest,
+		"title",
+		"description",
+		"notification",
+		"start_time",
+		"end_time",
+		"problems",
+		"members",
+		"update_time",
+	)
+	update := bson.M{
+		"$set": setData,
+	}
+	_, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update contest, id: %d", contestId)
+	}
+	return nil
 }
 
 func (d *ContestDao) UpdateContests(ctx context.Context, tags []*foundationmodel.Contest) error {

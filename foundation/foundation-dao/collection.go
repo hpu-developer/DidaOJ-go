@@ -41,11 +41,11 @@ func (d *CollectionDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
-func (d *CollectionDao) HasCollectionTitle(ctx *gin.Context, id int, title string) (bool, error) {
+func (d *CollectionDao) HasCollectionTitle(ctx *gin.Context, ownerId int, title string) (bool, error) {
 	filter := bson.M{
-		"title": title,
+		"title":    title,
+		"owner_id": bson.M{"$ne": ownerId},
 	}
-	filter["_id"] = bson.M{"$ne": id}
 	count, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return false, metaerror.Wrap(err, "failed to count documents")

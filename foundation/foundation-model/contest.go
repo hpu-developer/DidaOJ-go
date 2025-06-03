@@ -45,9 +45,10 @@ type VirtualReplay struct {
 }
 
 type Contest struct {
-	Id            int                   `json:"id" bson:"_id"`                                            // 数据库索引时真正的Id
-	Title         string                `json:"title" bson:"title"`                                       // 比赛标题
-	Descriptions  []*ContestDescription `json:"descriptions,omitempty" bson:"descriptions,omitempty"`     // 比赛描述
+	Id            int                   `json:"id" bson:"_id"`                                        // 数据库索引时真正的Id
+	Title         string                `json:"title" bson:"title"`                                   // 比赛标题
+	Descriptions  []*ContestDescription `json:"descriptions,omitempty" bson:"descriptions,omitempty"` // 比赛描述
+	Description   string                `json:"description" bson:"description"`
 	Notification  string                `json:"notification,omitempty" bson:"notification,omitempty"`     // 比赛通知，会醒目的出现在大部分页面
 	StartTime     time.Time             `json:"start_time" bson:"start_time"`                             // 比赛开始时间
 	EndTime       time.Time             `json:"end_time" bson:"end_time"`                                 // 比赛结束时间
@@ -57,6 +58,7 @@ type Contest struct {
 	Languages     []string              `json:"languages,omitempty" bson:"languages,omitempty"`           // 允许的语言
 
 	CreateTime time.Time `json:"create_time" bson:"create_time"` // 创建时间
+	UpdateTime time.Time `json:"update_time" bson:"update_time"` // 更新时间
 
 	// 权限相关
 	Auth     ContestAuth `json:"auth" bson:"auth"`                             // 比赛权限
@@ -99,6 +101,11 @@ func (b *ContestBuilder) Title(title string) *ContestBuilder {
 	return b
 }
 
+func (b *ContestBuilder) Description(description string) *ContestBuilder {
+	b.item.Description = description
+	return b
+}
+
 func (b *ContestBuilder) Descriptions(descriptions []*ContestDescription) *ContestBuilder {
 	b.item.Descriptions = descriptions
 	return b
@@ -111,6 +118,11 @@ func (b *ContestBuilder) Notification(notification string) *ContestBuilder {
 
 func (b *ContestBuilder) CreateTime(createTime time.Time) *ContestBuilder {
 	b.item.CreateTime = createTime
+	return b
+}
+
+func (b *ContestBuilder) UpdateTime(updateTime time.Time) *ContestBuilder {
+	b.item.UpdateTime = updateTime
 	return b
 }
 
@@ -141,6 +153,11 @@ func (b *ContestBuilder) OwnerNickname(ownerNickname string) *ContestBuilder {
 
 func (b *ContestBuilder) Languages(languages []string) *ContestBuilder {
 	b.item.Languages = languages
+	return b
+}
+
+func (b *ContestBuilder) Problems(problems []*ContestProblem) *ContestBuilder {
+	b.item.Problems = problems
 	return b
 }
 

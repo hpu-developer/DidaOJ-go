@@ -12,4 +12,6 @@ const (
 	ProblemTitleDuplicate    metaerrorcode.ErrorCode = 100007
 	ContestTitleDuplicate    metaerrorcode.ErrorCode = 100008
 	CollectionTitleDuplicate metaerrorcode.ErrorCode = 100009
+	ContestNotFoundProblem   metaerrorcode.ErrorCode = 100010
+	ContestTooManyProblem    metaerrorcode.ErrorCode = 100011
 )
