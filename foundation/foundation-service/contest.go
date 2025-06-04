@@ -46,6 +46,24 @@ func (s *ContestService) CheckUserAuth(ctx *gin.Context, id int) (
 	return userId, true, nil
 }
 
+func (s *ContestService) CheckSubmitAuth(ctx *gin.Context, id int, problemId string) (int, bool, error) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageContest)
+	if err != nil {
+		return userId, false, err
+	}
+	if userId <= 0 {
+		return userId, false, nil
+	}
+	if !hasAuth {
+		hasAuth, err = foundationdao.GetContestDao().HasContestSubmitAuth(ctx, id, userId)
+		if err != nil {
+			return userId, false, err
+		}
+		return userId, hasAuth, nil
+	}
+	return userId, true, nil
+}
+
 func (s *ContestService) HasContestTitle(ctx *gin.Context, userId int, title string) (bool, error) {
 	return foundationdao.GetContestDao().HasContestTitle(ctx, userId, title)
 }
@@ -150,12 +168,16 @@ func (s *ContestService) GetContestList(ctx context.Context, page int, pageSize 
 	return contests, totalCount, nil
 }
 
+func (s *ContestService) GetProblemIdByContest(ctx *gin.Context, id int, problemIndex int) (*string, error) {
+	return foundationdao.GetContestDao().GetProblemIdByContest(ctx, id, problemIndex)
+}
+
 func (s *ContestService) InsertContest(ctx context.Context, contest *foundationmodel.Contest) error {
 	return foundationdao.GetContestDao().InsertContest(ctx, contest)
 }
 
 func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
-	*foundationmodel.ContestRankView,
+	*foundationmodel.ContestViewRank,
 	[]int,
 	[]*foundationmodel.ContestRank,
 	error,

@@ -13,14 +13,6 @@ var (
 	ContestTypeOiLast    ContestType = 2 // OI模式比赛，以最后一次提交为准
 )
 
-type ContestAuth int
-
-var (
-	ContestAuthPublic   ContestAuth = 0 // 公开
-	ContestAuthPassword ContestAuth = 1 // 密码，输入密码可以访问
-	ContestAuthPrivate  ContestAuth = 2 // 私有，指定用户可以访问
-)
-
 type ContestScoreType int
 
 var (
@@ -60,9 +52,9 @@ type Contest struct {
 	UpdateTime time.Time `json:"update_time" bson:"update_time"` // 更新时间
 
 	// 权限相关
-	Auth     ContestAuth `json:"auth" bson:"auth"`                             // 比赛权限
-	Password *string     `json:"password,omitempty" bson:"password,omitempty"` // 比赛密码
-	Members  []int       `json:"members,omitempty" bson:"members,omitempty"`   // 比赛成员，只有在私有比赛时才会使用
+	Private  bool    `json:"private,omitempty" bson:"private,omitempty"`   // 比赛权限
+	Password *string `json:"password,omitempty" bson:"password,omitempty"` // 比赛密码
+	Members  []int   `json:"members,omitempty" bson:"members,omitempty"`   // 比赛成员，只有在私有比赛时才会使用
 
 	// 排名相关
 	Type          ContestType      `json:"type" bson:"type"`                                         // 比赛类型
@@ -80,6 +72,20 @@ type Contest struct {
 	// Migrate相关
 	MigrateJolId  int `json:"-" bson:"-"` // Jol中的Id
 	MigrateVhojId int `json:"-" bson:"-"` // Vhoj中的Id
+}
+
+type ContestViewLock struct {
+	Id int `json:"id" bson:"_id"` // 比赛Id
+
+	StartTime *time.Time `json:"start_time,omitempty" bson:"start_time,omitempty"`
+	EndTime   *time.Time `json:"end_time,omitempty" bson:"end_time,omitempty"` // 结束时间
+
+	Type ContestType `json:"type" bson:"type"` // 比赛类型
+
+	AlwaysLock       bool           `json:"always_lock" bson:"always_lock"`                                   // 比赛结束后是否锁定排名，如果锁定则需要手动关闭（关闭时此值设为false）
+	LockRankDuration *time.Duration `json:"lock_rank_duration,omitempty" bson:"lock_rank_duration,omitempty"` // 比赛结束前锁定排名的时长，空则不锁榜，锁榜期间榜单仅展示尝试次数，ACM模式下只可以查看自己的提交结果，OI模式下无法查看所有的提交结果
+
+	Problems []*ContestProblem `json:"problems,omitempty" bson:"problems,omitempty"`
 }
 
 type ContestBuilder struct {
@@ -155,8 +161,8 @@ func (b *ContestBuilder) Problems(problems []*ContestProblem) *ContestBuilder {
 	return b
 }
 
-func (b *ContestBuilder) Auth(auth ContestAuth) *ContestBuilder {
-	b.item.Auth = auth
+func (b *ContestBuilder) Private(private bool) *ContestBuilder {
+	b.item.Private = private
 	return b
 }
 

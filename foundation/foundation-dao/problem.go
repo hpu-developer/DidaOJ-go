@@ -90,6 +90,28 @@ func (d *ProblemDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
+func (d *ProblemDao) GetProblemViewAuth(ctx context.Context, id string) (*foundationmodel.ProblemViewAuth, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"_id":        1,
+			"creator_id": 1,
+			"private":    1,
+			"auth_users": 1,
+		},
+	)
+	var problem foundationmodel.ProblemViewAuth
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem error")
+	}
+	return &problem, nil
+}
+
 func (d *ProblemDao) HasProblem(ctx context.Context, id string) (bool, error) {
 	filter := bson.M{
 		"_id": id,
@@ -275,21 +297,6 @@ func (d *ProblemDao) GetProblemJudge(ctx context.Context, id string) (*foundatio
 		return nil, metaerror.Wrap(err, "find problem error")
 	}
 	return &problem, nil
-}
-
-func (d *ProblemDao) UpdateProblem(ctx context.Context, key string, problem *foundationmodel.Problem) error {
-	filter := bson.D{
-		{"_id", key},
-	}
-	update := bson.M{
-		"$set": problem,
-	}
-	updateOptions := options.Update().SetUpsert(true)
-	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
-	}
-	return nil
 }
 
 func (d *ProblemDao) GetProblemList(

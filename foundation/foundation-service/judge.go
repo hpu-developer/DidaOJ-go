@@ -48,19 +48,19 @@ func (s *JudgeService) GetJudgeCode(ctx context.Context, id int) (foundationjudg
 }
 
 func (s *JudgeService) GetJudgeList(
-	ctx context.Context,
+	ctx context.Context, userId int,
 	contestId int, contestProblemIndex int,
 	problemId string,
 	username string, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus, page int, pageSize int,
 ) ([]*foundationmodel.JudgeJob, int, error) {
 	var err error
-	userId := -1
+	searchUserId := -1
 	if username != "" {
-		userId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
+		searchUserId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
 		if err != nil {
 			return nil, 0, err
 		}
-		if userId <= 0 {
+		if searchUserId <= 0 {
 			return nil, 0, nil
 		}
 	}
@@ -86,7 +86,7 @@ func (s *JudgeService) GetJudgeList(
 		ctx,
 		contestId,
 		problemId,
-		userId,
+		searchUserId,
 		language,
 		status,
 		page,
@@ -116,20 +116,34 @@ func (s *JudgeService) GetJudgeList(
 		}
 
 		if contestId > 0 {
-			for _, judgeJob := range judgeJobs {
-				if judgeJob.ProblemId != "" {
-					judgeJob.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(
-						ctx,
-						contestId,
-						&judgeJob.ProblemId,
-					)
-					if err != nil {
-						return nil, 0, err
+			contest, err := foundationdao.GetContestDao().GetContestViewLock(ctx, contestId)
+			if err != nil {
+				return nil, 0, err
+			}
+			if contest == nil {
+				return nil, 0, nil
+			}
+			if len(contest.Problems) > 0 {
+				problemMap := make(map[string]int)
+				for _, problem := range contest.Problems {
+					if problem.ProblemId != "" {
+						problemMap[problem.ProblemId] = problem.Index
 					}
-					// 隐藏真实的ProblemId
-					judgeJob.ProblemId = ""
+				}
+				for _, judgeJob := range judgeJobs {
+					if judgeJob.ProblemId != "" {
+						judgeJob.ContestProblemIndex = problemMap[judgeJob.ProblemId]
+					}
 				}
 			}
+			for _, judgeJob := range judgeJobs {
+				// 隐藏真实的ProblemId
+				judgeJob.ProblemId = ""
+			}
+
+			//计算锁榜来隐藏结果信息
+			//contest.StartTime
+			//contest.EndTime
 		}
 	}
 	return judgeJobs, totalCount, nil

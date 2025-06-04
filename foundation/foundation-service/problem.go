@@ -2,11 +2,13 @@ package foundationservice
 
 import (
 	"context"
+	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -24,6 +26,35 @@ func GetProblemService() *ProblemService {
 			return &ProblemService{}
 		},
 	)
+}
+
+func (s *ProblemService) CheckSubmitAuth(ctx *gin.Context, id string) (
+	int,
+	bool,
+	error,
+) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		return userId, false, err
+	}
+	if userId <= 0 {
+		return userId, false, nil
+	}
+	if !hasAuth {
+		problem, err := foundationdao.GetProblemDao().GetProblemViewAuth(ctx, id)
+		if err != nil {
+			return userId, false, err
+		}
+		if problem == nil {
+			return userId, false, nil
+		}
+		if problem.Private &&
+			problem.CreatorId != userId &&
+			!slices.Contains(problem.AuthUsers, userId) {
+			return userId, false, nil
+		}
+	}
+	return userId, true, nil
 }
 
 func (s *ProblemService) GetProblemView(

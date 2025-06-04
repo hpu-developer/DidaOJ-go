@@ -18,9 +18,9 @@ type Collection struct {
 	UpdateTime time.Time `json:"update_time" bson:"update_time"` // 更新时间
 
 	// 权限相关
-	Auth     ContestAuth `json:"auth" bson:"auth"`                             // 题集权限
-	Password *string     `json:"password,omitempty" bson:"password,omitempty"` // 题集密码
-	Members  []int       `json:"members,omitempty" bson:"members,omitempty"`   // 题集成员，用于控制访问权限与展示排名
+	Private  bool    `json:"private,omitempty" bson:"private,omitempty"`
+	Password *string `json:"password,omitempty" bson:"password,omitempty"` // 题集密码
+	Members  []int   `json:"members,omitempty" bson:"members,omitempty"`   // 题集成员，用于控制访问权限与展示排名
 
 	// 题目相关
 	Problems []string `json:"problems,omitempty" bson:"problems,omitempty"` // 题目Id列表
@@ -84,8 +84,8 @@ func (b *CollectionBuilder) UpdateTime(updateTime time.Time) *CollectionBuilder 
 	return b
 }
 
-func (b *CollectionBuilder) Auth(auth ContestAuth) *CollectionBuilder {
-	b.item.Auth = auth
+func (b *CollectionBuilder) Private(private bool) *CollectionBuilder {
+	b.item.Private = private
 	return b
 }
 

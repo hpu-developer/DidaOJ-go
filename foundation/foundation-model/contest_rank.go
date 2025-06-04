@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-type ContestRankView struct {
+type ContestViewRank struct {
 	Id        int               `json:"id" bson:"_id"` // 比赛Id
 	StartTime *time.Time        `json:"start_time,omitempty" bson:"start_time,omitempty"`
 	EndTime   *time.Time        `json:"end_time,omitempty" bson:"end_time,omitempty"`   // 结束时间

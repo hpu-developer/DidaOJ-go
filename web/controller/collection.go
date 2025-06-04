@@ -221,6 +221,8 @@ func (c *CollectionController) PostCreate(ctx *gin.Context) {
 
 	nowTime := metatime.GetTimeNow()
 
+	private := requestData.Private
+
 	collection := foundationmodel.NewCollectionBuilder().
 		Title(requestData.Title).
 		Description(requestData.Description).
@@ -228,6 +230,7 @@ func (c *CollectionController) PostCreate(ctx *gin.Context) {
 		EndTime(endTime).
 		OwnerId(userId).
 		Problems(realProblemIds).
+		Private(private).
 		Members(memberIds).
 		CreateTime(nowTime).
 		UpdateTime(nowTime).
@@ -295,8 +298,13 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 
 	collectionService := foundationservice.GetCollectionService()
 
+	nowTime := metatime.GetTimeNow()
+
 	startTime := requestData.StartTime
 	endTime := requestData.EndTime
+
+	private := requestData.Private
+
 	collection := foundationmodel.NewCollectionBuilder().
 		Title(requestData.Title).
 		Description(requestData.Description).
@@ -304,8 +312,9 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 		EndTime(endTime).
 		OwnerId(userId).
 		Problems(realProblemIds).
+		Private(private).
 		Members(memberIds).
-		UpdateTime(metatime.GetTimeNow()).
+		UpdateTime(nowTime).
 		Build()
 
 	err = collectionService.UpdateCollection(ctx, requestData.Id, collection)

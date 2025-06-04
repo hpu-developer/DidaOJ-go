@@ -69,7 +69,7 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.C
 				"update_time":  1,
 				"description":  1,
 				"problems":     1,
-				"auth":         1,
+				"private":      1,
 				"type":         1,
 				"score_type":   1,
 				"always_lock":  1,
@@ -103,7 +103,7 @@ func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationmod
 				"update_time":  1,
 				"description":  1,
 				"problems":     1,
-				"auth":         1,
+				"private":      1,
 				"type":         1,
 				"score_type":   1,
 				"always_lock":  1,
@@ -143,7 +143,7 @@ func (d *ContestDao) GetContestTitle(ctx context.Context, id int) (*string, erro
 	return &contest.Title, nil
 }
 
-func (d *ContestDao) GetContestRankView(ctx context.Context, id int) (*foundationmodel.ContestRankView, error) {
+func (d *ContestDao) GetContestRankView(ctx context.Context, id int) (*foundationmodel.ContestViewRank, error) {
 	filter := bson.M{
 		"_id": id,
 	}
@@ -157,7 +157,7 @@ func (d *ContestDao) GetContestRankView(ctx context.Context, id int) (*foundatio
 				"v_members":  1,
 			},
 		)
-	var contest foundationmodel.ContestRankView
+	var contest foundationmodel.ContestViewRank
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
@@ -269,6 +269,33 @@ func (d *ContestDao) GetContestOwnerId(ctx context.Context, id int) (int, error)
 	return contest.OwnerId, nil
 }
 
+func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundationmodel.ContestViewLock, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":                 1,
+				"start_time":          1,
+				"end_time":            1,
+				"type":                1,
+				"always_lock":         1,
+				"lock_rank_duration":  1,
+				"problems.problem_id": 1,
+				"problems.index":      1,
+			},
+		)
+	var contest foundationmodel.ContestViewLock
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &contest, nil
+}
+
 func (d *ContestDao) GetContestList(
 	ctx context.Context,
 	page int,
@@ -319,6 +346,24 @@ func (d *ContestDao) GetContestList(
 	return list, int(totalCount), nil
 }
 
+func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId int) (bool, error) {
+	filter := bson.D{
+		{"_id", id},
+		{
+			"$or", bson.A{
+				bson.D{{"creator_id", userId}},
+				bson.D{{"private", bson.M{"$exists": false}}},
+				bson.D{{"members", bson.M{"$in": []int{userId}}}},
+			},
+		},
+	}
+	count, err := d.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (d *ContestDao) UpdateContest(ctx context.Context, contestId int, contest *foundationmodel.Contest) error {
 	filter := bson.D{
 		{"_id", contestId},
@@ -331,6 +376,7 @@ func (d *ContestDao) UpdateContest(ctx context.Context, contestId int, contest *
 		"start_time",
 		"end_time",
 		"problems",
+		"private",
 		"members",
 		"update_time",
 	)

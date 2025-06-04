@@ -57,6 +57,13 @@ type ProblemViewTitle struct {
 	Title string `json:"title" bson:"title"`
 }
 
+type ProblemViewAuth struct {
+	Id        string `json:"id" bson:"_id"`
+	CreatorId int    `json:"creator_id" bson:"creator_id"` // 创建者Id
+	Private   bool   `json:"private" bson:"private"`       // 是否私有
+	AuthUsers []int  `json:"auth_users" bson:"auth_users"` // 访问权限用户列表，只有在私有题目时才有意义
+}
+
 type ProblemViewAttempt struct {
 	Id      string `json:"id" bson:"_id"`
 	Accept  int    `json:"accept" bson:"accept"`

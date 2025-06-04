@@ -69,7 +69,7 @@ func (d *CollectionDao) GetCollection(ctx context.Context, id int) (*foundationm
 				"create_time": 1,
 				"update_time": 1,
 				"problems":    1,
-				"auth":        1,
+				"private":     1,
 				"members":     1,
 			},
 		)
@@ -99,7 +99,7 @@ func (d *CollectionDao) GetCollectionEdit(ctx context.Context, id int) (*foundat
 				"create_time": 1,
 				"update_time": 1,
 				"problems":    1,
-				"auth":        1,
+				"private":     1,
 				"members":     1,
 			},
 		)
@@ -272,6 +272,7 @@ func (d *CollectionDao) UpdateCollection(
 		"start_time",
 		"end_time",
 		"problems",
+		"private",
 		"members",
 		"update_time",
 	)

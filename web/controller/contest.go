@@ -117,6 +117,45 @@ func (c *ContestController) GetList(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ContestController) GetProblem(ctx *gin.Context) {
+	id := ctx.Query("id")
+	if id == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	contestId, err := strconv.Atoi(id)
+	if err != nil || contestId <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	problemIndexStr := ctx.Query("problem_index")
+	if problemIndexStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	problemIndex, err := strconv.Atoi(problemIndexStr)
+	if err != nil || problemIndex <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, hasAuth, err := foundationservice.GetContestService().CheckUserAuth(ctx, contestId)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	problemId, err := foundationservice.GetContestService().GetProblemIdByContest(ctx, contestId, problemIndex)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemId)
+}
+
 func (c *ContestController) GetRank(ctx *gin.Context) {
 	id := ctx.Query("id")
 	if id == "" {
@@ -138,7 +177,7 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Contest  *foundationmodel.ContestRankView `json:"contest"`
+		Contest  *foundationmodel.ContestViewRank `json:"contest"`
 		Problems []int                            `json:"problems"` // 题目索引列表
 		Ranks    []*foundationmodel.ContestRank   `json:"ranks"`
 	}{
@@ -175,10 +214,58 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.ContestTitleDuplicate, nil)
 		return
 	}
+	memberIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Members)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	//requestData.Problems去重
+	if len(requestData.Problems) == 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 去重
+	problemIds := metastring.RemoveDuplicate(requestData.Problems)
+	validProblemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, problemIds)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	validProblemIdSet := set.FromSlice(validProblemIds)
+	var realProblemIds []string
+	// 保持输入的problemIds顺序
+	for _, problemId := range problemIds {
+		if validProblemIdSet.Contains(problemId) {
+			realProblemIds = append(realProblemIds, problemId)
+		}
+	}
+	if len(realProblemIds) < 1 {
+		metaresponse.NewResponse(ctx, weberrorcode.ContestNotFoundProblem)
+		return
+	}
+	if len(realProblemIds) > 52 {
+		metaresponse.NewResponse(ctx, weberrorcode.ContestTooManyProblem)
+		return
+	}
+
 	startTime := requestData.StartTime
 	endTime := requestData.EndTime
 
 	nowTime := metatime.GetTimeNow()
+
+	var problems []*foundationmodel.ContestProblem
+	for _, problemId := range realProblemIds {
+		problems = append(
+			problems, foundationmodel.NewContestProblemBuilder().
+				ProblemId(problemId).
+				ViewId(nil).            // 题目描述Id，默认为nil
+				Score(0).               // 分数默认为0
+				Index(len(problems)+1). // 索引从1开始
+				Build(),
+		)
+	}
+
+	private := requestData.Private
 
 	contest := foundationmodel.NewContestBuilder().
 		Title(requestData.Title).
@@ -189,6 +276,9 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		OwnerId(userId).
 		CreateTime(nowTime).
 		UpdateTime(nowTime).
+		Problems(problems).
+		Private(private).
+		Members(memberIds).
 		Build()
 
 	err = contestService.InsertContest(ctx, contest)
@@ -278,6 +368,8 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		)
 	}
 
+	private := requestData.Private
+
 	contest := foundationmodel.NewContestBuilder().
 		Title(requestData.Title).
 		Description(requestData.Description).
@@ -288,6 +380,7 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		CreateTime(nowTime).
 		UpdateTime(nowTime).
 		Problems(problems).
+		Private(private).
 		Members(memberIds).
 		Build()
 

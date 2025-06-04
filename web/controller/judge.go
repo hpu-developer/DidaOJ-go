@@ -116,8 +116,13 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 			status = foundationjudge.JudgeStatus(statusInt)
 		}
 	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
 	list, totalCount, err := judgeService.GetJudgeList(
-		ctx,
+		ctx, userId,
 		contestId, constProblemIndex,
 		problemId, username, language, status,
 		page, pageSize,
@@ -145,25 +150,52 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	problemId := judgeApprove.ProblemId
 	language := judgeApprove.Language
 	code := judgeApprove.Code
-	if problemId == "" || int(language) < 0 || code == "" {
+	if int(language) < 0 || code == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	userId, err := foundationauth.GetUserIdFromContext(ctx)
-	if err != nil {
+	problemId := judgeApprove.ProblemId
+	contestId := judgeApprove.ContestId
+	problemIndex := judgeApprove.ProblemIndex
+	if problemId == "" && (contestId <= 0 || problemIndex <= 0) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	var userId int
+	var hasAuth bool
+	if problemId != "" {
+		userId, hasAuth, err = foundationservice.GetProblemService().CheckSubmitAuth(ctx, problemId)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+			return
+		}
+		contestId = 0
+		problemIndex = 0
+	} else {
+		problemIdPtr, err := foundationservice.GetContestService().GetProblemIdByContest(ctx, contestId, problemIndex)
+		if err != nil {
+			metaresponse.NewResponseError(ctx, err)
+			return
+		}
+		if problemIdPtr == nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+			return
+		}
+		problemId = *problemIdPtr
+		userId, hasAuth, err = foundationservice.GetContestService().CheckSubmitAuth(
+			ctx,
+			contestId,
+			problemId,
+		)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+			return
+		}
+	}
+	if !hasAuth {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
-		return
-	}
-	ok, err := foundationservice.GetProblemService().HasProblem(ctx, problemId)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	if !ok {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 
@@ -173,6 +205,7 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 	codeLength := len(code)
 	judgeJob := foundationmodel.NewJudgeJobBuilder().
 		ProblemId(problemId).
+		ContestId(contestId).
 		AuthorId(userId).
 		ApproveTime(nowTime).
 		Language(language).
