@@ -13,6 +13,7 @@ import (
 	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
 	"meta/singleton"
+	"time"
 )
 
 type ContestDao struct {
@@ -78,6 +79,7 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.C
 				"lock_rank_duration": 1,
 				"always_lock":        1,
 				"submit_anytime":     1,
+				"password":           1,
 			},
 		)
 	var contest foundationmodel.Contest
@@ -107,6 +109,7 @@ func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationmod
 				"description":        1,
 				"problems":           1,
 				"private":            1,
+				"password":           1,
 				"type":               1,
 				"score_type":         1,
 				"descriptions":       1,
@@ -301,6 +304,29 @@ func (d *ContestDao) GetContestOwnerId(ctx context.Context, id int) (int, error)
 	return contest.OwnerId, nil
 }
 
+func (d *ContestDao) GetContestStartTime(ctx context.Context, id int) (*time.Time, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":        1,
+				"start_time": 1,
+			},
+		)
+	var contest struct {
+		StartTime time.Time `bson:"start_time"`
+	}
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &contest.StartTime, nil
+}
+
 func (d *ContestDao) GetContestList(
 	ctx context.Context,
 	page int,
@@ -323,6 +349,7 @@ func (d *ContestDao) GetContestList(
 				"start_time": 1,
 				"end_time":   1,
 				"owner_id":   1,
+				"private":    1,
 			},
 		).
 		SetSkip(skip).
@@ -349,6 +376,24 @@ func (d *ContestDao) GetContestList(
 		return nil, 0, metaerror.Wrap(err, "failed to decode documents, page: %d", page)
 	}
 	return list, int(totalCount), nil
+}
+
+func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int) (bool, error) {
+	filter := bson.D{
+		{"_id", id},
+		{
+			"$or", bson.A{
+				bson.D{{"owner_id", userId}},
+				bson.D{{"private", bson.M{"$exists": false}}},
+				bson.D{{"members", bson.M{"$in": []int{userId}}}},
+			},
+		},
+	}
+	count, err := d.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId int) (bool, error) {
@@ -402,6 +447,11 @@ func (d *ContestDao) UpdateContest(ctx context.Context, contestId int, contest *
 		setData["submit_anytime"] = true
 	} else {
 		unsetData["submit_anytime"] = 1
+	}
+	if contest.Password != nil {
+		setData["password"] = contest.Password
+	} else {
+		unsetData["password"] = 1
 	}
 	update := bson.M{
 		"$set":   setData,
@@ -466,4 +516,24 @@ func (d *ContestDao) InsertContest(ctx context.Context, contest *foundationmodel
 		return err
 	}
 	return nil
+}
+
+func (d *ContestDao) PostPassword(ctx context.Context, userId int, contestId int, password string) (bool, error) {
+	filter := bson.M{
+		"_id":      contestId,
+		"password": password,
+	}
+	update := bson.M{
+		"$addToSet": bson.M{
+			"members": userId,
+		},
+	}
+	res, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return false, metaerror.Wrap(err, "failed to post contest password, contestId: %d", contestId)
+	}
+	if res.MatchedCount == 0 {
+		return false, nil
+	}
+	return true, nil
 }

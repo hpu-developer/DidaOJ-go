@@ -82,6 +82,20 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 	contestIdStr := ctx.Query("contest_id")
 	if contestIdStr != "" {
 		contestId, err = strconv.Atoi(contestIdStr)
+		_, hasAuth, err := foundationservice.GetContestService().CheckViewAuth(ctx, contestId)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		if !hasAuth {
+			responseData := struct {
+				HasAuth bool `json:"has_auth"`
+			}{
+				HasAuth: false,
+			}
+			metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+			return
+		}
 		constProblemIndex = foundationcontest.GetContestProblemIndex(problemId)
 	}
 	title := ctx.Query("title")
@@ -89,20 +103,23 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 
 	var list []*foundationmodel.Discuss
 	var totalCount int
-	list, totalCount, err = discussService.GetDiscussList(ctx,
+	list, totalCount, err = discussService.GetDiscussList(
+		ctx,
 		contestId, constProblemIndex, problemId,
 		title, username,
-		page, pageSize)
+		page, pageSize,
+	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	responseData := struct {
+		HasAuth    bool                       `json:"has_auth"`
 		Time       time.Time                  `json:"time"`
 		TotalCount int                        `json:"total_count"`
 		List       []*foundationmodel.Discuss `json:"list"`
 	}{
-		Time:       metatime.GetTimeNow(),
+		HasAuth:    true,
 		TotalCount: totalCount,
 		List:       list,
 	}

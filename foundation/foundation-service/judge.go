@@ -7,6 +7,7 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
+	metatime "meta/meta-time"
 	"meta/singleton"
 	"slices"
 	"time"
@@ -54,8 +55,10 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 		if err != nil {
 			return userId, false, err
 		}
+		nowTime := metatime.GetTimeNow()
 		hasStatusAuth, hasDetailAuth := s.isContestJudgeHasViewAuth(
 			contest, userId,
+			nowTime,
 			judgeAuth.AuthorId,
 			&judgeAuth.ApproveTime,
 		)
@@ -170,6 +173,7 @@ func (s *JudgeService) GetJudgeList(
 			if contest == nil {
 				return nil, 0, nil
 			}
+			nowTime := metatime.GetTimeNow()
 			problemMap := make(map[string]int)
 			for _, judgeJob := range judgeJobs {
 				if judgeJob.ProblemId != "" {
@@ -199,6 +203,7 @@ func (s *JudgeService) GetJudgeList(
 
 				hasStatusAuth, hasDetailAuth := s.isContestJudgeHasViewAuth(
 					contest, userId,
+					nowTime,
 					judgeJob.AuthorId,
 					&judgeJob.ApproveTime,
 				)
@@ -223,6 +228,7 @@ func (s *JudgeService) GetJudgeList(
 func (s *JudgeService) isContestJudgeHasViewAuth(
 	contest *foundationmodel.ContestViewLock,
 	userId int,
+	nowTime time.Time,
 	authorId int,
 	approveTime *time.Time,
 ) (
@@ -232,7 +238,7 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 	hasStatusAuth = true
 	hasDetailAuth = true
 
-	isEnd := approveTime.After(contest.EndTime)
+	isEnd := nowTime.After(contest.EndTime)
 	hasLockDuration := contest.LockRankDuration != nil && *contest.LockRankDuration > 0
 	isLocked := hasLockDuration &&
 		(contest.AlwaysLock || !isEnd) &&

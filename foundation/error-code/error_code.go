@@ -6,5 +6,5 @@ const (
 	AuthError  metaerrorcode.ErrorCode = 10001
 	ParamError metaerrorcode.ErrorCode = 10002
 	NotFound   metaerrorcode.ErrorCode = 10003
-	ReLogin    metaerrorcode.ErrorCode = 10004
+	NeedLogin  metaerrorcode.ErrorCode = 10004
 )

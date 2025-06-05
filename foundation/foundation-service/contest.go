@@ -7,6 +7,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
+	"time"
 )
 
 type ContestService struct {
@@ -46,6 +47,21 @@ func (s *ContestService) CheckEditAuth(ctx *gin.Context, id int) (
 	return userId, true, nil
 }
 
+func (s *ContestService) CheckViewAuth(ctx *gin.Context, id int) (int, bool, error) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageContest)
+	if err != nil {
+		return userId, false, err
+	}
+	if !hasAuth {
+		hasAuth, err = foundationdao.GetContestDao().HasContestViewAuth(ctx, id, userId)
+		if err != nil {
+			return userId, false, err
+		}
+		return userId, hasAuth, nil
+	}
+	return userId, true, nil
+}
+
 func (s *ContestService) CheckSubmitAuth(ctx *gin.Context, id int) (int, bool, error) {
 	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageContest)
 	if err != nil {
@@ -68,20 +84,43 @@ func (s *ContestService) HasContestTitle(ctx *gin.Context, userId int, title str
 	return foundationdao.GetContestDao().HasContestTitle(ctx, userId, title)
 }
 
-func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmodel.Contest, error) {
+func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time) (
+	*foundationmodel.Contest,
+	bool, bool,
+	map[int]foundationmodel.ProblemAttemptStatus,
+	error,
+) {
 	contest, err := foundationdao.GetContestDao().GetContest(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, false, false, nil, err
 	}
 	if contest == nil {
-		return nil, nil
+		return nil, false, false, nil, nil
 	}
 	ownerUser, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, contest.OwnerId)
 	if err != nil {
-		return nil, err
+		return nil, false, false, nil, err
 	}
 	contest.OwnerUsername = &ownerUser.Username
 	contest.OwnerNickname = &ownerUser.Nickname
+
+	hasAuth := true
+	needPassword := contest.Password != nil
+	contest.Password = nil
+
+	var userId int
+
+	if nowTime.Before(contest.StartTime) {
+		contest.Problems = nil
+	} else {
+		userId, hasAuth, err = GetContestService().CheckViewAuth(ctx, id)
+		if !hasAuth {
+			contest.Problems = nil
+		}
+	}
+
+	var attemptStatusesMap map[int]foundationmodel.ProblemAttemptStatus
+
 	if len(contest.Problems) > 0 {
 		contestProblems := map[string]*foundationmodel.ContestProblem{}
 		for _, problem := range contest.Problems {
@@ -90,12 +129,10 @@ func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmod
 		var problemIds []string
 		for _, problem := range contest.Problems {
 			problemIds = append(problemIds, problem.ProblemId)
-			// 隐藏题目Id
-			problem.ProblemId = ""
 		}
 		problems, err := foundationdao.GetProblemDao().GetProblemListTitle(ctx, problemIds)
 		if err != nil {
-			return nil, err
+			return nil, false, false, nil, err
 		}
 		for _, problem := range problems {
 			if contestProblem, ok := contestProblems[problem.Id]; ok {
@@ -104,7 +141,7 @@ func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmod
 		}
 		judgeAccepts, err := foundationdao.GetJudgeJobDao().GetProblemContestViewAttempt(ctx, id, problemIds)
 		if err != nil {
-			return nil, err
+			return nil, false, false, nil, err
 		}
 		for _, judgeAccept := range judgeAccepts {
 			if contestProblem, ok := contestProblems[judgeAccept.Id]; ok {
@@ -112,8 +149,29 @@ func (s *ContestService) GetContest(ctx context.Context, id int) (*foundationmod
 				contestProblem.Attempt = judgeAccept.Attempt
 			}
 		}
+		if userId > 0 {
+			problemStatus, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(ctx, problemIds, userId, id)
+			if err != nil {
+				return nil, false, false, nil, err
+			}
+			attemptStatusesMap = make(map[int]foundationmodel.ProblemAttemptStatus)
+			problemIdMap := make(map[string]int)
+			for _, problem := range contest.Problems {
+				problemIdMap[problem.ProblemId] = problem.Index
+			}
+			for problemId, attemptStatus := range problemStatus {
+				if index, ok := problemIdMap[problemId]; ok {
+					attemptStatusesMap[index] = attemptStatus
+				}
+			}
+		}
+
+		// 隐藏真实题目Id
+		for _, problem := range contest.Problems {
+			problem.ProblemId = ""
+		}
 	}
-	return contest, err
+	return contest, hasAuth, needPassword, attemptStatusesMap, err
 }
 
 func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundationmodel.Contest, []string, error) {
@@ -138,6 +196,10 @@ func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundatio
 	return contest, problemIds, nil
 }
 
+func (s *ContestService) GetContestStartTime(ctx *gin.Context, id int) (*time.Time, error) {
+	return foundationdao.GetContestDao().GetContestStartTime(ctx, id)
+}
+
 func (s *ContestService) GetContestProblems(ctx *gin.Context, id int) (
 	[]int,
 	error,
@@ -156,7 +218,7 @@ func (s *ContestService) GetContestProblems(ctx *gin.Context, id int) (
 	return problemIndexes, nil
 }
 
-func (s *ContestService) GetContestProblemsWithAtteptStatus(ctx *gin.Context, id int, userId int) (
+func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, id int, userId int) (
 	[]int,
 	map[int]foundationmodel.ProblemAttemptStatus,
 	error,
@@ -285,4 +347,8 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
 
 func (s *ContestService) UpdateContest(ctx *gin.Context, id int, contest *foundationmodel.Contest) error {
 	return foundationdao.GetContestDao().UpdateContest(ctx, id, contest)
+}
+
+func (s *ContestService) PostPassword(ctx *gin.Context, userId int, contestId int, password string) (bool, error) {
+	return foundationdao.GetContestDao().PostPassword(ctx, userId, contestId, password)
 }

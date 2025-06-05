@@ -15,7 +15,6 @@ import (
 	"meta/meta-response"
 	metatime "meta/meta-time"
 	"strconv"
-	"time"
 	weberrorcode "web/error-code"
 	"web/request"
 )
@@ -116,6 +115,24 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 	contestIdStr := ctx.Query("contest_id")
 	if contestIdStr != "" {
 		contestId, err = strconv.Atoi(contestIdStr)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		_, hasAuth, err := foundationservice.GetContestService().CheckViewAuth(ctx, contestId)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		if !hasAuth {
+			responseData := struct {
+				HasAuth bool `json:"has_auth"`
+			}{
+				HasAuth: false,
+			}
+			metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+			return
+		}
 		constProblemIndex = foundationcontest.GetContestProblemIndex(problemId)
 	}
 	username := ctx.Query("username")
@@ -147,11 +164,11 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                   `json:"time"`
+		HasAuth    bool                        `json:"has_auth"`
 		TotalCount int                         `json:"total_count"`
 		List       []*foundationmodel.JudgeJob `json:"list"`
 	}{
-		Time:       metatime.GetTimeNow(),
+		HasAuth:    true,
 		TotalCount: totalCount,
 		List:       list,
 	}

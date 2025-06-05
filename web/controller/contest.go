@@ -35,8 +35,8 @@ func (c *ContestController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	// TODO 判断权限
-	contest, err := contestService.GetContest(ctx, id)
+	nowTime := metatime.GetTimeNow()
+	contest, hasAuth, needPassword, attemptStatus, err := contestService.GetContest(ctx, id, nowTime)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -45,7 +45,20 @@ func (c *ContestController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest)
+	responseData := struct {
+		Now           time.Time                                    `json:"now"`
+		HasAuth       bool                                         `json:"has_auth"`
+		NeedPassword  bool                                         `json:"need_password,omitempty"` // 是否需要密码
+		Contest       *foundationmodel.Contest                     `json:"contest"`
+		AttemptStatus map[int]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"`
+	}{
+		Now:           nowTime,
+		HasAuth:       hasAuth,
+		NeedPassword:  needPassword,
+		Contest:       contest,
+		AttemptStatus: attemptStatus,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
 func (c *ContestController) GetEdit(ctx *gin.Context) {
@@ -60,7 +73,15 @@ func (c *ContestController) GetEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	// TODO 判断权限
+	_, hasAuth, err := foundationservice.GetContestService().CheckEditAuth(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
 	contest, problems, err := contestService.GetContestEdit(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
@@ -167,7 +188,22 @@ func (c *ContestController) GetProblemList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	_, hasAuth, err := foundationservice.GetContestService().CheckSubmitAuth(ctx, contestId)
+	startTime, err := foundationservice.GetContestService().GetContestStartTime(ctx, contestId)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if startTime == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	nowTime := metatime.GetTimeNow()
+	if startTime.After(nowTime) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+
+	_, hasAuth, err := foundationservice.GetContestService().CheckViewAuth(ctx, contestId)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
@@ -199,20 +235,42 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	contest, problems, ranks, err := foundationservice.GetContestService().GetContestRanks(ctx, contestId)
+	_, hasAuth, err := foundationservice.GetContestService().CheckViewAuth(ctx, contestId)
 	if err != nil {
-		metaresponse.NewResponseError(ctx, err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	if contest == nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+	if !hasAuth {
+		responseData := struct {
+			HasAuth bool `json:"has_auth"`
+		}{
+			HasAuth: false,
+		}
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 		return
+	}
+
+	var contest *foundationmodel.ContestViewRank
+	var problems []int
+	var ranks []*foundationmodel.ContestRank
+	if hasAuth {
+		contest, problems, ranks, err = foundationservice.GetContestService().GetContestRanks(ctx, contestId)
+		if err != nil {
+			metaresponse.NewResponseError(ctx, err)
+			return
+		}
+		if contest == nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+			return
+		}
 	}
 	responseData := struct {
+		HasAuth  bool                             `json:"has_auth"`
 		Contest  *foundationmodel.ContestViewRank `json:"contest"`
 		Problems []int                            `json:"problems"` // 题目索引列表
 		Ranks    []*foundationmodel.ContestRank   `json:"ranks"`
 	}{
+		HasAuth:  true,
 		Contest:  contest,
 		Problems: problems,
 		Ranks:    ranks,
@@ -293,8 +351,8 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil). // 题目描述Id，默认为nil
-				Score(0). // 分数默认为0
+				ViewId(nil).            // 题目描述Id，默认为nil
+				Score(0).               // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
@@ -319,6 +377,7 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		UpdateTime(nowTime).
 		Problems(problems).
 		Private(private).
+		Password(requestData.Password).
 		Members(memberIds).
 		LockRankDuration(lockRankDuration).
 		AlwaysLock(requestData.AlwaysLock).
@@ -408,8 +467,8 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil). // 题目描述Id，默认为nil
-				Score(0). // 分数默认为0
+				ViewId(nil).            // 题目描述Id，默认为nil
+				Score(0).               // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
@@ -434,6 +493,7 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		UpdateTime(nowTime).
 		Problems(problems).
 		Private(private).
+		Password(requestData.Password).
 		Members(memberIds).
 		LockRankDuration(lockRankDuration).
 		AlwaysLock(requestData.AlwaysLock).
@@ -447,4 +507,43 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest.UpdateTime)
+}
+
+func (c *ContestController) PostPassword(ctx *gin.Context) {
+	var requestData struct {
+		ContestId int    `json:"id" binding:"required"`
+		Password  string `json:"password" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, hasAuth, err := foundationservice.GetContestService().CheckViewAuth(ctx, requestData.ContestId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if hasAuth {
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+		return
+	}
+	if userId <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NeedLogin, nil)
+		return
+	}
+	success, err := foundationservice.GetContestService().PostPassword(
+		ctx,
+		userId,
+		requestData.ContestId,
+		requestData.Password,
+	)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if !success {
+		metaresponse.NewResponse(ctx, weberrorcode.ContestPostPasswordError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
 }
