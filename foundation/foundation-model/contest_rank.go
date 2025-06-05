@@ -15,9 +15,10 @@ type ContestViewRank struct {
 }
 
 type ContestRankProblem struct {
-	Index   int        `json:"index" bson:"index"`               // 题目索引
-	Attempt int        `json:"attempt" bson:"attempt"`           // 尝试次数（截止到首次AC）
-	Ac      *time.Time `json:"ac,omitempty" bson:"ac,omitempty"` // 首次AC时间
+	Index   int        `json:"index" bson:"index"`                   // 题目索引
+	Attempt int        `json:"attempt" bson:"attempt"`               // 尝试次数（截止到首次AC）
+	Ac      *time.Time `json:"ac,omitempty" bson:"ac,omitempty"`     // 首次AC时间
+	Lock    int        `json:"lock,omitempty" bson:"lock,omitempty"` // 未知的尝试次数（可能是锁榜期间的尝试次数）
 }
 
 type ContestRank struct {

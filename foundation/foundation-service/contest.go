@@ -321,6 +321,14 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
 		(contest.AlwaysLock || !isEnd) &&
 		nowTime.After(contest.EndTime.Add(-*contest.LockRankDuration))
 
+	var lockTimePtr *time.Time
+	if isLocked {
+		lockTime := contest.EndTime.Add(-*contest.LockRankDuration)
+		lockTimePtr = &lockTime
+	} else {
+		lockTimePtr = nil
+	}
+
 	contestRanks, err := foundationdao.GetJudgeJobDao().GetContestRanks(
 		ctx, id,
 		contest.StartTime,

@@ -619,18 +619,27 @@ func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]st
 func (d *JudgeJobDao) GetContestRanks(
 	ctx context.Context,
 	id int,
-	startTime *time.Time,
+	startTime time.Time,
 	lockTime *time.Time,
 	problemMap map[string]int,
 ) ([]*foundationmodel.ContestRank, error) {
 
+	match := bson.M{
+		"contest_id": id,
+	}
+	if lockTime != nil {
+		match["approve_time"] = bson.M{
+			"$gte": startTime,
+			"$lt":  lockTime,
+		}
+	} else {
+		match["approve_time"] = bson.M{"$gte": startTime}
+	}
+
 	pipeline := mongo.Pipeline{
 		{
 			{
-				"$match", bson.M{
-					"contest_id":   id,
-					"approve_time": bson.M{"$gte": startTime},
-				},
+				"$match", match,
 			},
 		},
 		{
