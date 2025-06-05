@@ -6,6 +6,7 @@ import (
 	"foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
+	metatime "meta/meta-time"
 	"meta/singleton"
 	"time"
 )
@@ -304,15 +305,28 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
 	[]*foundationmodel.ContestRank,
 	error,
 ) {
-	contestView, err := foundationdao.GetContestDao().GetContestViewRank(ctx, id)
+	contest, err := foundationdao.GetContestDao().GetContestViewRank(ctx, id)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	problemMap := make(map[string]int)
-	for _, problem := range contestView.Problems {
+	for _, problem := range contest.Problems {
 		problemMap[problem.ProblemId] = problem.Index
 	}
-	contestRanks, err := foundationdao.GetJudgeJobDao().GetContestRanks(ctx, id, contestView.StartTime, problemMap)
+	nowTime := metatime.GetTimeNow()
+
+	isEnd := nowTime.After(contest.EndTime)
+	hasLockDuration := contest.LockRankDuration != nil && *contest.LockRankDuration > 0
+	isLocked := hasLockDuration &&
+		(contest.AlwaysLock || !isEnd) &&
+		nowTime.After(contest.EndTime.Add(-*contest.LockRankDuration))
+
+	contestRanks, err := foundationdao.GetJudgeJobDao().GetContestRanks(
+		ctx, id,
+		contest.StartTime,
+		lockTimePtr,
+		problemMap,
+	)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -337,12 +351,12 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
 		}
 	}
 	var problemIndexes []int
-	for _, problem := range contestView.Problems {
+	for _, problem := range contest.Problems {
 		problemIndexes = append(problemIndexes, problem.Index)
 	}
 	// 隐藏题目详细信息
-	contestView.Problems = nil
-	return contestView, problemIndexes, contestRanks, nil
+	contest.Problems = nil
+	return contest, problemIndexes, contestRanks, nil
 }
 
 func (s *ContestService) UpdateContest(ctx *gin.Context, id int, contest *foundationmodel.Contest) error {

@@ -620,6 +620,7 @@ func (d *JudgeJobDao) GetContestRanks(
 	ctx context.Context,
 	id int,
 	startTime *time.Time,
+	lockTime *time.Time,
 	problemMap map[string]int,
 ) ([]*foundationmodel.ContestRank, error) {
 

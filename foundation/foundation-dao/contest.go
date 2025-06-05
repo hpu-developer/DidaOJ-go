@@ -185,11 +185,13 @@ func (d *ContestDao) GetContestViewRank(ctx context.Context, id int) (*foundatio
 	opts := options.FindOne().
 		SetProjection(
 			bson.M{
-				"_id":        1,
-				"start_time": 1,
-				"end_time":   1,
-				"problems":   1,
-				"v_members":  1,
+				"_id":                1,
+				"start_time":         1,
+				"end_time":           1,
+				"problems":           1,
+				"v_members":          1,
+				"lock_rank_duration": 1,
+				"always_lock":        1,
 			},
 		)
 	var contest foundationmodel.ContestViewRank
