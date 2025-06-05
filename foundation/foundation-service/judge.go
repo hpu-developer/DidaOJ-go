@@ -141,7 +141,20 @@ func (s *JudgeService) GetJudgeList(
 				}
 			}
 
+			nowTime := time.Now()
+
 			//计算锁榜来隐藏结果信息
+			for _, judgeJob := range judgeJobs {
+				if contest.EndTime.Before(nowTime) {
+					judgeJob.Score = -1
+
+					if judgeJob.AuthorId != userId && contest.CreatorId != userId {
+						judgeJob.Language = foundationjudge.JudgeLanguageUnknown
+						judgeJob.CodeLength = -1
+					}
+				}
+			}
+
 			//contest.StartTime
 			//contest.EndTime
 		}

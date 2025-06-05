@@ -151,6 +151,7 @@ func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundatio
 		SetProjection(
 			bson.M{
 				"_id":                1,
+				"creator_id":         1,
 				"start_time":         1,
 				"end_time":           1,
 				"type":               1,

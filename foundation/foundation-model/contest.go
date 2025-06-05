@@ -77,8 +77,10 @@ type Contest struct {
 type ContestViewLock struct {
 	Id int `json:"id" bson:"_id"` // 比赛Id
 
-	StartTime *time.Time `json:"start_time,omitempty" bson:"start_time,omitempty"`
-	EndTime   *time.Time `json:"end_time,omitempty" bson:"end_time,omitempty"` // 结束时间
+	CreatorId int `json:"creator_id" bson:"creator_id"`
+
+	StartTime time.Time `json:"start_time,omitempty" bson:"start_time,omitempty"`
+	EndTime   time.Time `json:"end_time,omitempty" bson:"end_time,omitempty"` // 结束时间
 
 	Type ContestType `json:"type" bson:"type"` // 比赛类型
 
