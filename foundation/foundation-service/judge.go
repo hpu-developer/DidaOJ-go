@@ -145,12 +145,22 @@ func (s *JudgeService) GetJudgeList(
 
 			//计算锁榜来隐藏结果信息
 			for _, judgeJob := range judgeJobs {
-				if contest.EndTime.Before(nowTime) {
-					judgeJob.Score = -1
-
+				if nowTime.Before(contest.EndTime) {
+					judgeJob.Score = 0
 					if judgeJob.AuthorId != userId && contest.CreatorId != userId {
 						judgeJob.Language = foundationjudge.JudgeLanguageUnknown
-						judgeJob.CodeLength = -1
+						judgeJob.CodeLength = 0
+						judgeJob.Memory = 0
+						judgeJob.Time = 0
+					}
+				}
+				if contest.AlwaysLock || (contest.LockRankDuration != nil &&
+					nowTime.Before(contest.StartTime.Add(*contest.LockRankDuration))) {
+					if contest.CreatorId != userId &&
+						((contest.Type == foundationmodel.ContestTypeAcm && judgeJob.AuthorId != userId) ||
+							contest.Type == foundationmodel.ContestTypeOiLast ||
+							contest.Type == foundationmodel.ContestTypeOiHighest) {
+						judgeJob.Status = foundationjudge.JudgeStatusUnknown
 					}
 				}
 			}
