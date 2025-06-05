@@ -11,6 +11,7 @@ import (
 	metaerror "meta/meta-error"
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
+	metatime "meta/meta-time"
 	"meta/singleton"
 )
 
@@ -76,6 +77,7 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.C
 				"notification":       1,
 				"lock_rank_duration": 1,
 				"always_lock":        1,
+				"submit_anytime":     1,
 			},
 		)
 	var contest foundationmodel.Contest
@@ -112,6 +114,7 @@ func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationmod
 				"members":            1,
 				"lock_rank_duration": 1,
 				"always_lock":        1,
+				"submit_anytime":     1,
 			},
 		)
 	var contest foundationmodel.Contest
@@ -349,6 +352,7 @@ func (d *ContestDao) GetContestList(
 }
 
 func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId int) (bool, error) {
+	nowTime := metatime.GetTimeNow()
 	filter := bson.D{
 		{"_id", id},
 		{
@@ -357,6 +361,15 @@ func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId in
 				bson.D{{"private", bson.M{"$exists": false}}},
 				bson.D{{"members", bson.M{"$in": []int{userId}}}},
 			},
+		},
+		{
+			"$or", bson.A{
+				bson.D{{"submit_anytime", true}},
+				bson.D{{"end_time", bson.M{"$gte": nowTime}}},
+			},
+		},
+		{
+			"start_time", bson.M{"$lte": nowTime},
 		},
 	}
 	count, err := d.collection.CountDocuments(ctx, filter)
@@ -384,8 +397,15 @@ func (d *ContestDao) UpdateContest(ctx context.Context, contestId int, contest *
 		"lock_rank_duration",
 		"always_lock",
 	)
+	unsetData := bson.M{}
+	if contest.SubmitAnytime {
+		setData["submit_anytime"] = true
+	} else {
+		unsetData["submit_anytime"] = 1
+	}
 	update := bson.M{
-		"$set": setData,
+		"$set":   setData,
+		"$unset": unsetData,
 	}
 	_, err := d.collection.UpdateOne(ctx, filter, update)
 	if err != nil {

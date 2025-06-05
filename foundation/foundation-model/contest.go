@@ -56,6 +56,8 @@ type Contest struct {
 	Password *string `json:"password,omitempty" bson:"password,omitempty"` // 比赛密码
 	Members  []int   `json:"members,omitempty" bson:"members,omitempty"`   // 比赛成员，只有在私有比赛时才会使用
 
+	SubmitAnytime bool `json:"submit_anytime,omitempty" bson:"submit_anytime,omitempty"` // 是否允许在比赛结束后提交，默认为false
+
 	AuthMembers []int `json:"auth_members,omitempty" bson:"auth_members,omitempty"` // 管理员，可以对本比赛进行编辑与查看
 
 	// 排名相关
@@ -206,6 +208,16 @@ func (b *ContestBuilder) LockRankDuration(lockRankDuration *time.Duration) *Cont
 
 func (b *ContestBuilder) AlwaysLock(alwaysLock bool) *ContestBuilder {
 	b.item.AlwaysLock = alwaysLock
+	return b
+}
+
+func (b *ContestBuilder) SubmitAnytime(submitAnytime bool) *ContestBuilder {
+	b.item.SubmitAnytime = submitAnytime
+	return b
+}
+
+func (b *ContestBuilder) AuthMembers(authMembers []int) *ContestBuilder {
+	b.item.AuthMembers = authMembers
 	return b
 }
 

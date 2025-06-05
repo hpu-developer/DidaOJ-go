@@ -15,4 +15,5 @@ const (
 	ContestNotFoundProblem          metaerrorcode.ErrorCode = 100010
 	ContestTooManyProblem           metaerrorcode.ErrorCode = 100011
 	ContestCannotStartTimeBeforeNow metaerrorcode.ErrorCode = 100012
+	JudgeJobCannotApprove           metaerrorcode.ErrorCode = 100013
 )

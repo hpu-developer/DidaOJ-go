@@ -268,15 +268,20 @@ func (d *JudgeJobDao) GetJudgeJobList(
 }
 
 func (d *JudgeJobDao) GetProblemAttemptStatus(
-	ctx context.Context, problemIds []string, authorId int,
+	ctx context.Context, problemIds []string, authorId int, contestId int,
 ) (map[string]foundationmodel.ProblemAttemptStatus, error) {
+	match := bson.M{
+		"author_id":  authorId,
+		"problem_id": bson.M{"$in": problemIds},
+	}
+	if contestId > 0 {
+		match["contest_id"] = contestId
+	}
 	pipeline := mongo.Pipeline{
 		{
 			{
-				Key: "$match", Value: bson.M{
-					"author_id":  authorId,
-					"problem_id": bson.M{"$in": problemIds},
-				},
+				Key:   "$match",
+				Value: match,
 			},
 		},
 		{

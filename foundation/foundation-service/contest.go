@@ -22,7 +22,7 @@ func GetContestService() *ContestService {
 	)
 }
 
-func (s *ContestService) CheckUserAuth(ctx *gin.Context, id int) (
+func (s *ContestService) CheckEditAuth(ctx *gin.Context, id int) (
 	int,
 	bool,
 	error,
@@ -46,7 +46,7 @@ func (s *ContestService) CheckUserAuth(ctx *gin.Context, id int) (
 	return userId, true, nil
 }
 
-func (s *ContestService) CheckSubmitAuth(ctx *gin.Context, id int, problemId string) (int, bool, error) {
+func (s *ContestService) CheckSubmitAuth(ctx *gin.Context, id int) (int, bool, error) {
 	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageContest)
 	if err != nil {
 		return userId, false, err
@@ -136,6 +136,66 @@ func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundatio
 	}
 	contest.Problems = nil
 	return contest, problemIds, nil
+}
+
+func (s *ContestService) GetContestProblems(ctx *gin.Context, id int) (
+	[]int,
+	error,
+) {
+	problems, err := foundationdao.GetContestDao().GetProblems(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if len(problems) == 0 {
+		return nil, nil
+	}
+	var problemIndexes []int
+	for _, problem := range problems {
+		problemIndexes = append(problemIndexes, problem.Index)
+	}
+	return problemIndexes, nil
+}
+
+func (s *ContestService) GetContestProblemsWithAtteptStatus(ctx *gin.Context, id int, userId int) (
+	[]int,
+	map[int]foundationmodel.ProblemAttemptStatus,
+	error,
+) {
+	problems, err := foundationdao.GetContestDao().GetProblems(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(problems) == 0 {
+		return nil, nil, nil
+	}
+	var attemptStatusesMap map[int]foundationmodel.ProblemAttemptStatus
+	if userId > 0 {
+		var problemIds []string
+		for _, problem := range problems {
+			problemIds = append(problemIds, problem.ProblemId)
+		}
+		attemptStatuses, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(ctx, problemIds, userId, id)
+		if err != nil {
+			return nil, nil, err
+		}
+		problemIdMap := make(map[string]int)
+		for _, problem := range problems {
+			problemIdMap[problem.ProblemId] = problem.Index
+		}
+		for problemId, attemptStatus := range attemptStatuses {
+			if index, ok := problemIdMap[problemId]; ok {
+				if attemptStatusesMap == nil {
+					attemptStatusesMap = make(map[int]foundationmodel.ProblemAttemptStatus)
+				}
+				attemptStatusesMap[index] = attemptStatus
+			}
+		}
+	}
+	var problemIndexes []int
+	for _, problem := range problems {
+		problemIndexes = append(problemIndexes, problem.Index)
+	}
+	return problemIndexes, attemptStatusesMap, nil
 }
 
 func (s *ContestService) GetContestList(ctx context.Context, page int, pageSize int) (

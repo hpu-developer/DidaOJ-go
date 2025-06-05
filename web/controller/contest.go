@@ -138,7 +138,7 @@ func (c *ContestController) GetProblem(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	_, hasAuth, err := foundationservice.GetContestService().CheckUserAuth(ctx, contestId)
+	_, hasAuth, err := foundationservice.GetContestService().CheckEditAuth(ctx, contestId)
 	if err != nil {
 		metapanic.ProcessError(err)
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -154,6 +154,38 @@ func (c *ContestController) GetProblem(ctx *gin.Context) {
 		return
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemId)
+}
+
+func (c *ContestController) GetProblemList(ctx *gin.Context) {
+	id := ctx.Query("id")
+	if id == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	contestId, err := strconv.Atoi(id)
+	if err != nil || contestId <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, hasAuth, err := foundationservice.GetContestService().CheckSubmitAuth(ctx, contestId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	problems, err := foundationservice.GetContestService().GetContestProblems(
+		ctx,
+		contestId,
+	)
+	requestData := struct {
+		Problems []int `json:"problems"` // 题目索引
+	}{
+		Problems: problems,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, requestData)
 }
 
 func (c *ContestController) GetRank(ctx *gin.Context) {
@@ -261,8 +293,8 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Score(0).               // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
@@ -290,6 +322,7 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		Members(memberIds).
 		LockRankDuration(lockRankDuration).
 		AlwaysLock(requestData.AlwaysLock).
+		SubmitAnytime(requestData.SubmitAnytime).
 		Build()
 
 	err = contestService.InsertContest(ctx, contest)
@@ -324,7 +357,7 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 	}
 	nowTime := metatime.GetTimeNow()
 
-	_, hasAuth, err := foundationservice.GetContestService().CheckUserAuth(ctx, requestData.Id)
+	_, hasAuth, err := foundationservice.GetContestService().CheckEditAuth(ctx, requestData.Id)
 	if err != nil {
 		metapanic.ProcessError(err)
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -375,8 +408,8 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Score(0).               // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
@@ -404,6 +437,7 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		Members(memberIds).
 		LockRankDuration(lockRankDuration).
 		AlwaysLock(requestData.AlwaysLock).
+		SubmitAnytime(requestData.SubmitAnytime).
 		Build()
 
 	err = contestService.UpdateContest(ctx, requestData.Id, contest)

@@ -16,6 +16,7 @@ import (
 	metatime "meta/meta-time"
 	"strconv"
 	"time"
+	weberrorcode "web/error-code"
 	"web/request"
 )
 
@@ -201,7 +202,6 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		userId, hasAuth, err = foundationservice.GetContestService().CheckSubmitAuth(
 			ctx,
 			contestId,
-			problemId,
 		)
 		if err != nil {
 			metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -209,7 +209,7 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		}
 	}
 	if !hasAuth {
-		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		metaresponse.NewResponse(ctx, weberrorcode.JudgeJobCannotApprove, nil)
 		return
 	}
 
