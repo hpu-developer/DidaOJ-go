@@ -2,11 +2,13 @@ package foundationservice
 
 import (
 	"context"
+	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
+	"slices"
 	"time"
 )
 
@@ -21,6 +23,47 @@ func GetJudgeService() *JudgeService {
 			return &JudgeService{}
 		},
 	)
+}
+
+func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
+	int,
+	bool,
+	error,
+) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageJudge)
+	if err != nil {
+		return userId, false, err
+	}
+	judgeAuth, err := foundationdao.GetJudgeJobDao().GetJudgeJobViewAuth(ctx, id)
+	if err != nil {
+		return userId, false, err
+	}
+	if judgeAuth == nil {
+		return userId, false, nil
+	}
+	if !hasAuth {
+		if judgeAuth.Private {
+			if judgeAuth.AuthorId != userId {
+				return userId, false, nil
+			}
+		}
+	}
+	// 如果在比赛中，则以比赛中的权限为准进行一次拦截，即使具有管理源码的权限也无效
+	if judgeAuth.ContestId > 0 {
+		contest, err := foundationdao.GetContestDao().GetContestViewLock(ctx, judgeAuth.ContestId)
+		if err != nil {
+			return userId, false, err
+		}
+		hasStatusAuth, hasDetailAuth := s.isContestJudgeHasViewAuth(
+			contest, userId,
+			judgeAuth.AuthorId,
+			&judgeAuth.ApproveTime,
+		)
+		if !hasStatusAuth || !hasDetailAuth {
+			return userId, false, nil
+		}
+	}
+	return userId, true, nil
 }
 
 func (s *JudgeService) GetJudge(ctx context.Context, id int) (*foundationmodel.JudgeJob, error) {
@@ -43,7 +86,11 @@ func (s *JudgeService) GetJudge(ctx context.Context, id int) (*foundationmodel.J
 	return judgeJob, nil
 }
 
-func (s *JudgeService) GetJudgeCode(ctx context.Context, id int) (foundationjudge.JudgeLanguage, *string, error) {
+func (s *JudgeService) GetJudgeCode(ctx context.Context, id int) (
+	foundationjudge.JudgeLanguage,
+	*string,
+	error,
+) {
 	return foundationdao.GetJudgeJobDao().GetJudgeCode(ctx, id)
 }
 
@@ -141,35 +188,79 @@ func (s *JudgeService) GetJudgeList(
 				}
 			}
 
-			nowTime := time.Now()
-
-			//计算锁榜来隐藏结果信息
+			// 隐藏部分信息
 			for _, judgeJob := range judgeJobs {
-				if nowTime.Before(contest.EndTime) {
-					judgeJob.Score = 0
-					if judgeJob.AuthorId != userId && contest.CreatorId != userId {
-						judgeJob.Language = foundationjudge.JudgeLanguageUnknown
-						judgeJob.CodeLength = 0
-						judgeJob.Memory = 0
-						judgeJob.Time = 0
+				if contest.Type != foundationmodel.ContestTypeIoi {
+					// IOI模式之外隐藏分数信息
+					if judgeJob.Score < 100 {
+						judgeJob.Score = 0
 					}
 				}
-				if contest.AlwaysLock || (contest.LockRankDuration != nil &&
-					nowTime.Before(contest.StartTime.Add(*contest.LockRankDuration))) {
-					if contest.CreatorId != userId &&
-						((contest.Type == foundationmodel.ContestTypeAcm && judgeJob.AuthorId != userId) ||
-							contest.Type == foundationmodel.ContestTypeOiLast ||
-							contest.Type == foundationmodel.ContestTypeOiHighest) {
-						judgeJob.Status = foundationjudge.JudgeStatusUnknown
-					}
+
+				hasStatusAuth, hasDetailAuth := s.isContestJudgeHasViewAuth(
+					contest, userId,
+					judgeJob.AuthorId,
+					&judgeJob.ApproveTime,
+				)
+
+				if !hasStatusAuth {
+					judgeJob.Status = foundationjudge.JudgeStatusUnknown
+				}
+				if !hasDetailAuth {
+					judgeJob.Language = foundationjudge.JudgeLanguageUnknown
+					judgeJob.CodeLength = 0
+				}
+				if !hasStatusAuth || !hasDetailAuth {
+					judgeJob.Memory = 0
+					judgeJob.Time = 0
 				}
 			}
-
-			//contest.StartTime
-			//contest.EndTime
 		}
 	}
 	return judgeJobs, totalCount, nil
+}
+
+func (s *JudgeService) isContestJudgeHasViewAuth(
+	contest *foundationmodel.ContestViewLock,
+	userId int,
+	authorId int,
+	approveTime *time.Time,
+) (
+	hasStatusAuth bool,
+	hasDetailAuth bool,
+) {
+	hasStatusAuth = true
+	hasDetailAuth = true
+
+	isEnd := approveTime.After(contest.EndTime)
+	hasLockDuration := contest.LockRankDuration != nil && *contest.LockRankDuration > 0
+	isLocked := hasLockDuration &&
+		(contest.AlwaysLock || !isEnd) &&
+		approveTime.After(contest.EndTime.Add(-*contest.LockRankDuration))
+
+	// 不需要对管理员隐藏信息
+	if contest.OwnerId != userId && !slices.Contains(contest.AuthMembers, userId) {
+		if isLocked {
+			if contest.Type == foundationmodel.ContestTypeOi {
+				hasStatusAuth = false
+			} else {
+				if authorId != userId {
+					hasStatusAuth = false
+				}
+			}
+		}
+		if authorId != userId {
+			if isLocked {
+				hasDetailAuth = false
+			} else {
+				if !isEnd {
+					hasDetailAuth = false
+				}
+			}
+		}
+	}
+
+	return
 }
 
 func (s *JudgeService) GetRankAcProblem(

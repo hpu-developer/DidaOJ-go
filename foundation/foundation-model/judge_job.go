@@ -38,6 +38,16 @@ type JudgeJob struct {
 	RemoteAccountId *string `json:"remote_account_id,omitempty" bson:"remote_account_id,omitempty"`
 }
 
+type JudgeJobViewAuth struct {
+	Id        int `json:"id" bson:"_id"`
+	ContestId int `json:"contest_id,omitempty" bson:"contest_id,omitempty"` // 比赛ID
+	AuthorId  int `json:"author_id" bson:"author_id"`                       // 提交者UserId
+
+	ApproveTime time.Time `json:"approve_time" bson:"approve_time"` // 申请时间
+
+	Private bool `json:"private,omitempty" bson:"private,omitempty"` // 是否隐藏源码
+}
+
 type JudgeJobBuilder struct {
 	item *JudgeJob
 }

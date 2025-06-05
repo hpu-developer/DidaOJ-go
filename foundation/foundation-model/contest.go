@@ -8,9 +8,9 @@ import (
 type ContestType int
 
 var (
-	ContestTypeAcm       ContestType = 0 // ACM模式比赛=
-	ContestTypeOiHighest ContestType = 1 // OI模式比赛，以最高分提交为准
-	ContestTypeOiLast    ContestType = 2 // OI模式比赛，以最后一次提交为准
+	ContestTypeAcm ContestType = 0 // ACM模式比赛
+	ContestTypeOi  ContestType = 1 // OI模式比赛，最终排名以最后一次提交为准
+	ContestTypeIoi ContestType = 2 // IOI模式比赛，以最高分提交为准
 )
 
 type ContestScoreType int
@@ -56,6 +56,8 @@ type Contest struct {
 	Password *string `json:"password,omitempty" bson:"password,omitempty"` // 比赛密码
 	Members  []int   `json:"members,omitempty" bson:"members,omitempty"`   // 比赛成员，只有在私有比赛时才会使用
 
+	AuthMembers []int `json:"auth_members,omitempty" bson:"auth_members,omitempty"` // 管理员，可以对本比赛进行编辑与查看
+
 	// 排名相关
 	Type          ContestType      `json:"type" bson:"type"`                                         // 比赛类型
 	ScoreType     ContestScoreType `json:"score_type" bson:"score_type"`                             // 分数类型
@@ -63,8 +65,8 @@ type Contest struct {
 
 	VMembers []int `json:"v_members,omitempty" bson:"v_members,omitempty"` // 忽略排名的成员列表
 
+	LockRankDuration *time.Duration `json:"lock_rank_duration,omitempty" bson:"lock_rank_duration,omitempty"` // 比赛结束前锁定排名的时长，空则不锁榜，锁榜期间ACM模式下只可以查看自己的提交结果，榜单仅展示尝试次数，OI模式下无法查看所有的提交结果，榜单保持锁榜前的状态
 	AlwaysLock       bool           `json:"always_lock" bson:"always_lock"`                                   // 比赛结束后是否锁定排名，如果锁定则需要手动关闭（关闭时此值设为false）
-	LockRankDuration *time.Duration `json:"lock_rank_duration,omitempty" bson:"lock_rank_duration,omitempty"` // 比赛结束前锁定排名的时长，空则不锁榜，锁榜期间榜单仅展示尝试次数，ACM模式下只可以查看自己的提交结果，OI模式下无法查看所有的提交结果
 
 	// 题目相关
 	Problems []*ContestProblem `json:"problems,omitempty" bson:"problems,omitempty"` // 题目Id列表
@@ -77,7 +79,8 @@ type Contest struct {
 type ContestViewLock struct {
 	Id int `json:"id" bson:"_id"` // 比赛Id
 
-	CreatorId int `json:"creator_id" bson:"creator_id"`
+	OwnerId     int   `json:"owner_id" bson:"owner_id"`
+	AuthMembers []int `json:"auth_members" bson:"auth_members"`
 
 	StartTime time.Time `json:"start_time,omitempty" bson:"start_time,omitempty"`
 	EndTime   time.Time `json:"end_time,omitempty" bson:"end_time,omitempty"` // 结束时间
@@ -183,6 +186,26 @@ func (b *ContestBuilder) Type(typ ContestType) *ContestBuilder {
 
 func (b *ContestBuilder) ScoreType(scoreType ContestScoreType) *ContestBuilder {
 	b.item.ScoreType = scoreType
+	return b
+}
+
+func (b *ContestBuilder) VirtualReplay(virtualReplay *VirtualReplay) *ContestBuilder {
+	b.item.VirtualReplay = virtualReplay
+	return b
+}
+
+func (b *ContestBuilder) VMembers(vMembers []int) *ContestBuilder {
+	b.item.VMembers = vMembers
+	return b
+}
+
+func (b *ContestBuilder) LockRankDuration(lockRankDuration *time.Duration) *ContestBuilder {
+	b.item.LockRankDuration = lockRankDuration
+	return b
+}
+
+func (b *ContestBuilder) AlwaysLock(alwaysLock bool) *ContestBuilder {
+	b.item.AlwaysLock = alwaysLock
 	return b
 }
 

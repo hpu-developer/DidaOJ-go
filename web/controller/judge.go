@@ -35,6 +35,15 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	_, hasAuth, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
 	judgeJob, err := judgeService.GetJudge(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
@@ -57,6 +66,15 @@ func (c *JudgeController) GetCode(ctx *gin.Context) {
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, hasAuth, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
 	language, jobCode, err := judgeService.GetJudgeCode(ctx, id)
@@ -117,10 +135,6 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		}
 	}
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
-		return
-	}
 	list, totalCount, err := judgeService.GetJudgeList(
 		ctx, userId,
 		contestId, constProblemIndex,

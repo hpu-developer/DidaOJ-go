@@ -13,4 +13,7 @@ type ContestEdit struct {
 
 	Private bool  `json:"private"`
 	Members []int `json:"members"` // 成员列表，逗号分隔的用户Id列表
+
+	LockRankDuration int64 `json:"lock_rank_duration,omitempty"` // 锁榜时长，空则不锁榜（单位秒）
+	AlwaysLock       bool  `json:"always_lock"`                  // 比赛结束后是否锁定排名，如果锁定则需要手动关闭（关闭时此值设为false）
 }

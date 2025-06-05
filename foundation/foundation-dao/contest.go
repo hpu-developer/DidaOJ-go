@@ -60,21 +60,22 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.C
 	opts := options.FindOne().
 		SetProjection(
 			bson.M{
-				"_id":          1,
-				"title":        1,
-				"start_time":   1,
-				"end_time":     1,
-				"owner_id":     1,
-				"create_time":  1,
-				"update_time":  1,
-				"description":  1,
-				"problems":     1,
-				"private":      1,
-				"type":         1,
-				"score_type":   1,
-				"always_lock":  1,
-				"descriptions": 1,
-				"notification": 1,
+				"_id":                1,
+				"title":              1,
+				"start_time":         1,
+				"end_time":           1,
+				"owner_id":           1,
+				"create_time":        1,
+				"update_time":        1,
+				"description":        1,
+				"problems":           1,
+				"private":            1,
+				"type":               1,
+				"score_type":         1,
+				"descriptions":       1,
+				"notification":       1,
+				"lock_rank_duration": 1,
+				"always_lock":        1,
 			},
 		)
 	var contest foundationmodel.Contest
@@ -94,22 +95,23 @@ func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationmod
 	opts := options.FindOne().
 		SetProjection(
 			bson.M{
-				"_id":          1,
-				"title":        1,
-				"start_time":   1,
-				"end_time":     1,
-				"owner_id":     1,
-				"create_time":  1,
-				"update_time":  1,
-				"description":  1,
-				"problems":     1,
-				"private":      1,
-				"type":         1,
-				"score_type":   1,
-				"always_lock":  1,
-				"descriptions": 1,
-				"notification": 1,
-				"members":      1,
+				"_id":                1,
+				"title":              1,
+				"start_time":         1,
+				"end_time":           1,
+				"owner_id":           1,
+				"create_time":        1,
+				"update_time":        1,
+				"description":        1,
+				"problems":           1,
+				"private":            1,
+				"type":               1,
+				"score_type":         1,
+				"descriptions":       1,
+				"notification":       1,
+				"members":            1,
+				"lock_rank_duration": 1,
+				"always_lock":        1,
 			},
 		)
 	var contest foundationmodel.Contest
@@ -151,7 +153,8 @@ func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundatio
 		SetProjection(
 			bson.M{
 				"_id":                1,
-				"creator_id":         1,
+				"owner_id":           1,
+				"auth_members":       1,
 				"start_time":         1,
 				"end_time":           1,
 				"type":               1,
@@ -350,7 +353,7 @@ func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId in
 		{"_id", id},
 		{
 			"$or", bson.A{
-				bson.D{{"creator_id", userId}},
+				bson.D{{"owner_id", userId}},
 				bson.D{{"private", bson.M{"$exists": false}}},
 				bson.D{{"members", bson.M{"$in": []int{userId}}}},
 			},
@@ -378,6 +381,8 @@ func (d *ContestDao) UpdateContest(ctx context.Context, contestId int, contest *
 		"private",
 		"members",
 		"update_time",
+		"lock_rank_duration",
+		"always_lock",
 	)
 	update := bson.M{
 		"$set": setData,

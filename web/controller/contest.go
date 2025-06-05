@@ -203,6 +203,14 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	startTime := requestData.StartTime
+	endTime := requestData.EndTime
+	if endTime.Before(startTime) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	nowTime := metatime.GetTimeNow()
+
 	contestService := foundationservice.GetContestService()
 	// 控制创建时的标题唯一，一定程度上防止误重复创建
 	ok, err := contestService.HasContestTitle(ctx, userId, requestData.Title)
@@ -248,11 +256,6 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		return
 	}
 
-	startTime := requestData.StartTime
-	endTime := requestData.EndTime
-
-	nowTime := metatime.GetTimeNow()
-
 	var problems []*foundationmodel.ContestProblem
 	for _, problemId := range realProblemIds {
 		problems = append(
@@ -267,6 +270,12 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 
 	private := requestData.Private
 
+	var lockRankDuration *time.Duration
+	if requestData.LockRankDuration > 0 {
+		lockRankDurationPtr := time.Duration(requestData.LockRankDuration) * time.Second
+		lockRankDuration = &lockRankDurationPtr
+	}
+
 	contest := foundationmodel.NewContestBuilder().
 		Title(requestData.Title).
 		Description(requestData.Description).
@@ -279,6 +288,8 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		Problems(problems).
 		Private(private).
 		Members(memberIds).
+		LockRankDuration(lockRankDuration).
+		AlwaysLock(requestData.AlwaysLock).
 		Build()
 
 	err = contestService.InsertContest(ctx, contest)
@@ -305,6 +316,14 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	startTime := requestData.StartTime
+	endTime := requestData.EndTime
+	if endTime.Before(startTime) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	nowTime := metatime.GetTimeNow()
+
 	_, hasAuth, err := foundationservice.GetContestService().CheckUserAuth(ctx, requestData.Id)
 	if err != nil {
 		metapanic.ProcessError(err)
@@ -351,11 +370,6 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 
 	contestService := foundationservice.GetContestService()
 
-	startTime := requestData.StartTime
-	endTime := requestData.EndTime
-
-	nowTime := metatime.GetTimeNow()
-
 	var problems []*foundationmodel.ContestProblem
 	for _, problemId := range realProblemIds {
 		problems = append(
@@ -370,6 +384,12 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 
 	private := requestData.Private
 
+	var lockRankDuration *time.Duration
+	if requestData.LockRankDuration > 0 {
+		lockRankDurationPtr := time.Duration(requestData.LockRankDuration) * time.Second
+		lockRankDuration = &lockRankDurationPtr
+	}
+
 	contest := foundationmodel.NewContestBuilder().
 		Title(requestData.Title).
 		Description(requestData.Description).
@@ -382,6 +402,8 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		Problems(problems).
 		Private(private).
 		Members(memberIds).
+		LockRankDuration(lockRankDuration).
+		AlwaysLock(requestData.AlwaysLock).
 		Build()
 
 	err = contestService.UpdateContest(ctx, requestData.Id, contest)

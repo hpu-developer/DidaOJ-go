@@ -149,6 +149,30 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int) (*foundation
 	return &judgeSource, nil
 }
 
+func (d *JudgeJobDao) GetJudgeJobViewAuth(ctx *gin.Context, id int) (*foundationmodel.JudgeJobViewAuth, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":          1,
+				"contest_id":   1,
+				"author_id":    1,
+				"approve_time": 1,
+				"private":      1, // 是否隐藏源码
+			},
+		)
+	var judgeSource foundationmodel.JudgeJobViewAuth
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&judgeSource); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find judgeSource error")
+	}
+	return &judgeSource, nil
+}
+
 func (d *JudgeJobDao) GetJudgeCode(ctx context.Context, id int) (foundationjudge.JudgeLanguage, *string, error) {
 	filter := bson.M{
 		"_id": id,
@@ -177,7 +201,7 @@ func (d *JudgeJobDao) GetJudgeCode(ctx context.Context, id int) (foundationjudge
 func (d *JudgeJobDao) GetJudgeJobList(
 	ctx context.Context,
 	contestId int, problemId string,
-	userId int, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus,
+	searchUserId int, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus,
 	page int, pageSize int,
 ) ([]*foundationmodel.JudgeJob, int, error) {
 	filter := bson.M{}
@@ -189,8 +213,8 @@ func (d *JudgeJobDao) GetJudgeJobList(
 	if problemId != "" {
 		filter["problem_id"] = problemId
 	}
-	if userId > 0 {
-		filter["author_id"] = userId
+	if searchUserId > 0 {
+		filter["author_id"] = searchUserId
 	}
 	if foundationjudge.IsValidJudgeLanguage(int(language)) {
 		filter["language"] = language
