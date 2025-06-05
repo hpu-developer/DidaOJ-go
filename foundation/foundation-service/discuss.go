@@ -54,7 +54,11 @@ func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmod
 				return nil, err
 			}
 			discuss.ProblemTitle = problemTitle
-			discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(ctx, discuss.ContestId, discuss.ProblemId)
+			discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(
+				ctx,
+				discuss.ContestId,
+				*discuss.ProblemId,
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -77,11 +81,13 @@ func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmod
 	return discuss, err
 }
 
-func (s *DiscussService) GetDiscussList(ctx context.Context,
+func (s *DiscussService) GetDiscussList(
+	ctx context.Context,
 	contestId int, contestProblemIndex int,
 	problemId string,
 	title string, username string,
-	page int, pageSize int) ([]*foundationmodel.Discuss, int, error) {
+	page int, pageSize int,
+) ([]*foundationmodel.Discuss, int, error) {
 	var err error
 	userId := -1
 	if username != "" {
@@ -96,7 +102,11 @@ func (s *DiscussService) GetDiscussList(ctx context.Context,
 	if contestId > 0 {
 		// 计算ProblemId
 		if contestProblemIndex > 0 {
-			problemIdPtr, err := foundationdao.GetContestDao().GetProblemIdByContest(ctx, contestId, contestProblemIndex)
+			problemIdPtr, err := foundationdao.GetContestDao().GetProblemIdByContest(
+				ctx,
+				contestId,
+				contestProblemIndex,
+			)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -107,8 +117,10 @@ func (s *DiscussService) GetDiscussList(ctx context.Context,
 		}
 	}
 
-	discusses, totalCount, err := foundationdao.GetDiscussDao().GetDiscussList(ctx, contestId, problemId, title, userId,
-		page, pageSize)
+	discusses, totalCount, err := foundationdao.GetDiscussDao().GetDiscussList(
+		ctx, contestId, problemId, title, userId,
+		page, pageSize,
+	)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -140,7 +152,11 @@ func (s *DiscussService) GetDiscussList(ctx context.Context,
 						return nil, 0, err
 					}
 					discuss.ProblemTitle = problemTitle
-					discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(ctx, contestId, discuss.ProblemId)
+					discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(
+						ctx,
+						contestId,
+						*discuss.ProblemId,
+					)
 					if err != nil {
 						return nil, 0, err
 					}
@@ -161,8 +177,18 @@ func (s *DiscussService) InsertDiscuss(ctx context.Context, discuss *foundationm
 	return foundationdao.GetDiscussDao().InsertDiscuss(ctx, discuss)
 }
 
-func (s *DiscussService) GetDiscussCommentList(ctx *gin.Context, discussComment int, page int, pageSize int) ([]*foundationmodel.DiscussComment, int, error) {
-	discussComments, totalCount, err := foundationdao.GetDiscussCommentDao().GetDiscussCommentList(ctx, discussComment, page, pageSize)
+func (s *DiscussService) GetDiscussCommentList(
+	ctx *gin.Context,
+	discussComment int,
+	page int,
+	pageSize int,
+) ([]*foundationmodel.DiscussComment, int, error) {
+	discussComments, totalCount, err := foundationdao.GetDiscussCommentDao().GetDiscussCommentList(
+		ctx,
+		discussComment,
+		page,
+		pageSize,
+	)
 	if err != nil {
 		return nil, 0, err
 	}

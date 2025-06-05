@@ -143,7 +143,32 @@ func (d *ContestDao) GetContestTitle(ctx context.Context, id int) (*string, erro
 	return &contest.Title, nil
 }
 
-func (d *ContestDao) GetContestRankView(ctx context.Context, id int) (*foundationmodel.ContestViewRank, error) {
+func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundationmodel.ContestViewLock, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":                1,
+				"start_time":         1,
+				"end_time":           1,
+				"type":               1,
+				"always_lock":        1,
+				"lock_rank_duration": 1,
+			},
+		)
+	var contest foundationmodel.ContestViewLock
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &contest, nil
+}
+
+func (d *ContestDao) GetContestViewRank(ctx context.Context, id int) (*foundationmodel.ContestViewRank, error) {
 	filter := bson.M{
 		"_id": id,
 	}
@@ -189,7 +214,7 @@ func (d *ContestDao) GetProblems(ctx context.Context, id int) ([]*foundationmode
 	return result.Problems, nil
 }
 
-func (d *ContestDao) GetProblemIndex(ctx context.Context, id int, problemId *string) (int, error) {
+func (d *ContestDao) GetProblemIndex(ctx context.Context, id int, problemId string) (int, error) {
 	filter := bson.M{
 		"_id": id,
 	}
@@ -197,7 +222,7 @@ func (d *ContestDao) GetProblemIndex(ctx context.Context, id int, problemId *str
 		bson.M{
 			"problems": bson.M{
 				"$elemMatch": bson.M{
-					"problem_id": *problemId,
+					"problem_id": problemId,
 				},
 			},
 		},
@@ -212,7 +237,7 @@ func (d *ContestDao) GetProblemIndex(ctx context.Context, id int, problemId *str
 		return 0, err
 	}
 	if len(result.Problems) == 0 {
-		return 0, fmt.Errorf("problem_id %s not found", *problemId)
+		return 0, fmt.Errorf("problem_id %s not found", problemId)
 	}
 	return result.Problems[0].Index, nil
 }
@@ -267,33 +292,6 @@ func (d *ContestDao) GetContestOwnerId(ctx context.Context, id int) (int, error)
 		return 0, metaerror.Wrap(err, "find contest error")
 	}
 	return contest.OwnerId, nil
-}
-
-func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundationmodel.ContestViewLock, error) {
-	filter := bson.M{
-		"_id": id,
-	}
-	opts := options.FindOne().
-		SetProjection(
-			bson.M{
-				"_id":                 1,
-				"start_time":          1,
-				"end_time":            1,
-				"type":                1,
-				"always_lock":         1,
-				"lock_rank_duration":  1,
-				"problems.problem_id": 1,
-				"problems.index":      1,
-			},
-		)
-	var contest foundationmodel.ContestViewLock
-	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, nil
-		}
-		return nil, metaerror.Wrap(err, "find contest error")
-	}
-	return &contest, nil
 }
 
 func (d *ContestDao) GetContestList(

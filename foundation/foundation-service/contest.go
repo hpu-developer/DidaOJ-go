@@ -182,7 +182,7 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
 	[]*foundationmodel.ContestRank,
 	error,
 ) {
-	contestView, err := foundationdao.GetContestDao().GetContestRankView(ctx, id)
+	contestView, err := foundationdao.GetContestDao().GetContestViewRank(ctx, id)
 	if err != nil {
 		return nil, nil, nil, err
 	}

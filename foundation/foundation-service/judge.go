@@ -123,22 +123,22 @@ func (s *JudgeService) GetJudgeList(
 			if contest == nil {
 				return nil, 0, nil
 			}
-			if len(contest.Problems) > 0 {
-				problemMap := make(map[string]int)
-				for _, problem := range contest.Problems {
-					if problem.ProblemId != "" {
-						problemMap[problem.ProblemId] = problem.Index
-					}
-				}
-				for _, judgeJob := range judgeJobs {
-					if judgeJob.ProblemId != "" {
-						judgeJob.ContestProblemIndex = problemMap[judgeJob.ProblemId]
-					}
-				}
-			}
+			problemMap := make(map[string]int)
 			for _, judgeJob := range judgeJobs {
-				// 隐藏真实的ProblemId
-				judgeJob.ProblemId = ""
+				if judgeJob.ProblemId != "" {
+					if index, ok := problemMap[judgeJob.ProblemId]; ok {
+						judgeJob.ContestProblemIndex = index
+						continue
+					}
+					index, err := foundationdao.GetContestDao().GetProblemIndex(ctx, contestId, judgeJob.ProblemId)
+					if err != nil {
+						return nil, 0, err
+					}
+					judgeJob.ContestProblemIndex = index
+					problemMap[judgeJob.ProblemId] = index
+
+					judgeJob.ProblemId = ""
+				}
 			}
 
 			//计算锁榜来隐藏结果信息

@@ -84,8 +84,6 @@ type ContestViewLock struct {
 
 	AlwaysLock       bool           `json:"always_lock" bson:"always_lock"`                                   // 比赛结束后是否锁定排名，如果锁定则需要手动关闭（关闭时此值设为false）
 	LockRankDuration *time.Duration `json:"lock_rank_duration,omitempty" bson:"lock_rank_duration,omitempty"` // 比赛结束前锁定排名的时长，空则不锁榜，锁榜期间榜单仅展示尝试次数，ACM模式下只可以查看自己的提交结果，OI模式下无法查看所有的提交结果
-
-	Problems []*ContestProblem `json:"problems,omitempty" bson:"problems,omitempty"`
 }
 
 type ContestBuilder struct {
