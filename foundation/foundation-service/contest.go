@@ -6,7 +6,6 @@ import (
 	"foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
-	metatime "meta/meta-time"
 	"meta/singleton"
 	"time"
 )
@@ -299,21 +298,21 @@ func (s *ContestService) InsertContest(ctx context.Context, contest *foundationm
 	return foundationdao.GetContestDao().InsertContest(ctx, contest)
 }
 
-func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
+func (s *ContestService) GetContestRanks(ctx context.Context, id int, nowTime time.Time) (
 	*foundationmodel.ContestViewRank,
 	[]int,
 	[]*foundationmodel.ContestRank,
+	bool,
 	error,
 ) {
 	contest, err := foundationdao.GetContestDao().GetContestViewRank(ctx, id)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	problemMap := make(map[string]int)
 	for _, problem := range contest.Problems {
 		problemMap[problem.ProblemId] = problem.Index
 	}
-	nowTime := metatime.GetTimeNow()
 
 	isEnd := nowTime.After(contest.EndTime)
 	hasLockDuration := contest.LockRankDuration != nil && *contest.LockRankDuration > 0
@@ -336,7 +335,7 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
 		problemMap,
 	)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, isLocked, err
 	}
 	if len(contestRanks) > 0 {
 		var userIds []int
@@ -345,7 +344,7 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
 		}
 		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, isLocked, err
 		}
 		userMap := make(map[int]*foundationmodel.UserAccountInfo)
 		for _, user := range users {
@@ -364,7 +363,7 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int) (
 	}
 	// 隐藏题目详细信息
 	contest.Problems = nil
-	return contest, problemIndexes, contestRanks, nil
+	return contest, problemIndexes, contestRanks, isLocked, nil
 }
 
 func (s *ContestService) UpdateContest(ctx *gin.Context, id int, contest *foundationmodel.Contest) error {

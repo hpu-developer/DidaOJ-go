@@ -250,27 +250,36 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 		return
 	}
 
+	nowTime := metatime.GetTimeNow()
+
 	var contest *foundationmodel.ContestViewRank
 	var problems []int
+	var isLocked bool
 	var ranks []*foundationmodel.ContestRank
-	if hasAuth {
-		contest, problems, ranks, err = foundationservice.GetContestService().GetContestRanks(ctx, contestId)
-		if err != nil {
-			metaresponse.NewResponseError(ctx, err)
-			return
-		}
-		if contest == nil {
-			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
-			return
-		}
+	contest, problems, ranks, isLocked, err = foundationservice.GetContestService().GetContestRanks(
+		ctx,
+		contestId,
+		nowTime,
+	)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if contest == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
 	}
 	responseData := struct {
 		HasAuth  bool                             `json:"has_auth"`
+		Now      time.Time                        `json:"now"`
+		IsLocked bool                             `json:"is_locked"` // 是否锁榜状态
 		Contest  *foundationmodel.ContestViewRank `json:"contest"`
 		Problems []int                            `json:"problems"` // 题目索引列表
 		Ranks    []*foundationmodel.ContestRank   `json:"ranks"`
 	}{
 		HasAuth:  true,
+		Now:      nowTime,
+		IsLocked: isLocked,
 		Contest:  contest,
 		Problems: problems,
 		Ranks:    ranks,
