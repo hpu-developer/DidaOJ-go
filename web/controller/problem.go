@@ -107,6 +107,8 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 		// 比赛时隐藏一些信息
 		problem.Id = ""
 		problem.Source = ""
+		problem.Accept = 0
+		problem.Attempt = 0
 		problem.OriginOj = nil
 		problem.OriginId = nil
 		problem.OriginUrl = nil

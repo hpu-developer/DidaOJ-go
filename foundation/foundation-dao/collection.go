@@ -53,6 +53,23 @@ func (d *CollectionDao) HasCollectionTitle(ctx *gin.Context, ownerId int, title 
 	return count > 0, nil
 }
 
+func (d *CollectionDao) CheckJoinAuth(ctx *gin.Context, collectionId int, userId int) (bool, error) {
+	filter := bson.D{
+		{"_id", collectionId},
+		{
+			"$or", bson.A{
+				bson.D{{"owner_id", userId}},
+				bson.D{{"private", bson.M{"$exists": false}}},
+			},
+		},
+	}
+	count, err := d.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (d *CollectionDao) GetCollection(ctx context.Context, id int) (*foundationmodel.Collection, error) {
 	filter := bson.M{
 		"_id": id,
@@ -255,6 +272,40 @@ func (d *CollectionDao) GetCollectionRankView(ctx context.Context, id int) (
 		return nil, metaerror.Wrap(err, "find collection error")
 	}
 	return &collection, nil
+}
+
+func (d *CollectionDao) PostJoin(ctx *gin.Context, collectionId int, userId int) error {
+	filter := bson.D{
+		{"_id", collectionId},
+	}
+	update := bson.M{
+		"$addToSet": bson.M{"members": userId},
+	}
+	result, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update collection members")
+	}
+	if result.MatchedCount == 0 {
+		return metaerror.New("collection not found")
+	}
+	return nil
+}
+
+func (d *CollectionDao) PostQuit(ctx *gin.Context, collectionId int, userId int) error {
+	filter := bson.D{
+		{"_id", collectionId},
+	}
+	update := bson.M{
+		"$pull": bson.M{"members": userId},
+	}
+	result, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update collection members")
+	}
+	if result.MatchedCount == 0 {
+		return metaerror.New("collection not found")
+	}
+	return nil
 }
 
 func (d *CollectionDao) UpdateCollection(

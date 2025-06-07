@@ -150,7 +150,14 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 			}
 		}
 		if userId > 0 {
-			problemStatus, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(ctx, problemIds, userId, id)
+			problemStatus, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
+				ctx,
+				problemIds,
+				userId,
+				id,
+				&contest.StartTime,
+				&contest.EndTime,
+			)
 			if err != nil {
 				return nil, false, false, nil, err
 			}
@@ -236,7 +243,14 @@ func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, i
 		for _, problem := range problems {
 			problemIds = append(problemIds, problem.ProblemId)
 		}
-		attemptStatuses, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(ctx, problemIds, userId, id)
+		attemptStatuses, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
+			ctx,
+			problemIds,
+			userId,
+			id,
+			nil,
+			nil,
+		)
 		if err != nil {
 			return nil, nil, err
 		}

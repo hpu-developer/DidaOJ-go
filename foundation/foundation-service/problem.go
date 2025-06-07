@@ -172,7 +172,7 @@ func (s *ProblemService) GetProblemListWithUser(
 	for _, problem := range problemList {
 		problemIds = append(problemIds, problem.Id)
 	}
-	problemStatus, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(ctx, problemIds, userId, -1)
+	problemStatus, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(ctx, problemIds, userId, -1, nil, nil)
 	if err != nil {
 		return nil, 0, nil, err
 	}

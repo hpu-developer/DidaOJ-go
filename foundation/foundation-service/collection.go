@@ -7,6 +7,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
+	"slices"
 	"time"
 )
 
@@ -23,7 +24,7 @@ func GetCollectionService() *CollectionService {
 	)
 }
 
-func (s *CollectionService) CheckUserAuth(ctx *gin.Context, collectionId int) (
+func (s *CollectionService) CheckEditAuth(ctx *gin.Context, collectionId int) (
 	int,
 	bool,
 	error,
@@ -47,30 +48,55 @@ func (s *CollectionService) CheckUserAuth(ctx *gin.Context, collectionId int) (
 	return userId, true, nil
 }
 
+func (s *CollectionService) CheckJoinAuth(ctx *gin.Context, collectionId int) (
+	int,
+	bool,
+	error,
+) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageCollection)
+	if err != nil {
+		return userId, false, err
+	}
+	if userId <= 0 {
+		return userId, false, nil
+	}
+	if !hasAuth {
+		hasAuth, err = foundationdao.GetCollectionDao().CheckJoinAuth(ctx, collectionId, userId)
+		if err != nil {
+			return userId, false, err
+		}
+	}
+	return userId, hasAuth, nil
+}
+
 func (s *CollectionService) HasCollectionTitle(ctx *gin.Context, id int, title string) (bool, error) {
 	return foundationdao.GetCollectionDao().HasCollectionTitle(ctx, id, title)
 }
 
-func (s *CollectionService) GetCollection(ctx context.Context, id int) (
+func (s *CollectionService) GetCollection(ctx context.Context, id int, userId int) (
 	*foundationmodel.Collection,
 	[]*foundationmodel.CollectionProblem,
+	bool,
+	map[string]foundationmodel.ProblemAttemptStatus,
 	error,
 ) {
 	collection, err := foundationdao.GetCollectionDao().GetCollection(ctx, id)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, nil, err
 	}
 	if collection == nil {
-		return nil, nil, nil
+		return nil, nil, false, nil, nil
 	}
 	ownerUser, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, collection.OwnerId)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, nil, err
 	}
 	collection.OwnerUsername = &ownerUser.Username
 	collection.OwnerNickname = &ownerUser.Nickname
 
+	joined := false
 	var collectionProblemList []*foundationmodel.CollectionProblem
+	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
 	if len(collection.Problems) > 0 {
 		collectionProblems := map[string]*foundationmodel.CollectionProblem{}
 		for _, problem := range collection.Problems {
@@ -84,13 +110,27 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int) (
 		}
 		problems, err := foundationdao.GetProblemDao().GetProblemListTitle(ctx, problemIds)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, false, nil, err
 		}
 		for _, problem := range problems {
 			if collectionProblem, ok := collectionProblems[problem.Id]; ok {
 				collectionProblem.Title = &problem.Title
 			}
 		}
+		if userId > 0 {
+			problemStatus, err = foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
+				ctx,
+				problemIds,
+				userId,
+				-1,
+				collection.StartTime,
+				collection.EndTime,
+			)
+			if err != nil {
+				return nil, nil, false, nil, err
+			}
+		}
+
 		var judgeAccepts []*foundationmodel.ProblemViewAttempt
 		if len(collection.Members) > 0 {
 			judgeAccepts, err = foundationdao.GetJudgeJobDao().GetProblemTimeViewAttempt(
@@ -101,7 +141,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int) (
 				collection.Members,
 			)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, false, nil, err
 			}
 			for _, judgeAccept := range judgeAccepts {
 				if collectionProblem, ok := collectionProblems[judgeAccept.Id]; ok {
@@ -109,6 +149,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int) (
 					collectionProblem.Attempt = judgeAccept.Attempt
 				}
 			}
+			joined = slices.Contains(collection.Members, userId)
 			// 不需要返回全部信息
 			collection.Members = nil
 		}
@@ -116,7 +157,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int) (
 			collectionProblemList = append(collectionProblemList, collectionProblems[problem])
 		}
 	}
-	return collection, collectionProblemList, err
+	return collection, collectionProblemList, joined, problemStatus, err
 }
 
 func (s *CollectionService) GetCollectionEdit(ctx context.Context, id int) (
@@ -226,6 +267,14 @@ func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
 		}
 	}
 	return collectionView.StartTime, collectionView.EndTime, len(collectionView.Problems), collectionRanks, nil
+}
+
+func (s *CollectionService) PostJoin(ctx *gin.Context, collectionId int, userId int) error {
+	return foundationdao.GetCollectionDao().PostJoin(ctx, collectionId, userId)
+}
+
+func (s *CollectionService) PostQuit(ctx *gin.Context, collectionId int, userId int) error {
+	return foundationdao.GetCollectionDao().PostQuit(ctx, collectionId, userId)
 }
 
 func (s *CollectionService) UpdateCollection(ctx *gin.Context, id int, collection *foundationmodel.Collection) error {

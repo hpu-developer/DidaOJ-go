@@ -35,7 +35,8 @@ func (c *CollectionController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	collection, problems, err := collectionService.GetCollection(ctx, id)
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	collection, problems, joined, attemptStatus, err := collectionService.GetCollection(ctx, id, userId)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -45,11 +46,15 @@ func (c *CollectionController) Get(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Collection *foundationmodel.Collection          `json:"collection"`
-		Problems   []*foundationmodel.CollectionProblem `json:"problems"` // 题目列表
+		Collection    *foundationmodel.Collection                     `json:"collection"`
+		Problems      []*foundationmodel.CollectionProblem            `json:"problems"`                 // 题目列表
+		Joined        bool                                            `json:"joined"`                   // 是否已加入
+		AttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"` // 尝试状态，如果已加入则返回
 	}{
-		Collection: collection,
-		Problems:   problems,
+		Collection:    collection,
+		Problems:      problems,
+		Joined:        joined,
+		AttemptStatus: attemptStatus,
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
@@ -67,7 +72,7 @@ func (c *CollectionController) GetEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	_, hasAuth, err := collectionService.CheckUserAuth(ctx, id)
+	_, hasAuth, err := collectionService.CheckEditAuth(ctx, id)
 	if err != nil {
 		metapanic.ProcessError(err)
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -260,7 +265,7 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	_, hasAuth, err := foundationservice.GetCollectionService().CheckUserAuth(ctx, requestData.Id)
+	_, hasAuth, err := foundationservice.GetCollectionService().CheckEditAuth(ctx, requestData.Id)
 	if err != nil {
 		metapanic.ProcessError(err)
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -324,4 +329,59 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, collection.UpdateTime)
+}
+
+func (c *CollectionController) PostJoin(ctx *gin.Context) {
+	var requestData struct {
+		Id int `json:"id" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	collectionId := requestData.Id
+	collectionService := foundationservice.GetCollectionService()
+	userId, hasAuth, err := collectionService.CheckJoinAuth(ctx, collectionId)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	err = collectionService.PostJoin(ctx, collectionId, userId)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+}
+
+func (c *CollectionController) PostQuit(ctx *gin.Context) {
+	var requestData struct {
+		Id int `json:"id" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NeedLogin, nil)
+		return
+	}
+	if userId <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NeedLogin, nil)
+		return
+	}
+	collectionId := requestData.Id
+	collectionService := foundationservice.GetCollectionService()
+	err = collectionService.PostQuit(ctx, collectionId, userId)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
 }
