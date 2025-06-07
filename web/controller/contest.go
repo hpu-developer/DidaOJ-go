@@ -375,6 +375,11 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		lockRankDuration = &lockRankDurationPtr
 	}
 
+	var password *string
+	if !metastring.IsEmpty(requestData.Password) {
+		password = requestData.Password
+	}
+
 	contest := foundationmodel.NewContestBuilder().
 		Title(requestData.Title).
 		Description(requestData.Description).
@@ -386,7 +391,7 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		UpdateTime(nowTime).
 		Problems(problems).
 		Private(private).
-		Password(requestData.Password).
+		Password(password).
 		Members(memberIds).
 		LockRankDuration(lockRankDuration).
 		AlwaysLock(requestData.AlwaysLock).
@@ -491,6 +496,11 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		lockRankDuration = &lockRankDurationPtr
 	}
 
+	var password *string
+	if !metastring.IsEmpty(requestData.Password) {
+		password = requestData.Password
+	}
+
 	contest := foundationmodel.NewContestBuilder().
 		Title(requestData.Title).
 		Description(requestData.Description).
@@ -502,7 +512,7 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		UpdateTime(nowTime).
 		Problems(problems).
 		Private(private).
-		Password(requestData.Password).
+		Password(password).
 		Members(memberIds).
 		LockRankDuration(lockRankDuration).
 		AlwaysLock(requestData.AlwaysLock).

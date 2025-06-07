@@ -105,7 +105,7 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 	contest.OwnerNickname = &ownerUser.Nickname
 
 	hasAuth := true
-	needPassword := contest.Password != nil
+	needPassword := contest.Password != nil && *contest.Password != ""
 	contest.Password = nil
 
 	var userId int
