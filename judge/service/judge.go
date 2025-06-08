@@ -238,7 +238,11 @@ func (s *JudgeService) handleStart() error {
 		return nil
 	}
 	ctx := context.Background()
-	jobs, err := foundationdao.GetJudgeJobDao().RequestJudgeJobListPendingJudge(ctx, maxJob, config.GetConfig().Judger.Key)
+	jobs, err := foundationdao.GetJudgeJobDao().RequestJudgeJobListPendingJudge(
+		ctx,
+		maxJob,
+		config.GetConfig().Judger.Key,
+	)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to get judge job list")
 	}
@@ -252,22 +256,28 @@ func (s *JudgeService) handleStart() error {
 	s.runningTasks.Add(int32(jobsCount))
 
 	for _, job := range jobs {
-		routine.SafeGo(fmt.Sprintf("RunningJudgeJob_%d", job.Id), func() error {
-			defer func() {
-				slog.Info(fmt.Sprintf("JudgeTask_%d end", job.Id))
-				s.runningTasks.Add(-1)
-			}()
-			slog.Info(fmt.Sprintf("JudgeTask_%d start", job.Id))
-			err = s.startJudgeTask(job)
-			if err != nil {
-				markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, foundationjudge.JudgeStatusJudgeFail)
-				if markErr != nil {
-					metapanic.ProcessError(markErr)
+		routine.SafeGo(
+			fmt.Sprintf("RunningJudgeJob_%d", job.Id), func() error {
+				defer func() {
+					slog.Info(fmt.Sprintf("JudgeTask_%d end", job.Id))
+					s.runningTasks.Add(-1)
+				}()
+				slog.Info(fmt.Sprintf("JudgeTask_%d start", job.Id))
+				err = s.startJudgeTask(job)
+				if err != nil {
+					markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(
+						ctx,
+						job.Id,
+						foundationjudge.JudgeStatusJudgeFail,
+					)
+					if markErr != nil {
+						metapanic.ProcessError(markErr)
+					}
+					return err
 				}
-				return err
-			}
-			return nil
-		})
+				return nil
+			},
+		)
 	}
 	return nil
 }
@@ -389,24 +399,26 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 	var mu sync.Mutex
 	var downloadErr error
 
-	err = r2Client.ListObjectsV2PagesWithContext(ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
-		for _, obj := range page.Contents {
-			wg.Add(1)
-			go func(obj *s3.Object) {
-				defer wg.Done()
-				localPath := path.Join(".judge_data", *obj.Key)
-				err := s.downloadObject(ctx, r2Client, "didaoj-judge", *obj.Key, localPath)
-				if err != nil {
-					mu.Lock()
-					if downloadErr == nil {
-						downloadErr = err
+	err = r2Client.ListObjectsV2PagesWithContext(
+		ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+			for _, obj := range page.Contents {
+				wg.Add(1)
+				go func(obj *s3.Object) {
+					defer wg.Done()
+					localPath := path.Join(".judge_data", *obj.Key)
+					err := s.downloadObject(ctx, r2Client, "didaoj-judge", *obj.Key, localPath)
+					if err != nil {
+						mu.Lock()
+						if downloadErr == nil {
+							downloadErr = err
+						}
+						mu.Unlock()
 					}
-					mu.Unlock()
-				}
-			}(obj)
-		}
-		return true
-	})
+				}(obj)
+			}
+			return true
+		},
+	)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to list objects")
 	}
@@ -423,7 +435,12 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 }
 
 // 单独抽一个下载单个对象的方法
-func (s *JudgeService) downloadObject(ctx context.Context, s3Client *s3.S3, bucket, key string, localPath string) error {
+func (s *JudgeService) downloadObject(
+	ctx context.Context,
+	s3Client *s3.S3,
+	bucket, key string,
+	localPath string,
+) error {
 	getObjInput := &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
@@ -459,7 +476,11 @@ func (s *JudgeService) downloadObject(ctx context.Context, s3Client *s3.S3, buck
 	return nil
 }
 
-func (s *JudgeService) compileSpecialJudge(job *foundationmodel.JudgeJob, md5 string, jobConfig *foundationjudge.JudgeJobConfig) (string, error) {
+func (s *JudgeService) compileSpecialJudge(
+	job *foundationmodel.JudgeJob,
+	md5 string,
+	jobConfig *foundationjudge.JudgeJobConfig,
+) (string, error) {
 	problemId := job.ProblemId
 
 	specialFileId := s.getSpecialFileId(problemId)
@@ -498,7 +519,13 @@ func (s *JudgeService) compileSpecialJudge(job *foundationmodel.JudgeJob, md5 st
 		return "", metaerror.Wrap(err, "failed to read special judge code file")
 	}
 
-	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, language, codeContent, nil)
+	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
+		strconv.Itoa(job.Id),
+		runUrl,
+		language,
+		codeContent,
+		nil,
+	)
 	if extraMessage != "" {
 		slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
 	}
@@ -521,15 +548,22 @@ func (s *JudgeService) compileSpecialJudge(job *foundationmodel.JudgeJob, md5 st
 	return specialFileId, nil
 }
 
-func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (map[string]string, string, foundationjudge.JudgeStatus, error) {
+func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (
+	map[string]string,
+	string,
+	foundationjudge.JudgeStatus,
+	error,
+) {
 	goJudgeUrl := config.GetConfig().GoJudge.Url
 	runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
 	return foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, job.Language, job.Code, s.configFileIds)
 }
 
-func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.JudgeJob,
+func (s *JudgeService) runJudgeJob(
+	ctx context.Context, job *foundationmodel.JudgeJob,
 	problem *foundationmodel.Problem,
-	execFileIds map[string]string) error {
+	execFileIds map[string]string,
+) error {
 	problemId := job.ProblemId
 
 	timeLimit := problem.TimeLimit
@@ -599,9 +633,11 @@ func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.Jud
 				hasInFiles[metapath.GetBaseName(file.Name())] = true
 			}
 		}
-		sort.Slice(outFileNames, func(i, j int) bool {
-			return outFileNames[i] < outFileNames[j]
-		})
+		sort.Slice(
+			outFileNames, func(i, j int) bool {
+				return outFileNames[i] < outFileNames[j]
+			},
+		)
 		totalScore := 100
 		averageScore := totalScore / len(outFileNames)
 		for i, file := range outFileNames {
@@ -651,7 +687,20 @@ func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.Jud
 	finalScore := 0
 
 	for _, taskConfig := range jobConfig.Tasks {
-		finalStatus, sumTime, sumMemory, finalScore, err = s.runJudgeTask(ctx, job, taskConfig, cpuLimit, memoryLimit, sumTime, sumMemory, finalScore, specialFileId, judgeDataDir, execFileIds, finalStatus)
+		finalStatus, sumTime, sumMemory, finalScore, err = s.runJudgeTask(
+			ctx,
+			job,
+			taskConfig,
+			cpuLimit,
+			memoryLimit,
+			sumTime,
+			sumMemory,
+			finalScore,
+			specialFileId,
+			judgeDataDir,
+			execFileIds,
+			finalStatus,
+		)
 		if err != nil {
 			return metaerror.Wrap(err, "failed to run task")
 		}
@@ -666,7 +715,8 @@ func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.Jud
 		finalMemory = sumMemory / taskCount
 	}
 
-	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(ctx, job.Id,
+	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(
+		ctx, job.Id,
 		finalStatus,
 		problemId,
 		job.AuthorId,
@@ -678,7 +728,8 @@ func (s *JudgeService) runJudgeJob(ctx context.Context, job *foundationmodel.Jud
 	return err
 }
 
-func (s *JudgeService) runJudgeTask(ctx context.Context,
+func (s *JudgeService) runJudgeTask(
+	ctx context.Context,
 	job *foundationmodel.JudgeJob,
 	taskConfig *foundationjudge.JudgeTaskConfig,
 	cpuLimit int, memoryLimit int,
@@ -852,7 +903,10 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 		if markErr != nil {
 			metapanic.ProcessError(markErr)
 		}
-		return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected response length: %d", len(responseDataList))
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.New(
+			"unexpected response length: %d",
+			len(responseDataList),
+		)
 	}
 	responseData := responseDataList[0]
 
@@ -910,10 +964,10 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 		for i := 0; i < len(outContentMyPe); i++ {
 			if i < len(ansContentMyPe) {
 				if outContentMyPe[i] != ansContentMyPe[i] {
-					WaHint = fmt.Sprintf("%s != %s", outContentMyPe[i], ansContentMyPe[i])
+					WaHint = fmt.Sprintf("#%d %s != %s", i+1, outContentMyPe[i], ansContentMyPe[i])
 				}
 			} else {
-				WaHint = fmt.Sprintf("%s not found", outContentMyPe[i])
+				WaHint = fmt.Sprintf("#%d %s not found", i+1, outContentMyPe[i])
 				break
 			}
 		}
@@ -986,7 +1040,10 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
-			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected status code: %d", specialResp.StatusCode)
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New(
+				"unexpected status code: %d",
+				specialResp.StatusCode,
+			)
 		}
 		var specialRespDataList []struct {
 			Status     gojudge.Status `json:"status"`
@@ -1011,7 +1068,10 @@ func (s *JudgeService) runJudgeTask(ctx context.Context,
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
-			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected response length: %d", len(specialRespDataList))
+			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New(
+				"unexpected response length: %d",
+				len(specialRespDataList),
+			)
 		}
 		specialRespData := specialRespDataList[0]
 
