@@ -35,7 +35,7 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	_, hasAuth, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
+	_, hasAuth, contest, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -53,6 +53,16 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
+	if judgeJob.ContestId > 0 {
+		// 比赛中隐藏具体检测任务
+		judgeJob.Task = nil
+		if contest.Type == foundationmodel.ContestTypeAcm {
+			// IOI模式之外隐藏分数信息
+			if judgeJob.Score < 100 {
+				judgeJob.Score = 0
+			}
+		}
+	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, judgeJob)
 }
 
@@ -68,7 +78,7 @@ func (c *JudgeController) GetCode(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	_, hasAuth, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
+	_, hasAuth, _, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

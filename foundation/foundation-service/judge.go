@@ -29,31 +29,33 @@ func GetJudgeService() *JudgeService {
 func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 	int,
 	bool,
+	*foundationmodel.ContestViewLock,
 	error,
 ) {
 	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageJudge)
 	if err != nil {
-		return userId, false, err
+		return userId, false, nil, err
 	}
 	judgeAuth, err := foundationdao.GetJudgeJobDao().GetJudgeJobViewAuth(ctx, id)
 	if err != nil {
-		return userId, false, err
+		return userId, false, nil, err
 	}
 	if judgeAuth == nil {
-		return userId, false, nil
+		return userId, false, nil, nil
 	}
 	if !hasAuth {
 		if judgeAuth.Private {
 			if judgeAuth.AuthorId != userId {
-				return userId, false, nil
+				return userId, false, nil, nil
 			}
 		}
 	}
 	// 如果在比赛中，则以比赛中的权限为准进行一次拦截，即使具有管理源码的权限也无效
+	var contest *foundationmodel.ContestViewLock
 	if judgeAuth.ContestId > 0 {
-		contest, err := foundationdao.GetContestDao().GetContestViewLock(ctx, judgeAuth.ContestId)
+		contest, err = foundationdao.GetContestDao().GetContestViewLock(ctx, judgeAuth.ContestId)
 		if err != nil {
-			return userId, false, err
+			return userId, false, contest, err
 		}
 		nowTime := metatime.GetTimeNow()
 		hasStatusAuth, hasDetailAuth := s.isContestJudgeHasViewAuth(
@@ -63,10 +65,10 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 			&judgeAuth.ApproveTime,
 		)
 		if !hasStatusAuth || !hasDetailAuth {
-			return userId, false, nil
+			return userId, false, contest, nil
 		}
 	}
-	return userId, true, nil
+	return userId, true, contest, nil
 }
 
 func (s *JudgeService) GetJudge(ctx context.Context, id int) (*foundationmodel.JudgeJob, error) {
@@ -194,7 +196,7 @@ func (s *JudgeService) GetJudgeList(
 
 			// 隐藏部分信息
 			for _, judgeJob := range judgeJobs {
-				if contest.Type != foundationmodel.ContestTypeIoi {
+				if contest.Type == foundationmodel.ContestTypeAcm {
 					// IOI模式之外隐藏分数信息
 					if judgeJob.Score < 100 {
 						judgeJob.Score = 0
