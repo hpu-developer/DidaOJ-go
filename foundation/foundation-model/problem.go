@@ -8,9 +8,9 @@ import (
 type ProblemAttemptStatus int
 
 var (
-	ProblemAttemptStatusNone      ProblemAttemptStatus = 0
-	ProblemAttemptStatusAttempt   ProblemAttemptStatus = 1
-	ProblemAttemptStatusWAccepted ProblemAttemptStatus = 2
+	ProblemAttemptStatusNone     ProblemAttemptStatus = 0
+	ProblemAttemptStatusAttempt  ProblemAttemptStatus = 1
+	ProblemAttemptStatusAccepted ProblemAttemptStatus = 2
 )
 
 type ProblemAuth int
