@@ -2,6 +2,7 @@ package foundationdao
 
 import (
 	"context"
+	"errors"
 	foundationmodel "foundation/foundation-model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -40,27 +41,14 @@ func (d *JudgerDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
-func (d *JudgerDao) UpdateJudger(ctx context.Context, judger *foundationmodel.Judger) error {
-	filter := bson.D{
-		{"_id", judger.Key},
-	}
-	update := bson.M{
-		"$set": judger,
-	}
-	updateOptions := options.Update().SetUpsert(true)
-	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to update judger")
-	}
-	return nil
-}
-
 func (d *JudgerDao) GetJudgers(ctx context.Context) ([]*foundationmodel.Judger, error) {
 	filter := bson.M{}
 	opts := options.Find().
-		SetSort(bson.D{
-			{"_id", 1},
-		})
+		SetSort(
+			bson.D{
+				{"_id", 1},
+			},
+		)
 	// 查询当前页的数据
 	cursor, err := d.collection.Find(ctx, filter, opts)
 	if err != nil {
@@ -77,4 +65,42 @@ func (d *JudgerDao) GetJudgers(ctx context.Context) ([]*foundationmodel.Judger, 
 		return nil, metaerror.Wrap(err, "failed to decode cursor")
 	}
 	return list, nil
+}
+
+func (d *JudgerDao) GetJudgerName(ctx context.Context, judger string) (*string, error) {
+	filter := bson.D{
+		{"_id", judger},
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.D{
+				{"name", 1},
+			},
+		)
+	var result struct {
+		Name string `bson:"name"`
+	}
+	err := d.collection.FindOne(ctx, filter, opts).Decode(&result)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil // No judger found
+		}
+		return nil, metaerror.Wrap(err, "failed to find judger")
+	}
+	return &result.Name, nil
+}
+
+func (d *JudgerDao) UpdateJudger(ctx context.Context, judger *foundationmodel.Judger) error {
+	filter := bson.D{
+		{"_id", judger.Key},
+	}
+	update := bson.M{
+		"$set": judger,
+	}
+	updateOptions := options.Update().SetUpsert(true)
+	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update judger")
+	}
+	return nil
 }

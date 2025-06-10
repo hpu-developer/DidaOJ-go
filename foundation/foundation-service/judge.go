@@ -79,6 +79,11 @@ func (s *JudgeService) GetJudge(ctx context.Context, id int) (*foundationmodel.J
 	if judgeJob == nil {
 		return nil, nil
 	}
+	judgerName, err := foundationdao.GetJudgerDao().GetJudgerName(ctx, judgeJob.Judger)
+	if err != nil {
+		return nil, err
+	}
+	judgeJob.JudgerName = judgerName
 	user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, judgeJob.AuthorId)
 	if err != nil {
 		return nil, err

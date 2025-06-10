@@ -1,14 +1,9 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	foundationdao "foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
-	foundationstatus "foundation/foundation-status"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"judge/config"
 	"log/slog"
 	cfr2 "meta/cf-r2"
@@ -37,16 +32,10 @@ func GetStatusService() *StatusService {
 }
 
 func (s *StatusService) Start() error {
-	ctx := context.Background()
-
-	err := s.registerJudger(ctx)
-	if err != nil {
-		return err
-	}
 
 	c := cron.NewWithSeconds()
 	// 每3秒运行一次任务
-	_, err = c.AddFunc(
+	_, err := c.AddFunc(
 		"0/3 * * * * ?", func() {
 			err := s.handleStart()
 			if err != nil {
@@ -92,7 +81,8 @@ func (s *StatusService) handleStart() error {
 	}
 
 	// 构建 Judger 状态 JSON 数据
-	statusJsonData := foundationstatus.NewJudgerStatusBuilder().
+	judgerData := foundationmodel.NewJudgerBuilder().
+		Key(config.GetConfig().Judger.Key).
 		Name(config.GetConfig().Judger.Name).
 		CpuUsage(cpuUsage).
 		MemUsage(memoryUsed).
@@ -100,63 +90,14 @@ func (s *StatusService) handleStart() error {
 		AvgMessage(avgMessage).
 		UpdateTime(nowTime).
 		Build()
-	statusBytes, err := json.Marshal(statusJsonData)
+
+	err = foundationdao.GetJudgerDao().UpdateJudger(ctx, judgerData)
 	if err != nil {
-		return metaerror.Wrap(err, "marshal status json failed")
-	}
-	key := "status/judger/" + config.GetConfig().Judger.Key + ".json"
-	_, err = r2Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String("didapipa-oj"),
-		Key:         aws.String(key),
-		Body:        bytes.NewReader(statusBytes),
-		ContentType: aws.String("application/json"),
-	})
-	if err != nil {
-		return metaerror.Wrap(err, "put object error, key: %s", key)
+		return err
 	}
 	return nil
 }
 
 func (s *StatusService) IsReportError() bool {
 	return s.isReportError
-}
-
-func (s *StatusService) registerJudger(ctx context.Context) error {
-	judger := foundationmodel.NewJudgerBuilder().
-		Key(config.GetConfig().Judger.Key).
-		Name(config.GetConfig().Judger.Name).
-		Build()
-	err := foundationdao.GetJudgerDao().UpdateJudger(ctx, judger)
-	if err != nil {
-		return err
-	}
-	judgers, err := foundationdao.GetJudgerDao().GetJudgers(ctx)
-	if err != nil {
-		return err
-	}
-	judgerJsonData := struct {
-		Judgers []*foundationmodel.Judger `json:"judgers"`
-	}{
-		Judgers: judgers,
-	}
-	// 上传到R2
-	r2Client := cfr2.GetSubsystem().GetClient("didapipa-oj")
-	if r2Client == nil {
-		return metaerror.New("r2Client is nil")
-	}
-	statusBytes, err := json.Marshal(judgerJsonData)
-	if err != nil {
-		return metaerror.Wrap(err, "marshal status json failed")
-	}
-	key := "status/judger.json"
-	_, err = r2Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String("didapipa-oj"),
-		Key:         aws.String(key),
-		Body:        bytes.NewReader(statusBytes),
-		ContentType: aws.String("application/json"),
-	})
-	if err != nil {
-		return metaerror.Wrap(err, "put object error, key: %s", key)
-	}
-	return nil
 }
