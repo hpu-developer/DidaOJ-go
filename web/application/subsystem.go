@@ -8,10 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	cfr2 "meta/cf-r2"
-	"meta/cron"
 	"meta/engine"
 	metaerror "meta/meta-error"
-	metapanic "meta/meta-panic"
 	metasystem "meta/meta-system"
 	"meta/subsystem"
 	"time"
@@ -42,24 +40,24 @@ func (s *Subsystem) Start() error {
 
 func (s *Subsystem) startSubSystem() error {
 
-	var err error
-
-	c := cron.NewWithSeconds()
-	// 每3秒运行一次任务
-	_, err = c.AddFunc(
-		"0/3 * * * * ?", func() {
-			err := s.handleStart()
-			if err != nil {
-				metapanic.ProcessError(err)
-				return
-			}
-		},
-	)
-	if err != nil {
-		return metaerror.Wrap(err, "error adding function to cron")
-	}
-
-	c.Start()
+	//var err error
+	//
+	//c := cron.NewWithSeconds()
+	//// 每3秒运行一次任务
+	//_, err = c.AddFunc(
+	//	"0/3 * * * * ?", func() {
+	//		err := s.handleStart()
+	//		if err != nil {
+	//			metapanic.ProcessError(err)
+	//			return
+	//		}
+	//	},
+	//)
+	//if err != nil {
+	//	return metaerror.Wrap(err, "error adding function to cron")
+	//}
+	//
+	//c.Start()
 
 	return nil
 }
@@ -101,12 +99,14 @@ func (s *Subsystem) handleStart() error {
 		return metaerror.Wrap(err, "marshal status json failed")
 	}
 	key := "status/web.json"
-	_, err = r2Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String("didapipa-oj"),
-		Key:         aws.String(key),
-		Body:        bytes.NewReader(statusBytes),
-		ContentType: aws.String("application/json"),
-	})
+	_, err = r2Client.PutObjectWithContext(
+		ctx, &s3.PutObjectInput{
+			Bucket:      aws.String("didapipa-oj"),
+			Key:         aws.String(key),
+			Body:        bytes.NewReader(statusBytes),
+			ContentType: aws.String("application/json"),
+		},
+	)
 	if err != nil {
 		return metaerror.Wrap(err, "put object error, key: %s", key)
 	}
