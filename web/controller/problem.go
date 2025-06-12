@@ -402,6 +402,11 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, urlStr)
 }
 
+func (s *ProblemController) GetImageToken(ctx *gin.Context) {
+
+	metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+}
+
 func (c *ProblemController) PostParse(ctx *gin.Context) {
 	var requestData struct {
 		Problems []string `json:"problems" binding:"required"`
