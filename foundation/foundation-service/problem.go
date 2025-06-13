@@ -88,6 +88,13 @@ func (s *ProblemService) GetProblemIdByContest(ctx *gin.Context, contestId int, 
 	return foundationdao.GetContestDao().GetProblemIdByContest(ctx, contestId, problemIndex)
 }
 
+func (s *ProblemService) GetProblemDescription(
+	ctx context.Context,
+	id string,
+) (*string, error) {
+	return foundationdao.GetProblemDao().GetProblemDescription(ctx, id)
+}
+
 func (s *ProblemService) GetProblemJudge(ctx context.Context, id string) (*foundationmodel.Problem, error) {
 	problem, err := foundationdao.GetProblemDao().GetProblemJudge(ctx, id)
 	if err != nil {

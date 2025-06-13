@@ -299,6 +299,24 @@ func (d *ProblemDao) GetProblemJudge(ctx context.Context, id string) (*foundatio
 	return &problem, nil
 }
 
+func (d *ProblemDao) GetProblemDescription(ctx context.Context, id string) (*string, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"description": 1,
+		},
+	)
+	var problem struct {
+		Description *string `bson:"description"`
+	}
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
+		return nil, metaerror.Wrap(err, "find problem error")
+	}
+	return problem.Description, nil
+}
+
 func (d *ProblemDao) GetProblemList(
 	ctx context.Context,
 	oj string, title string, tags []int, private bool,

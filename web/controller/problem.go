@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
@@ -13,7 +14,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/mongo"
 	"gopkg.in/yaml.v3"
+	"log"
 	"log/slog"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
@@ -33,6 +36,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -203,7 +207,10 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 }
 
 func (c *ProblemController) GetRecommend(ctx *gin.Context) {
-	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
+		ctx,
+		foundationauth.AuthTypeManageProblem,
+	)
 	if err != nil {
 		metapanic.ProcessError(err)
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -402,9 +409,56 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, urlStr)
 }
 
-func (s *ProblemController) GetImageToken(ctx *gin.Context) {
+func (c *ProblemController) GetImageToken(ctx *gin.Context) {
+	id := ctx.Query("id")
+	if id == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	// 获取 R2 客户端
+	r2Client := cfr2.GetSubsystem().GetClient("didapipa-oj")
+	if r2Client == nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+	// 配置参数
+	bucketName := "didapipa-oj"
+	objectKey := fmt.Sprintf("uploading/%d_%s", time.Now().Unix(), uuid.New().String())
+
+	// 设置 URL 有效期
+	req, _ := r2Client.PutObjectRequest(
+		&s3.PutObjectInput{
+			Bucket: aws.String(bucketName),
+			Key:    aws.String(objectKey),
+		},
+	)
+
+	// 设置 URL 有效时间，例如 15 分钟
+	urlStr, err := req.Presign(15 * time.Minute)
+	if err != nil {
+		log.Printf("Failed to sign request: %v", err)
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	// 返回上传信息
+	metaresponse.NewResponse(
+		ctx, metaerrorcode.Success, gin.H{
+			"upload_url":  urlStr,
+			"preview_url": metahttp.UrlJoin("https://r2-oj.didapipa.com", objectKey),
+		},
+	)
 }
 
 func (c *ProblemController) PostParse(ctx *gin.Context) {
@@ -416,7 +470,10 @@ func (c *ProblemController) PostParse(ctx *gin.Context) {
 		return
 	}
 	problemList := requestData.Problems
-	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
+		ctx,
+		foundationauth.AuthTypeManageProblem,
+	)
 	if err != nil {
 		metapanic.ProcessError(err)
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -961,15 +1018,105 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
-	hasProblem, err := foundationservice.GetProblemService().HasProblem(ctx, requestData.Id)
+	problemId := requestData.Id
+	description := requestData.Description
+
+	oldDescription, err := foundationservice.GetProblemService().GetProblemDescription(ctx, problemId)
 	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+			return
+		}
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	if !hasProblem {
-		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+
+	bucketName := "didapipa-oj"
+	r2Client := cfr2.GetSubsystem().GetClient(bucketName)
+	if r2Client == nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
+
+	r2Url := config.GetConfig().R2Url
+
+	reg := regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
+	// 找到所有符合规范的图片
+	oldMatches := reg.FindAllStringSubmatch(*oldDescription, -1)
+	newMatches := reg.FindAllStringSubmatch(description, -1)
+
+	oldImageUrls := set.New[string]()
+	r2ImagePrefix := metahttp.UrlJoin(r2Url, "problem", problemId)
+	prefixUpdating := metahttp.UrlJoin(r2Url, "uploading")
+	for _, match := range oldMatches {
+		if len(match) > 1 {
+			imageURL := match[1]
+			if strings.HasPrefix(imageURL, r2ImagePrefix) {
+				oldImageUrls.Add(imageURL)
+			}
+		}
+	}
+	newImageUrls := set.New[string]()
+	for _, match := range newMatches {
+		if len(match) > 1 {
+			imageURL := match[1]
+			if strings.HasPrefix(imageURL, r2ImagePrefix) {
+				newImageUrls.Add(imageURL)
+			}
+		}
+	}
+	var needDeleteUrls []*s3.ObjectIdentifier
+	oldImageUrls.Foreach(
+		func(oldUrl *string) bool {
+			if !newImageUrls.Contains(*oldUrl) {
+				needDeleteUrls = append(
+					needDeleteUrls, &s3.ObjectIdentifier{
+						Key: aws.String(strings.TrimPrefix(strings.TrimPrefix(*oldUrl, r2Url), "/")),
+					},
+				)
+			}
+			return true
+		},
+	)
+	// 判断是否存在需要迁移的临时图片
+	var needUpdateUrls []string
+	for _, match := range newMatches {
+		if len(match) > 1 {
+			imageURL := match[1]
+			if strings.HasPrefix(imageURL, prefixUpdating) {
+				needUpdateUrls = append(needUpdateUrls, imageURL)
+			}
+		}
+	}
+	//把所有的needUpdateUrls替换为新的路径
+	var moveR2Urls map[string]string
+	if len(needUpdateUrls) > 0 {
+		moveR2Urls = make(map[string]string)
+		for _, oldUrl := range needUpdateUrls {
+			fileName := path.Base(oldUrl)
+			newUrl := metahttp.UrlJoin(r2Url, "problem", problemId, fileName)
+			description = strings.ReplaceAll(description, oldUrl, newUrl)
+			moveR2Urls[oldUrl] = newUrl
+		}
+	}
+	if len(needDeleteUrls) > 0 {
+		// 删除不再使用的图片
+		_, err = r2Client.DeleteObjects(
+			&s3.DeleteObjectsInput{
+				Bucket: aws.String(bucketName),
+				Delete: &s3.Delete{
+					Objects: needDeleteUrls,
+					Quiet:   aws.Bool(true),
+				},
+			},
+		)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+	}
+
+	requestData.Description = description
 
 	updateTime, err := foundationservice.GetProblemService().PostEdit(ctx, userId, &requestData)
 	if err != nil {
@@ -977,5 +1124,33 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, updateTime)
+	// 把所有的needUpdateUrls移动到新的路径
+	for _, imageUrl := range needUpdateUrls {
+		oldKey := strings.TrimPrefix(strings.TrimPrefix(imageUrl, r2Url), "/")
+		newKey := path.Join(
+			"problem", problemId,
+			strings.TrimPrefix(strings.TrimPrefix(oldKey, "uploading"), "/"),
+		)
+		// 生成预签名链接
+		_, err = r2Client.CopyObject(
+			&s3.CopyObjectInput{
+				Bucket:     aws.String(bucketName),
+				CopySource: aws.String(path.Join(bucketName, oldKey)),
+				Key:        aws.String(newKey),
+			},
+		)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "copy object error, oldKey: %s, newKey: %s", oldKey, newKey))
+			continue
+		}
+	}
+
+	responseData := struct {
+		Description string     `json:"description"`
+		UpdateTime  *time.Time `json:"update_time"`
+	}{
+		Description: description,
+		UpdateTime:  updateTime,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }

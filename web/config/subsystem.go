@@ -28,6 +28,8 @@ type Config struct {
 
 	CfR2 map[string]*cfr2.Config `yaml:"cf-r2"` // GoJudge 数据服务地址
 
+	R2Url string `yaml:"r2-url"` // 访问R2对象的地址
+
 	Email *metaemail.Config `yaml:"email"`
 
 	Template map[string]string `yaml:"template"`
