@@ -1,9 +1,15 @@
 package controller
 
 import (
+	"bytes"
+	"encoding/json"
+	foundationerrorcode "foundation/error-code"
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
+	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
 	"meta/error-code"
 	metaerror "meta/meta-error"
@@ -61,4 +67,53 @@ func (c *SystemController) GetStatus(ctx *gin.Context) {
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
+func (c *SystemController) PostNotification(ctx *gin.Context) {
+	var requestData struct {
+		Theme   string `json:"theme" binding:"required"`
+		Content string `json:"content" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		return
+	}
+	if requestData.Theme != "success" && requestData.Theme != "info" &&
+		requestData.Theme != "warning" && requestData.Theme != "error" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError)
+		return
+	}
+	r2Client := cfr2.GetSubsystem().GetClient("didapipa-oj")
+	if r2Client == nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+		return
+	}
+	// 构建 Judger 状态 JSON 数据
+	statusJsonData := struct {
+		Theme   string `json:"theme"`
+		Content string `json:"content"`
+	}{
+		Theme:   requestData.Theme,
+		Content: requestData.Content,
+	}
+	statusBytes, err := json.Marshal(statusJsonData)
+	if err != nil {
+		metapanic.ProcessError(metaerror.Wrap(err, "marshal status data failed"))
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+		return
+	}
+	key := "system/notification.json"
+	_, err = r2Client.PutObjectWithContext(
+		ctx, &s3.PutObjectInput{
+			Bucket:      aws.String("didapipa-oj"),
+			Key:         aws.String(key),
+			Body:        bytes.NewReader(statusBytes),
+			ContentType: aws.String("application/json"),
+		},
+	)
+	if err != nil {
+		metapanic.ProcessError(metaerror.Wrap(err, "put object to r2 failed"))
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }
