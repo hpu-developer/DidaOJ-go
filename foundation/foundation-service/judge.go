@@ -325,6 +325,13 @@ func (s *JudgeService) GetUserAcProblemIds(ctx context.Context, userId int) ([]s
 	return problemIds, nil
 }
 
+func (s *JudgeService) GetJudgeJobCountStaticsRecently(ctx context.Context) (
+	[]*foundationmodel.JudgeJobCountStatics,
+	error,
+) {
+	return foundationdao.GetJudgeJobDao().GetJudgeJobCountStaticsRecently(ctx)
+}
+
 func (s *JudgeService) UpdateJudge(ctx context.Context, id int, judgeJob *foundationmodel.JudgeJob) error {
 	return foundationdao.GetJudgeJobDao().UpdateJudgeJob(ctx, id, judgeJob)
 }

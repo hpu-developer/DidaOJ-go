@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationcontest "foundation/foundation-contest"
@@ -12,9 +13,11 @@ import (
 	metacontroller "meta/controller"
 	"meta/error-code"
 	metapanic "meta/meta-panic"
+	metaredis "meta/meta-redis"
 	"meta/meta-response"
 	metatime "meta/meta-time"
 	"strconv"
+	"time"
 	weberrorcode "web/error-code"
 	"web/request"
 )
@@ -183,6 +186,30 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		List:       list,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+func (c *JudgeController) GetStaticsRecently(ctx *gin.Context) {
+	codeKey := "judge_statics_recently"
+	redisClient := metaredis.GetSubsystem().GetClient()
+	cached, err := redisClient.Get(ctx, codeKey).Result()
+	if err == nil && cached != "" {
+		var statics interface{}
+		if err := json.Unmarshal([]byte(cached), &statics); err == nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.Success, statics)
+			return
+		}
+	}
+	judgeService := foundationservice.GetJudgeService()
+	statics, err := judgeService.GetJudgeJobCountStaticsRecently(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	// 缓存数据（序列化为 JSON）并设置 1 分钟过期
+	bytes, err := json.Marshal(statics)
+	if err == nil {
+		redisClient.Set(ctx, codeKey, string(bytes), time.Minute)
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, statics)
 }
 
 func (c *JudgeController) PostApprove(ctx *gin.Context) {
