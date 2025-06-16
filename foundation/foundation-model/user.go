@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+type UserGender int
+
+const (
+	UserGenderUnknown UserGender = 0
+	UserGenderMale    UserGender = 1
+	UserGenderFemale  UserGender = 2
+)
+
 type User struct {
 	Id            int       `json:"id" bson:"_id"`                                            // 数据库索引时真正的Id
 	Username      string    `json:"username" bson:"username"`                                 // 对用户展示的唯一标识
@@ -21,8 +29,12 @@ type User struct {
 	CheckinCount  int       `json:"checkin_count" bson:"checkin_count"`                       // 签到次数
 	Roles         []string  `json:"roles,omitempty" bson:"roles,omitempty"`                   // 角色
 
+	Gender UserGender `json:"gender" bson:"gender"` // 性别，0未知，1男，2女
+
 	// 账号关联
-	VjudgeId string `json:"vjudge_id,omitempty" bson:"vjudge_id,omitempty"` // vjudge.net Id
+	VjudgeId   string `json:"vjudge_id,omitempty" bson:"vjudge_id,omitempty"` // vjudge.net Id
+	Github     string `json:"github,omitempty" bson:"github,omitempty"`       // GitHub Id
+	Codeforces string `json:"codeforces,omitempty" bson:"codeforces,omitempty"`
 }
 
 type UserAccountInfo struct {
@@ -112,6 +124,11 @@ func (b *UserBuilder) Attempt(attempt int) *UserBuilder {
 
 func (b *UserBuilder) VjudgeId(vjudgeId string) *UserBuilder {
 	b.item.VjudgeId = vjudgeId
+	return b
+}
+
+func (b *UserBuilder) Codeforces(codeforces string) *UserBuilder {
+	b.item.Codeforces = codeforces
 	return b
 }
 
