@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"io"
 	"log"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
@@ -21,7 +22,9 @@ import (
 	metapanic "meta/meta-panic"
 	"meta/meta-response"
 	metasystem "meta/meta-system"
+	"net/http"
 	"time"
+	"web/service"
 )
 
 type SystemController struct {
@@ -180,6 +183,40 @@ func (c *SystemController) PostAnnouncement(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError)
 		return
 	}
+
+	var oldDescription string
+	r2Url := "https://r2-oj.didapipa.com/system/notification.json" + "?" + time.Now().Format("20060102150405")
+	resp, err := http.Get(r2Url)
+	if err != nil {
+		return
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close response body failed"))
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+			return
+		}
+	}(resp.Body)
+	if resp.StatusCode == http.StatusNotFound {
+		oldDescription = ""
+	} else if resp.StatusCode == http.StatusOK {
+		oldDescription = string(resp.Body)
+	} else {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+		return
+	}
+
+	description, needUpdateUrls, err := service.GetR2ImageService().ProcessContentFromMarkdown(
+		requestData.Content,
+		oldDescription,
+		metahttp.UrlJoin("problem", problemId),
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
 	r2Client := cfr2.GetSubsystem().GetClient("didapipa-oj")
 	if r2Client == nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)

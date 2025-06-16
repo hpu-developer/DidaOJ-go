@@ -36,7 +36,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1031,89 +1030,15 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
-	bucketName := "didapipa-oj"
-	r2Client := cfr2.GetSubsystem().GetClient(bucketName)
-	if r2Client == nil {
+	var needUpdateUrls []string
+	description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
+		description,
+		oldDescription,
+		metahttp.UrlJoin("problem", problemId),
+	)
+	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
-	}
-
-	r2Url := config.GetConfig().R2Url
-
-	reg := regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
-	// 找到所有符合规范的图片
-	oldMatches := reg.FindAllStringSubmatch(*oldDescription, -1)
-	newMatches := reg.FindAllStringSubmatch(description, -1)
-
-	oldImageUrls := set.New[string]()
-	r2ImagePrefix := metahttp.UrlJoin(r2Url, "problem", problemId)
-	prefixUpdating := metahttp.UrlJoin(r2Url, "uploading", "problem", problemId)
-	for _, match := range oldMatches {
-		if len(match) > 1 {
-			imageURL := match[1]
-			if strings.HasPrefix(imageURL, r2ImagePrefix) {
-				oldImageUrls.Add(imageURL)
-			}
-		}
-	}
-	newImageUrls := set.New[string]()
-	for _, match := range newMatches {
-		if len(match) > 1 {
-			imageURL := match[1]
-			if strings.HasPrefix(imageURL, r2ImagePrefix) {
-				newImageUrls.Add(imageURL)
-			}
-		}
-	}
-	var needDeleteUrls []*s3.ObjectIdentifier
-	oldImageUrls.Foreach(
-		func(oldUrl *string) bool {
-			if !newImageUrls.Contains(*oldUrl) {
-				needDeleteUrls = append(
-					needDeleteUrls, &s3.ObjectIdentifier{
-						Key: aws.String(strings.TrimPrefix(strings.TrimPrefix(*oldUrl, r2Url), "/")),
-					},
-				)
-			}
-			return true
-		},
-	)
-	// 判断是否存在需要迁移的临时图片
-	var needUpdateUrls []string
-	for _, match := range newMatches {
-		if len(match) > 1 {
-			imageURL := match[1]
-			if strings.HasPrefix(imageURL, prefixUpdating) {
-				needUpdateUrls = append(needUpdateUrls, imageURL)
-			}
-		}
-	}
-	//把所有的needUpdateUrls替换为新的路径
-	var moveR2Urls map[string]string
-	if len(needUpdateUrls) > 0 {
-		moveR2Urls = make(map[string]string)
-		for _, oldUrl := range needUpdateUrls {
-			fileName := path.Base(oldUrl)
-			newUrl := metahttp.UrlJoin(r2Url, "problem", problemId, fileName)
-			description = strings.ReplaceAll(description, oldUrl, newUrl)
-			moveR2Urls[oldUrl] = newUrl
-		}
-	}
-	if len(needDeleteUrls) > 0 {
-		// 删除不再使用的图片
-		_, err = r2Client.DeleteObjects(
-			&s3.DeleteObjectsInput{
-				Bucket: aws.String(bucketName),
-				Delete: &s3.Delete{
-					Objects: needDeleteUrls,
-					Quiet:   aws.Bool(true),
-				},
-			},
-		)
-		if err != nil {
-			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-			return
-		}
 	}
 
 	requestData.Description = description
@@ -1124,24 +1049,10 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
-	// 把所有的needUpdateUrls移动到新的路径
-	for _, imageUrl := range needUpdateUrls {
-		oldKey := strings.TrimPrefix(strings.TrimPrefix(imageUrl, r2Url), "/")
-		newKey := path.Join(
-			strings.TrimPrefix(strings.TrimPrefix(oldKey, "uploading"), "/"),
-		)
-		// 生成预签名链接
-		_, err = r2Client.CopyObject(
-			&s3.CopyObjectInput{
-				Bucket:     aws.String(bucketName),
-				CopySource: aws.String(path.Join(bucketName, oldKey)),
-				Key:        aws.String(newKey),
-			},
-		)
-		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err, "copy object error, oldKey: %s, newKey: %s", oldKey, newKey))
-			continue
-		}
+	// 因为数据库已经保存了，因此即使图片失败这里也返回成功
+	err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
+	if err != nil {
+		metapanic.ProcessError(err)
 	}
 
 	responseData := struct {
