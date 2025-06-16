@@ -97,7 +97,12 @@ func (c *SystemController) GetImageToken(ctx *gin.Context) {
 
 	// 配置参数
 	bucketName := "didapipa-oj"
-	objectKey := fmt.Sprintf("uploading/system/%d_%s", time.Now().Unix(), uuid.New().String())
+	objectKey := metahttp.UrlJoin(
+		"uploading",
+		"system",
+		"announcement",
+		fmt.Sprintf("%d_%s", time.Now().Unix(), uuid.New().String()),
+	)
 
 	// 设置 URL 有效期
 	req, _ := r2Client.PutObjectRequest(
@@ -184,7 +189,7 @@ func (c *SystemController) PostAnnouncement(ctx *gin.Context) {
 		return
 	}
 
-	var oldDescription string
+	var oldContent *string
 	r2Url := "https://r2-oj.didapipa.com/system/notification.json" + "?" + time.Now().Format("20060102150405")
 	resp, err := http.Get(r2Url)
 	if err != nil {
@@ -199,9 +204,16 @@ func (c *SystemController) PostAnnouncement(ctx *gin.Context) {
 		}
 	}(resp.Body)
 	if resp.StatusCode == http.StatusNotFound {
-		oldDescription = ""
 	} else if resp.StatusCode == http.StatusOK {
-		oldDescription = string(resp.Body)
+		var responseData struct {
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&responseData); err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "decode response body failed"))
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+			return
+		}
+		oldContent = &responseData.Content
 	} else {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
 		return
@@ -209,8 +221,8 @@ func (c *SystemController) PostAnnouncement(ctx *gin.Context) {
 
 	description, needUpdateUrls, err := service.GetR2ImageService().ProcessContentFromMarkdown(
 		requestData.Content,
-		oldDescription,
-		metahttp.UrlJoin("problem", problemId),
+		oldContent,
+		metahttp.UrlJoin("system", "announcement"),
 	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
@@ -228,7 +240,7 @@ func (c *SystemController) PostAnnouncement(ctx *gin.Context) {
 		Content string `json:"content"`
 	}{
 		Title:   requestData.Title,
-		Content: requestData.Content,
+		Content: description,
 	}
 	statusBytes, err := json.Marshal(statusJsonData)
 	if err != nil {
@@ -251,5 +263,13 @@ func (c *SystemController) PostAnnouncement(ctx *gin.Context) {
 		return
 	}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+	err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
+	if err != nil {
+		metapanic.ProcessError(metaerror.Wrap(err, "move image after save failed"))
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+		return
+	}
+
+	statusJsonData.Title = ""
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, statusJsonData)
 }

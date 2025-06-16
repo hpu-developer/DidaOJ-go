@@ -115,7 +115,7 @@ func (s *R2ImageService) ProcessContentFromMarkdown(content string, oldContent *
 			return "", nil, metaerror.Wrap(err, "failed to delete old images")
 		}
 	}
-	return content, nil, nil
+	return content, needUpdateUrls, nil
 }
 
 func (s *R2ImageService) MoveImageAfterSave(needUpdateUrls []string) error {
