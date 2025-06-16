@@ -434,7 +434,7 @@ func (c *ProblemController) GetImageToken(ctx *gin.Context) {
 
 	// 配置参数
 	bucketName := "didapipa-oj"
-	objectKey := fmt.Sprintf("uploading/%d_%s", time.Now().Unix(), uuid.New().String())
+	objectKey := fmt.Sprintf("uploading/problem/%s/%d_%s", id, time.Now().Unix(), uuid.New().String())
 
 	// 设置 URL 有效期
 	req, _ := r2Client.PutObjectRequest(
@@ -1047,7 +1047,7 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 
 	oldImageUrls := set.New[string]()
 	r2ImagePrefix := metahttp.UrlJoin(r2Url, "problem", problemId)
-	prefixUpdating := metahttp.UrlJoin(r2Url, "uploading")
+	prefixUpdating := metahttp.UrlJoin(r2Url, "uploading", "problem", problemId)
 	for _, match := range oldMatches {
 		if len(match) > 1 {
 			imageURL := match[1]
@@ -1128,7 +1128,6 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 	for _, imageUrl := range needUpdateUrls {
 		oldKey := strings.TrimPrefix(strings.TrimPrefix(imageUrl, r2Url), "/")
 		newKey := path.Join(
-			"problem", problemId,
 			strings.TrimPrefix(strings.TrimPrefix(oldKey, "uploading"), "/"),
 		)
 		// 生成预签名链接
