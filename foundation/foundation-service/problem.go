@@ -270,3 +270,40 @@ func (s *ProblemService) UpdateProblemJudgeInfo(
 ) error {
 	return foundationdao.GetProblemDao().UpdateProblemJudgeInfo(ctx, id, judgeType, md5)
 }
+
+func (s *ProblemService) GetDailyRecently(ctx *gin.Context, userId int) (
+	[]*foundationmodel.ProblemDaily,
+	map[string]foundationmodel.ProblemAttemptStatus,
+	error,
+) {
+	daily, err := foundationdao.GetProblemDailyDao().GetDailyRecently(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if daily == nil {
+		return nil, nil, nil
+	}
+	for _, d := range daily {
+		title, err := foundationdao.GetProblemDao().GetProblemTitle(ctx, &d.ProblemId)
+		if err == nil {
+			d.Title = title
+		} else {
+			titlePtr := "未知题目"
+			d.Title = &titlePtr
+		}
+	}
+	var problemAttemptStatus map[string]foundationmodel.ProblemAttemptStatus
+	if userId > 0 {
+		problemIds := make([]string, len(daily))
+		for i, d := range daily {
+			problemIds[i] = d.ProblemId
+		}
+		problemAttemptStatus, err = foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
+			ctx, problemIds, userId, -1, nil, nil,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	return daily, problemAttemptStatus, nil
+}

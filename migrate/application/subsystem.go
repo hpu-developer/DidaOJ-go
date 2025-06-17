@@ -35,7 +35,7 @@ func (s *Subsystem) startSubSystem() error {
 
 	var err error
 
-	err = service.GetMigrateProblemCopyService().Start()
+	err = service.GetMigrateProblemDailyService().Start()
 	if err != nil {
 		return err
 	}
@@ -51,31 +51,6 @@ func (s *Subsystem) startSubSystem() error {
 
 	if config.GetConfig().OnlyInit {
 		return nil
-	}
-
-	err = service.GetMigrateProblemService().Start()
-	if err != nil {
-		return err
-	}
-
-	err = service.GetMigrateUserService().Start()
-	if err != nil {
-		return err
-	}
-
-	err = service.GetMigrateContestService().Start()
-	if err != nil {
-		return err
-	}
-
-	err = service.GetMigrateDiscussService().Start()
-	if err != nil {
-		return err
-	}
-
-	err = service.GetMigrateJudgeJobService().Start()
-	if err != nil {
-		return err
 	}
 
 	slog.Info("migrate finished")

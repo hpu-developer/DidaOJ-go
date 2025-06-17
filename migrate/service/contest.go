@@ -109,9 +109,11 @@ func (s *MigrateContestService) Start() error {
 
 	slog.Info("migrate contest", slog.Int("length", len(contests)))
 
-	sort.Slice(contests, func(i, j int) bool {
-		return contests[i].CreateTime.Before(contests[j].CreateTime)
-	})
+	sort.Slice(
+		contests, func(i, j int) bool {
+			return contests[i].CreateTime.Before(contests[j].CreateTime)
+		},
+	)
 
 	for i, contest := range contests {
 		if contest.MigrateJolId > 0 {
@@ -162,18 +164,9 @@ func (s *MigrateContestService) processJolContest(ctx context.Context) ([]*found
 			return nil, err
 		}
 
-		var descriptions []*foundationmodel.ContestDescription
-		if p.Description != "" {
-			descriptions = append(descriptions, foundationmodel.NewContestDescriptionBuilder().
-				Title("比赛描述").
-				Content(p.Description).
-				Build(),
-			)
-		}
-
 		finalContest := foundationmodel.NewContestBuilder().
 			Title(p.Title).
-			Descriptions(descriptions).
+			Description(p.Description).
 			Notification(p.Notification).
 			StartTime(p.StartTime).
 			EndTime(p.EndTime).
@@ -184,7 +177,8 @@ func (s *MigrateContestService) processJolContest(ctx context.Context) ([]*found
 
 		for _, problem := range problems {
 			newProblemId := GetMigrateProblemService().GetNewProblemId(problem.ProblemID)
-			finalContest.Problems = append(finalContest.Problems,
+			finalContest.Problems = append(
+				finalContest.Problems,
 				foundationmodel.NewContestProblemBuilder().
 					ProblemId(newProblemId).
 					Score(problem.Scores).
@@ -228,18 +222,9 @@ func (s *MigrateContestService) processVhojContest(ctx context.Context) ([]*foun
 			return nil, err
 		}
 
-		var descriptions []*foundationmodel.ContestDescription
-		if p.Description != "" {
-			descriptions = append(descriptions, foundationmodel.NewContestDescriptionBuilder().
-				Title("比赛描述").
-				Content(p.Description).
-				Build(),
-			)
-		}
-
 		finalContest := foundationmodel.NewContestBuilder().
 			Title(p.Title).
-			Descriptions(descriptions).
+			Description(p.Description).
 			Notification(p.Announcement).
 			StartTime(p.BeginTime).
 			EndTime(p.EndTime).
@@ -247,9 +232,11 @@ func (s *MigrateContestService) processVhojContest(ctx context.Context) ([]*foun
 			OwnerId(ownerUserId).
 			Build()
 
-		sort.Slice(problems, func(i, j int) bool {
-			return problems[i].Num < problems[j].Num
-		})
+		sort.Slice(
+			problems, func(i, j int) bool {
+				return problems[i].Num < problems[j].Num
+			},
+		)
 
 		for i, problem := range problems {
 
@@ -271,7 +258,8 @@ func (s *MigrateContestService) processVhojContest(ctx context.Context) ([]*foun
 				newProblemId = fmt.Sprintf("%s-%s", vhojProblem.OriginOj, vhojProblem.OriginProb)
 			}
 
-			finalContest.Problems = append(finalContest.Problems,
+			finalContest.Problems = append(
+				finalContest.Problems,
 				foundationmodel.NewContestProblemBuilder().
 					ProblemId(newProblemId).
 					Index(i+1).

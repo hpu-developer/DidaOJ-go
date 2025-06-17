@@ -259,6 +259,28 @@ func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ProblemController) GetDailyRecently(ctx *gin.Context) {
+
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+
+	list, problemStatus, err := foundationservice.GetProblemService().GetDailyRecently(ctx, userId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	responseData := struct {
+		Time          time.Time                                       `json:"time"`
+		List          []*foundationmodel.ProblemDaily                 `json:"list"`
+		AttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"`
+	}{
+		Time:          metatime.GetTimeNow(),
+		List:          list,
+		AttemptStatus: problemStatus,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
 func (c *ProblemController) GetTagList(ctx *gin.Context) {
 	problemService := foundationservice.GetProblemService()
 	maxCountStr := ctx.DefaultQuery("max_count", "-1")
