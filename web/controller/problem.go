@@ -259,6 +259,73 @@ func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ProblemController) GetDaily(ctx *gin.Context) {
+	id := ctx.Query("id")
+	if id == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	problemService := foundationservice.GetProblemService()
+	problemId, err := problemService.GetProblemIdByDaily(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemId)
+}
+
+func (c *ProblemController) GetDailyList(ctx *gin.Context) {
+	pageStr := ctx.DefaultQuery("page", "1")
+	pageSizeStr := ctx.DefaultQuery("page_size", "50")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if pageSize != 50 && pageSize != 100 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	problemService := foundationservice.GetProblemService()
+
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+
+	var startDate *string
+	var endDate *string
+
+	list, totalCount, tags, problemStatus, err := problemService.GetDailyList(
+		ctx,
+		userId,
+		startDate,
+		endDate,
+		page,
+		pageSize,
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	responseData := struct {
+		Time          time.Time                                       `json:"time"`
+		TotalCount    int                                             `json:"total_count"`
+		List          []*foundationmodel.ProblemDaily                 `json:"list"`
+		Tags          []*foundationmodel.ProblemTag                   `json:"tags,omitempty"`
+		AttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"`
+	}{
+		Time:          metatime.GetTimeNow(),
+		TotalCount:    totalCount,
+		List:          list,
+		Tags:          tags,
+		AttemptStatus: problemStatus,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
 func (c *ProblemController) GetDailyRecently(ctx *gin.Context) {
 
 	userId, err := foundationauth.GetUserIdFromContext(ctx)

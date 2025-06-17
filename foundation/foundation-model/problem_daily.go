@@ -6,7 +6,10 @@ type ProblemDaily struct {
 	Solution  string `json:"solution" bson:"solution"`
 	Code      string `json:"code" bson:"code"`
 
-	Title *string `json:"title" bson:"title"`
+	Title   *string `json:"title,omitempty" bson:"title,omitempty"`
+	Tags    []int   `json:"tags,omitempty" bson:"tags,omitempty"`
+	Accept  int     `json:"accept,omitempty" bson:"accept,omitempty"`
+	Attempt int     `json:"attempt,omitempty" bson:"attempt,omitempty"`
 }
 
 type ProblemDailyBuilder struct {

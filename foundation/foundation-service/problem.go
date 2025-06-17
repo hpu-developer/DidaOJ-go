@@ -271,6 +271,83 @@ func (s *ProblemService) UpdateProblemJudgeInfo(
 	return foundationdao.GetProblemDao().UpdateProblemJudgeInfo(ctx, id, judgeType, md5)
 }
 
+func (s *ProblemService) GetProblemIdByDaily(ctx *gin.Context, dailyId string) (*string, error) {
+	return foundationdao.GetProblemDailyDao().GetProblemIdByDaily(ctx, dailyId)
+}
+
+func (s *ProblemService) GetDailyList(
+	ctx *gin.Context,
+	userId int,
+	startDate *string,
+	endDate *string,
+	page int,
+	pageSize int,
+) (
+	[]*foundationmodel.ProblemDaily,
+	int,
+	[]*foundationmodel.ProblemTag,
+	map[string]foundationmodel.ProblemAttemptStatus,
+	error,
+) {
+	dailyList, totalCount, err := foundationdao.GetProblemDailyDao().GetDailyList(
+		ctx,
+		startDate,
+		endDate,
+		page,
+		pageSize,
+	)
+	if err != nil {
+		return nil, 0, nil, nil, err
+	}
+	if len(dailyList) == 0 {
+		return nil, 0, nil, nil, nil
+	}
+	var problemIds []string
+	for _, daily := range dailyList {
+		problemIds = append(problemIds, daily.ProblemId)
+	}
+	problemList, err := foundationdao.GetProblemDao().GetProblems(ctx, problemIds)
+	if err != nil {
+		return nil, 0, nil, nil, err
+	}
+	var tagIds []int
+	for _, problem := range problemList {
+		tagIds = append(tagIds, problem.Tags...)
+	}
+	tags, err := foundationdao.GetProblemTagDao().GetProblemTagByIds(ctx, tagIds)
+	if err != nil {
+		return nil, 0, nil, nil, err
+	}
+	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
+	if userId > 0 {
+		problemStatus, err = foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
+			ctx,
+			problemIds,
+			userId,
+			-1,
+			nil,
+			nil,
+		)
+		if err != nil {
+			return nil, 0, nil, nil, err
+		}
+	}
+	problemMap := make(map[string]*foundationmodel.Problem)
+	for _, problem := range problemList {
+		problemMap[problem.Id] = problem
+	}
+	for _, daily := range dailyList {
+		problem, ok := problemMap[daily.ProblemId]
+		if ok {
+			daily.Title = &problem.Title
+			daily.Tags = problem.Tags
+			daily.Accept = problem.Accept
+			daily.Attempt = problem.Attempt
+		}
+	}
+	return dailyList, totalCount, tags, problemStatus, nil
+}
+
 func (s *ProblemService) GetDailyRecently(ctx *gin.Context, userId int) (
 	[]*foundationmodel.ProblemDaily,
 	map[string]foundationmodel.ProblemAttemptStatus,

@@ -5,8 +5,11 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	html2markdown "github.com/JohannesKaufmann/html-to-markdown"
-	"github.com/PuerkitoBio/goquery"
+	"github.com/JohannesKaufmann/html-to-markdown/v2/converter"
+	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/base"
+	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/commonmark"
+	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/strikethrough"
+	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/table"
 	"io"
 	metahttp "meta/meta-http"
 	"net/http"
@@ -56,12 +59,14 @@ func fixAndUploadAllLinks(problemKey string, html string, baseUrl string) (strin
 		for _, match := range matches {
 			start := match[0]
 			end := match[1]
-			replacements = append(replacements, Replacement{
-				Start:       start,
-				End:         end,
-				Replacement: "",
-				ForceUpload: forceUpload,
-			})
+			replacements = append(
+				replacements, Replacement{
+					Start:       start,
+					End:         end,
+					Replacement: "",
+					ForceUpload: forceUpload,
+				},
+			)
 		}
 	}
 
@@ -125,9 +130,11 @@ func fixAndUploadAllLinks(problemKey string, html string, baseUrl string) (strin
 	}
 
 	// 排序并拼接新的 HTML
-	sort.Slice(replacements, func(i, j int) bool {
-		return replacements[i].Start < replacements[j].Start
-	})
+	sort.Slice(
+		replacements, func(i, j int) bool {
+			return replacements[i].Start < replacements[j].Start
+		},
+	)
 
 	var buf bytes.Buffer
 	lastIndex := 0
@@ -141,31 +148,54 @@ func fixAndUploadAllLinks(problemKey string, html string, baseUrl string) (strin
 	return buf.String(), nil
 }
 
+func extractMathBlocks(html string) (string, map[string]string) {
+
+	re := regexp.MustCompile(`\$(.+?)\$`)
+	matches := re.FindAllStringSubmatch(html, -1)
+
+	placeholderMap := make(map[string]string)
+	for i, match := range matches {
+		key := fmt.Sprintf(`{{MARKDOWN-MATH::%d}}"`, i)
+		placeholderMap[key] = match[0]
+		html = strings.Replace(html, match[0], key, 1)
+	}
+
+	return html, placeholderMap
+}
+
+func restoreMathBlocks(markdown string, placeholderMap map[string]string) string {
+	for key, val := range placeholderMap {
+		markdown = strings.Replace(markdown, key, val, 1)
+	}
+	return markdown
+}
+
 func HTMLToMarkdown(problemId string, htmlStr string, baseURL string) (string, error) {
+
+	preprocessedHTML, mathMap := extractMathBlocks(htmlStr)
+
 	// Step 1: fix and upload all links
-	fixedHtml, err := fixAndUploadAllLinks(problemId, htmlStr, baseURL)
+	fixedHtml, err := fixAndUploadAllLinks(problemId, preprocessedHTML, baseURL)
 	if err != nil {
 		return "", err
 	}
 
 	// Step 2: convert to markdown
-	converter := html2markdown.NewConverter(baseURL, true, nil)
-	converter.AddRules(html2markdown.Rule{
-		Filter: []string{"pre"},
-		Replacement: func(content string, selection *goquery.Selection, opt *html2markdown.Options) *string {
-			// 去掉首尾换行
-			content = strings.Trim(content, "\n")
-			// 去掉内部 div 包裹（若存在）
-			if selection.Children().Length() == 1 && goquery.NodeName(selection.Children().First()) == "div" {
-				content = strings.Trim(selection.Children().First().Text(), "\n")
-			}
-			result := fmt.Sprintf("```\n%s\n```", content)
-			return &result
-		},
-	})
-	markdown, err := converter.ConvertString(fixedHtml)
+	conv := converter.NewConverter(
+		converter.WithPlugins(
+			base.NewBasePlugin(),
+			commonmark.NewCommonmarkPlugin(),
+			strikethrough.NewStrikethroughPlugin(),
+			table.NewTablePlugin(),
+		),
+	)
+	markdown, err := conv.ConvertString(fixedHtml, converter.WithDomain(baseURL))
 	if err != nil {
 		return "", err
 	}
-	return markdown, nil
+
+	// 3. 恢复 $$...$$
+	finalMarkdown := restoreMathBlocks(markdown, mathMap)
+
+	return finalMarkdown, nil
 }

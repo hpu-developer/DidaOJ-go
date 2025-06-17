@@ -10,7 +10,6 @@ import (
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 	"io"
-	"log/slog"
 	metaerror "meta/meta-error"
 	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
@@ -80,23 +79,25 @@ func (s *CrawlHduService) PostCrawlProblem(ctx context.Context, id string) (*str
 	contentMap := make(map[string]string)
 	var currentSection string
 	var finalErr error
-	doc.Find(".panel_title, .panel_content").Each(func(i int, s *goquery.Selection) {
-		if finalErr != nil {
-			return // 如果已经有错误了，就不再处理
-		}
-		if s.HasClass("panel_title") {
-			currentSection = strings.TrimSpace(s.Text())
-			// 如果需要 markdown 转换，这里调用自定义函数
-		} else if s.HasClass("panel_content") {
-			htmlContent, _ := s.Html()
-			htmlContent, err = foundationrender.HTMLToMarkdown(newProblemId, htmlContent, baseURL)
-			if err != nil {
-				finalErr = metaerror.Join(finalErr, err)
-				return
+	doc.Find(".panel_title, .panel_content").Each(
+		func(i int, s *goquery.Selection) {
+			if finalErr != nil {
+				return // 如果已经有错误了，就不再处理
 			}
-			contentMap[currentSection] = htmlContent
-		}
-	})
+			if s.HasClass("panel_title") {
+				currentSection = strings.TrimSpace(s.Text())
+				// 如果需要 markdown 转换，这里调用自定义函数
+			} else if s.HasClass("panel_content") {
+				htmlContent, _ := s.Html()
+				htmlContent, err = foundationrender.HTMLToMarkdown(newProblemId, htmlContent, baseURL)
+				if err != nil {
+					finalErr = metaerror.Join(finalErr, err)
+					return
+				}
+				contentMap[currentSection] = htmlContent
+			}
+		},
+	)
 	if finalErr != nil {
 		return nil, finalErr
 	}
@@ -129,16 +130,16 @@ func (s *CrawlHduService) PostCrawlProblem(ctx context.Context, id string) (*str
 
 	// 渲染模板（这里简化处理）
 	template := config.GetOjTemplateContent("hdu")
-	description := foundationrender.Render(template, map[string]string{
-		"description":  contentMap["Problem Description"],
-		"input":        contentMap["Input"],
-		"output":       contentMap["Output"],
-		"sampleInput":  contentMap["Sample Input"],
-		"sampleOutput": contentMap["Sample Output"],
-		"hint":         hint,
-	})
-
-	slog.Info("description", description)
+	description := foundationrender.Render(
+		template, map[string]string{
+			"description":  contentMap["Problem Description"],
+			"input":        contentMap["Input"],
+			"output":       contentMap["Output"],
+			"sampleInput":  contentMap["Sample Input"],
+			"sampleOutput": contentMap["Sample Output"],
+			"hint":         hint,
+		},
+	)
 
 	originUrl := fmt.Sprintf("https://acm.hdu.edu.cn/showproblem.php?pid=%s", id)
 
