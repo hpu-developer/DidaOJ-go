@@ -1,12 +1,25 @@
 package foundationservice
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
+	"io"
+	metaerror "meta/meta-error"
+	metapanic "meta/meta-panic"
+	metapath "meta/meta-path"
+	metazip "meta/meta-zip"
 	"meta/singleton"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -386,4 +399,126 @@ func (s *ContestService) UpdateContest(ctx *gin.Context, id int, contest *founda
 
 func (s *ContestService) PostPassword(ctx *gin.Context, userId int, contestId int, password string) (bool, error) {
 	return foundationdao.GetContestDao().PostPassword(ctx, userId, contestId, password)
+}
+
+func (s *ContestService) DolosContest(ctx *gin.Context, id int) (*string, error) {
+
+	tempDir, err := os.MkdirTemp("", "didaoj-contest-data-*")
+	if err != nil {
+		return nil, metaerror.Wrap(err, "创建临时目录失败")
+	}
+	tempDir = filepath.ToSlash(tempDir)
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "<UNK>: "+path))
+		}
+	}(tempDir)
+
+	csvContent := "filename,label,created_at,full_name\n"
+
+	cacheNickname := make(map[int]string)
+
+	err = foundationdao.GetJudgeJobDao().ForeachContestAcCodes(
+		ctx, id, func(judgeId int, code string, problemId string, createTime time.Time, authorId int) error {
+			// 保存到临时目录
+			fileName := strconv.Itoa(judgeId) + ".cpp"
+			filePath := path.Join(tempDir, fileName)
+			err := os.WriteFile(filePath, []byte(code), 0644)
+			if err != nil {
+				return metaerror.Wrap(err, "写入代码到临时文件失败")
+			}
+			authorNickname, ok := cacheNickname[authorId]
+			if !ok {
+				user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, authorId)
+				if err != nil {
+					return metaerror.Wrap(err, "获取用户信息失败")
+				}
+				if user == nil {
+					return metaerror.New("用户不存在")
+				}
+				authorNickname = user.Nickname
+				cacheNickname[authorId] = authorNickname
+			}
+			// 添加到CSV内容
+			csvContent += fileName + "," +
+				problemId + "," +
+				createTime.Format(time.RFC3339) + "," +
+				authorNickname + "\n"
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	csvFilePath := path.Join(tempDir, "info.csv")
+	err = os.WriteFile(csvFilePath, []byte(csvContent), 0644)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "写入CSV文件失败")
+	}
+	// 将临时目录打包成ZIP文件
+	zipName := path.Base(tempDir) + ".zip"
+	err = metazip.PackagePath(tempDir, zipName)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "打包临时目录失败")
+	}
+	zipFilePath := path.Join(tempDir, zipName)
+	zipFile, err := os.Open(zipFilePath)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "打开ZIP文件失败")
+	}
+	defer func(zipFile *os.File) {
+		err := zipFile.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "关闭ZIP文件失败"))
+		}
+	}(zipFile)
+	// 创建表单
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	fileField, err := writer.CreateFormFile("dataset[zipfile]", filepath.Base(zipFilePath))
+	if err != nil {
+		return nil, metaerror.Wrap(err, "<UNK>")
+	}
+	_, err = io.Copy(fileField, zipFile)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "复制ZIP文件内容到表单失败")
+	}
+	// 添加数据字段
+	err = writer.WriteField("dataset[name]", metapath.GetBaseName(zipName))
+	if err != nil {
+		return nil, metaerror.Wrap(err, "写入表单字段失败")
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, metaerror.Wrap(err, "关闭表单失败")
+	}
+	req, err := http.NewRequest("POST", "https://dolos.ugent.be/api/reports", &buf)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "创建HTTP请求失败")
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "发送HTTP请求失败")
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "关闭响应体失败"))
+		}
+	}(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "读取HTTP响应失败")
+	}
+	type response struct {
+		HTMLUrl string `json:"html_url"`
+	}
+	var res response
+	err = json.Unmarshal(body, &res)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "解析HTTP响应失败")
+	}
+	return &res.HTMLUrl, nil
 }

@@ -360,8 +360,8 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Score(0).               // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
@@ -481,8 +481,8 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Score(0).               // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
@@ -526,6 +526,33 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest.UpdateTime)
+}
+
+func (c *ContestController) PostDolos(ctx *gin.Context) {
+	var requestData struct {
+		Id int `json:"id" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, hasAuth, err := foundationservice.GetContestService().CheckEditAuth(ctx, requestData.Id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+
+	url, err := foundationservice.GetContestService().DolosContest(ctx, requestData.Id)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, url)
 }
 
 func (c *ContestController) PostPassword(ctx *gin.Context) {
