@@ -353,6 +353,7 @@ func (s *ProblemService) GetDailyList(
 	userId int,
 	startDate *string,
 	endDate *string,
+	problemId string,
 	page int,
 	pageSize int,
 ) (
@@ -366,6 +367,7 @@ func (s *ProblemService) GetDailyList(
 		ctx,
 		startDate,
 		endDate,
+		problemId,
 		page,
 		pageSize,
 	)

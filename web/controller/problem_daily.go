@@ -166,18 +166,36 @@ func (c *ProblemController) GetDailyList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	var startDate *string
+	startDateStr := ctx.Query("start_date")
+	if startDateStr != "" {
+		if _, err := time.Parse("2006-01-02", startDateStr); err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		startDate = &startDateStr
+	}
+	var endDate *string
+	endDateStr := ctx.Query("end_date")
+	if endDateStr != "" {
+		if _, err := time.Parse("2006-01-02", endDateStr); err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		endDate = &endDateStr
+	}
+
 	problemService := foundationservice.GetProblemService()
+	problemId := ctx.Query("problem_id")
 
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
-
-	var startDate *string
-	var endDate *string
 
 	list, totalCount, tags, problemStatus, err := problemService.GetDailyList(
 		ctx,
 		userId,
 		startDate,
 		endDate,
+		problemId,
 		page,
 		pageSize,
 	)

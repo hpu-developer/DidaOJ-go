@@ -174,6 +174,7 @@ func (d *ProblemDailyDao) GetDailyList(
 	ctx *gin.Context,
 	startDate *string,
 	endDate *string,
+	problemId string,
 	page int,
 	pageSize int,
 ) ([]*foundationmodel.ProblemDaily, int, error) {
@@ -193,6 +194,9 @@ func (d *ProblemDailyDao) GetDailyList(
 	}
 	filter := bson.M{
 		"_id": idFilter,
+	}
+	if problemId != "" {
+		filter["problem_id"] = problemId
 	}
 	limit := int64(pageSize)
 	skip := int64((page - 1) * pageSize)
