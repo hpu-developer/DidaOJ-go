@@ -95,7 +95,14 @@ func (c *ProblemController) GetDaily(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemDaily)
+	responseData := struct {
+		Time         time.Time                     `json:"time"`
+		ProblemDaily *foundationmodel.ProblemDaily `json:"problem_daily"`
+	}{
+		Time:         metatime.GetTimeNow(),
+		ProblemDaily: problemDaily,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
 func (c *ProblemController) GetDailyEdit(ctx *gin.Context) {

@@ -106,22 +106,31 @@ func (d *ProblemDailyDao) GetProblemIdByDaily(ctx *gin.Context, id string) (*str
 }
 
 func (d *ProblemDailyDao) GetProblemDaily(ctx *gin.Context, id string) (*foundationmodel.ProblemDaily, error) {
-	nowId := metatime.GetTimeNow().Format("2006-01-02")
+	nowTime := metatime.GetTimeNow()
+	nowId := nowTime.Format("2006-01-02")
+	if id > nowId {
+		return nil, nil
+	}
 	filter := bson.M{
 		"_id": bson.M{
 			"$lte": nowId,
 			"$eq":  id,
 		},
 	}
+	projection := bson.M{
+		"_id":        1,
+		"problem_id": 1,
+	}
+	if id < nowId {
+		projection["solution"] = 1
+		projection["code"] = 1
+	} else {
+		if nowTime.Hour() >= 18 {
+			projection["solution"] = 1
+		}
+	}
 	opts := options.FindOne().
-		SetProjection(
-			bson.M{
-				"_id":        1,
-				"problem_id": 1,
-				"solution":   1,
-				"code":       1,
-			},
-		)
+		SetProjection(projection)
 	var problemDaily foundationmodel.ProblemDaily
 	err := d.collection.FindOne(ctx, filter, opts).Decode(&problemDaily)
 	if err != nil {
