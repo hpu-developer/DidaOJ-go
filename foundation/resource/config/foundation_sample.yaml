@@ -2,6 +2,15 @@ auth:
   jwt: ""
   connect: ""
 
+roles:
+  r-admin:
+    - i-manage-web
+    - i-manage-problem
+    - i-manage-problem-daily
+    - i-manage-judge
+    - i-manage-contest
+    - i-manage-collection
+
 feishu:
   notify-robot: ""
   app:

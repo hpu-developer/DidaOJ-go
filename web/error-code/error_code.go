@@ -17,4 +17,6 @@ const (
 	ContestCannotStartTimeBeforeNow metaerrorcode.ErrorCode = 100012
 	JudgeJobCannotApprove           metaerrorcode.ErrorCode = 100013
 	ContestPostPasswordError        metaerrorcode.ErrorCode = 100014
+	ProblemNotFound                 metaerrorcode.ErrorCode = 100015
+	ProblemDailyAlreadyExists       metaerrorcode.ErrorCode = 100016
 )

@@ -262,6 +262,29 @@ func (s *ProblemService) PostEdit(ctx context.Context, userId int, requestData *
 	return foundationdao.GetProblemDao().PostEdit(ctx, userId, requestData)
 }
 
+func (s *ProblemService) PostDailyCreate(
+	ctx *gin.Context,
+	problemDaily *foundationmodel.ProblemDaily,
+) error {
+	return foundationdao.GetProblemDailyDao().PostDailyCreate(ctx, problemDaily)
+}
+
+func (s *ProblemService) PostDailyEdit(
+	ctx *gin.Context,
+	id string,
+	problemDaily *foundationmodel.ProblemDaily,
+) error {
+	return foundationdao.GetProblemDailyDao().UpdateProblemDaily(ctx, id, problemDaily)
+}
+
+func (s *ProblemService) UpdateProblemDescription(
+	ctx context.Context,
+	id string,
+	description string,
+) error {
+	return foundationdao.GetProblemDao().UpdateProblemDescription(ctx, id, description)
+}
+
 func (s *ProblemService) UpdateProblemJudgeInfo(
 	ctx context.Context,
 	id string,
@@ -273,6 +296,48 @@ func (s *ProblemService) UpdateProblemJudgeInfo(
 
 func (s *ProblemService) GetProblemIdByDaily(ctx *gin.Context, dailyId string) (*string, error) {
 	return foundationdao.GetProblemDailyDao().GetProblemIdByDaily(ctx, dailyId)
+}
+
+func (s *ProblemService) GetProblemDaily(ctx *gin.Context, dailyId string) (*foundationmodel.ProblemDaily, error) {
+	return foundationdao.GetProblemDailyDao().GetProblemDaily(ctx, dailyId)
+}
+
+func (s *ProblemService) GetProblemDailyEdit(ctx *gin.Context, dailyId string) (*foundationmodel.ProblemDaily, error) {
+	daily, err := foundationdao.GetProblemDailyDao().GetProblemDailyEdit(ctx, dailyId)
+	if err != nil {
+		return nil, err
+	}
+	if daily == nil {
+		return nil, nil
+	}
+	if daily.CreatorId > 0 {
+		user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, daily.CreatorId)
+		if err != nil {
+			return nil, err
+		}
+		if user == nil {
+			return nil, nil
+		}
+		daily.CreatorUsername = &user.Username
+		daily.CreatorNickname = &user.Nickname
+	}
+	if daily.UpdaterId > 0 {
+		if daily.UpdaterId == daily.CreatorId {
+			daily.UpdaterUsername = daily.CreatorUsername
+			daily.UpdaterNickname = daily.CreatorNickname
+		} else {
+			user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, daily.UpdaterId)
+			if err != nil {
+				return nil, err
+			}
+			if user == nil {
+				return nil, nil
+			}
+			daily.UpdaterUsername = &user.Username
+			daily.UpdaterNickname = &user.Nickname
+		}
+	}
+	return daily, nil
 }
 
 func (s *ProblemService) GetDailyList(

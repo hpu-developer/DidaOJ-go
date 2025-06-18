@@ -9,6 +9,7 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationoj "foundation/foundation-oj"
+	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -259,95 +260,6 @@ func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
-func (c *ProblemController) GetDaily(ctx *gin.Context) {
-	id := ctx.Query("id")
-	if id == "" {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	problemService := foundationservice.GetProblemService()
-	problemId, err := problemService.GetProblemIdByDaily(ctx, id)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemId)
-}
-
-func (c *ProblemController) GetDailyList(ctx *gin.Context) {
-	pageStr := ctx.DefaultQuery("page", "1")
-	pageSizeStr := ctx.DefaultQuery("page_size", "50")
-	page, err := strconv.Atoi(pageStr)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	pageSize, err := strconv.Atoi(pageSizeStr)
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	if pageSize != 50 && pageSize != 100 {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	problemService := foundationservice.GetProblemService()
-
-	userId, err := foundationauth.GetUserIdFromContext(ctx)
-
-	var startDate *string
-	var endDate *string
-
-	list, totalCount, tags, problemStatus, err := problemService.GetDailyList(
-		ctx,
-		userId,
-		startDate,
-		endDate,
-		page,
-		pageSize,
-	)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-	responseData := struct {
-		Time          time.Time                                       `json:"time"`
-		TotalCount    int                                             `json:"total_count"`
-		List          []*foundationmodel.ProblemDaily                 `json:"list"`
-		Tags          []*foundationmodel.ProblemTag                   `json:"tags,omitempty"`
-		AttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"`
-	}{
-		Time:          metatime.GetTimeNow(),
-		TotalCount:    totalCount,
-		List:          list,
-		Tags:          tags,
-		AttemptStatus: problemStatus,
-	}
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
-}
-
-func (c *ProblemController) GetDailyRecently(ctx *gin.Context) {
-
-	userId, err := foundationauth.GetUserIdFromContext(ctx)
-
-	list, problemStatus, err := foundationservice.GetProblemService().GetDailyRecently(ctx, userId)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-
-	responseData := struct {
-		Time          time.Time                                       `json:"time"`
-		List          []*foundationmodel.ProblemDaily                 `json:"list"`
-		AttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"`
-	}{
-		Time:          metatime.GetTimeNow(),
-		List:          list,
-		AttemptStatus: problemStatus,
-	}
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
-}
-
 func (c *ProblemController) GetTagList(ctx *gin.Context) {
 	problemService := foundationservice.GetProblemService()
 	maxCountStr := ctx.DefaultQuery("max_count", "-1")
@@ -499,10 +411,6 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 
 func (c *ProblemController) GetImageToken(ctx *gin.Context) {
 	id := ctx.Query("id")
-	if id == "" {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
 	_, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
 	if err != nil {
 		metapanic.ProcessError(err)
@@ -522,7 +430,11 @@ func (c *ProblemController) GetImageToken(ctx *gin.Context) {
 
 	// 配置参数
 	bucketName := "didapipa-oj"
-	objectKey := fmt.Sprintf("uploading/problem/%s/%d_%s", id, time.Now().Unix(), uuid.New().String())
+	objectKey := metahttp.UrlJoin(
+		"uploading/problem",
+		id,
+		fmt.Sprintf("%d_%s", time.Now().Unix(), uuid.New().String()),
+	)
 
 	// 设置 URL 有效期
 	req, _ := r2Client.PutObjectRequest(
@@ -1071,10 +983,34 @@ func (c *ProblemController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.ProblemTitleDuplicate, nil)
 		return
 	}
+
 	problemId, err := foundationservice.GetProblemService().PostCreate(ctx, userId, &requestData)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
+	}
+
+	var description string
+	var needUpdateUrls []*foundationr2.R2ImageUrl
+	description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
+		requestData.Description,
+		nil,
+		metahttp.UrlJoin("problem"),
+		metahttp.UrlJoin("problem", *problemId),
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if len(needUpdateUrls) > 0 {
+		err := foundationservice.GetProblemService().UpdateProblemDescription(ctx, *problemId, description)
+		if err != nil {
+			return
+		}
+		err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
+		if err != nil {
+			metapanic.ProcessError(err)
+		}
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemId)
@@ -1119,10 +1055,11 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
-	var needUpdateUrls []string
+	var needUpdateUrls []*foundationr2.R2ImageUrl
 	description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
 		description,
 		oldDescription,
+		metahttp.UrlJoin("problem", problemId),
 		metahttp.UrlJoin("problem", problemId),
 	)
 	if err != nil {

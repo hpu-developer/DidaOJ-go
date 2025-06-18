@@ -690,6 +690,28 @@ func (d *ProblemDao) PostEdit(ctx context.Context, userId int, requestData *requ
 	return &nowTime, nil
 }
 
+func (d *ProblemDao) UpdateProblemDescription(
+	ctx context.Context,
+	id string,
+	description string,
+) error {
+	nowTime := metatime.GetTimeNow()
+	filter := bson.M{
+		"_id": id,
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"description": description,
+			"update_time": nowTime,
+		},
+	}
+	_, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update judge md5")
+	}
+	return nil
+}
+
 func (d *ProblemDao) UpdateProblemJudgeInfo(
 	ctx context.Context,
 	id string,

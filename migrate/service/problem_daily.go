@@ -56,6 +56,10 @@ func (s *MigrateProblemDailyService) Start() error {
 
 	ctx := context.Background()
 
+	createTime, err := time.Parse("2006-01-02 15:04:05", "2017-07-28 12:00:00")
+	if err != nil {
+		return metaerror.Wrap(err, "parse create time failed")
+	}
 	for _, problem := range problems {
 		id := problem.Time.Format("2006-01-02")
 		var problemId string
@@ -65,13 +69,18 @@ func (s *MigrateProblemDailyService) Start() error {
 		} else {
 			problemId = fmt.Sprintf("%s-%s", problem.OJ, problem.Id)
 		}
+
 		problemDoc := foundationmodel.NewProblemDailyBuilder().
 			Id(id).
 			ProblemId(problemId).
 			Solution(problem.Solution).
-			Code(problem.Code).
+			Code("```cpp\n" + problem.Code + "\n```").
+			CreateTime(createTime).
+			UpdateTime(createTime).
+			CreatorId(3).
+			UpdaterId(3).
 			Build()
-		err := foundationdao.GetProblemDailyDao().UpdateProblemDaily(ctx, id, problemDoc)
+		err := foundationdao.GetProblemDailyDao().UpdateOrInsertProblemDaily(ctx, id, problemDoc)
 		if err != nil {
 			return err
 		}

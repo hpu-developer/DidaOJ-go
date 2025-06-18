@@ -33,6 +33,10 @@ func (s *MongoInitService) Start() error {
 	if err != nil {
 		return nil
 	}
+	err = foundationdao.GetProblemDailyDao().InitDao(ctx)
+	if err != nil {
+		return nil
+	}
 	err = foundationdao.GetUserDao().InitDao(ctx)
 	if err != nil {
 		return nil

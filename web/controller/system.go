@@ -223,6 +223,7 @@ func (c *SystemController) PostAnnouncement(ctx *gin.Context) {
 		requestData.Content,
 		oldContent,
 		metahttp.UrlJoin("system", "announcement"),
+		metahttp.UrlJoin("system", "announcement"),
 	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)

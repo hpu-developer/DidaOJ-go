@@ -1,6 +1,7 @@
 package service
 
 import (
+	foundationr2 "foundation/foundation-r2"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	cfr2 "meta/cf-r2"
@@ -27,12 +28,16 @@ func GetR2ImageService() *R2ImageService {
 	)
 }
 
-func (s *R2ImageService) ProcessContentFromMarkdown(content string, oldContent *string, prefix string) (
+func (s *R2ImageService) ProcessContentFromMarkdown(
+	content string,
+	oldContent *string,
+	prefix string,
+	newPrefix string,
+) (
 	string,
-	[]string,
+	[]*foundationr2.R2ImageUrl,
 	error,
 ) {
-
 	bucketName := "didapipa-oj"
 	r2Client := cfr2.GetSubsystem().GetClient(bucketName)
 	if r2Client == nil {
@@ -83,21 +88,26 @@ func (s *R2ImageService) ProcessContentFromMarkdown(content string, oldContent *
 	}
 	prefixUpdating := metahttp.UrlJoin(r2Url, "uploading", prefix)
 	// 判断是否存在需要迁移的临时图片
-	var needUpdateUrls []string
+	var needUpdateUrls []*foundationr2.R2ImageUrl
 	for _, match := range newMatches {
 		if len(match) > 1 {
 			imageURL := match[1]
 			if strings.HasPrefix(imageURL, prefixUpdating) {
-				needUpdateUrls = append(needUpdateUrls, imageURL)
+				fileName := path.Base(imageURL)
+				newUrl := metahttp.UrlJoin(r2Url, newPrefix, fileName)
+				needUpdateUrls = append(
+					needUpdateUrls, &foundationr2.R2ImageUrl{
+						Old: imageURL,
+						New: newUrl,
+					},
+				)
 			}
 		}
 	}
 	//把所有的needUpdateUrls替换为新的路径
 	if len(needUpdateUrls) > 0 {
-		for _, oldUrl := range needUpdateUrls {
-			fileName := path.Base(oldUrl)
-			newUrl := metahttp.UrlJoin(r2Url, prefix, fileName)
-			content = strings.ReplaceAll(content, oldUrl, newUrl)
+		for _, url := range needUpdateUrls {
+			content = strings.ReplaceAll(content, url.Old, url.New)
 		}
 	}
 	if len(needDeleteUrls) > 0 {
@@ -118,7 +128,7 @@ func (s *R2ImageService) ProcessContentFromMarkdown(content string, oldContent *
 	return content, needUpdateUrls, nil
 }
 
-func (s *R2ImageService) MoveImageAfterSave(needUpdateUrls []string) error {
+func (s *R2ImageService) MoveImageAfterSave(needUpdateUrls []*foundationr2.R2ImageUrl) error {
 
 	bucketName := "didapipa-oj"
 	r2Client := cfr2.GetSubsystem().GetClient(bucketName)
@@ -131,11 +141,9 @@ func (s *R2ImageService) MoveImageAfterSave(needUpdateUrls []string) error {
 	var finalErr error
 
 	// 把所有的needUpdateUrls移动到新的路径
-	for _, imageUrl := range needUpdateUrls {
-		oldKey := strings.TrimPrefix(strings.TrimPrefix(imageUrl, r2Url), "/")
-		newKey := path.Join(
-			strings.TrimPrefix(strings.TrimPrefix(oldKey, "uploading"), "/"),
-		)
+	for _, url := range needUpdateUrls {
+		oldKey := strings.TrimPrefix(strings.TrimPrefix(url.Old, r2Url), "/")
+		newKey := strings.TrimPrefix(strings.TrimPrefix(url.New, r2Url), "/")
 		// 生成预签名链接
 		_, err := r2Client.CopyObject(
 			&s3.CopyObjectInput{
