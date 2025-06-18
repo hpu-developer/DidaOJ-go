@@ -302,12 +302,15 @@ func (s *ProblemService) HasProblemDailyProblem(ctx *gin.Context, problemId stri
 	return foundationdao.GetProblemDailyDao().HasProblemDailyProblem(ctx, problemId)
 }
 
-func (s *ProblemService) GetProblemIdByDaily(ctx *gin.Context, dailyId string) (*string, error) {
-	return foundationdao.GetProblemDailyDao().GetProblemIdByDaily(ctx, dailyId)
+func (s *ProblemService) GetProblemIdByDaily(ctx *gin.Context, dailyId string, hasAuth bool) (*string, error) {
+	return foundationdao.GetProblemDailyDao().GetProblemIdByDaily(ctx, dailyId, hasAuth)
 }
 
-func (s *ProblemService) GetProblemDaily(ctx *gin.Context, dailyId string) (*foundationmodel.ProblemDaily, error) {
-	return foundationdao.GetProblemDailyDao().GetProblemDaily(ctx, dailyId)
+func (s *ProblemService) GetProblemDaily(ctx *gin.Context, dailyId string, hasAuth bool) (
+	*foundationmodel.ProblemDaily,
+	error,
+) {
+	return foundationdao.GetProblemDailyDao().GetProblemDaily(ctx, dailyId, hasAuth)
 }
 
 func (s *ProblemService) GetProblemDailyEdit(ctx *gin.Context, dailyId string) (*foundationmodel.ProblemDaily, error) {
@@ -351,6 +354,7 @@ func (s *ProblemService) GetProblemDailyEdit(ctx *gin.Context, dailyId string) (
 func (s *ProblemService) GetDailyList(
 	ctx *gin.Context,
 	userId int,
+	hasAuth bool,
 	startDate *string,
 	endDate *string,
 	problemId string,
@@ -365,6 +369,7 @@ func (s *ProblemService) GetDailyList(
 ) {
 	dailyList, totalCount, err := foundationdao.GetProblemDailyDao().GetDailyList(
 		ctx,
+		hasAuth,
 		startDate,
 		endDate,
 		problemId,

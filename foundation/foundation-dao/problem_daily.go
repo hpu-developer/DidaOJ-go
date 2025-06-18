@@ -78,12 +78,16 @@ func (d *ProblemDailyDao) HasProblemDailyProblem(ctx *gin.Context, problemId str
 	return true, nil
 }
 
-func (d *ProblemDailyDao) GetProblemIdByDaily(ctx *gin.Context, id string) (*string, error) {
+func (d *ProblemDailyDao) GetProblemIdByDaily(ctx *gin.Context, id string, hasAuth bool) (*string, error) {
 	nowId := metatime.GetTimeNow().Format("2006-01-02")
+	if !hasAuth {
+		if id > nowId {
+			return nil, nil
+		}
+	}
 	filter := bson.M{
 		"_id": bson.M{
-			"$lte": nowId,
-			"$eq":  id,
+			"$eq": id,
 		},
 	}
 	opts := options.FindOne().
@@ -105,23 +109,27 @@ func (d *ProblemDailyDao) GetProblemIdByDaily(ctx *gin.Context, id string) (*str
 	return result.ProblemId, nil
 }
 
-func (d *ProblemDailyDao) GetProblemDaily(ctx *gin.Context, id string) (*foundationmodel.ProblemDaily, error) {
+func (d *ProblemDailyDao) GetProblemDaily(ctx *gin.Context, id string, hasAuth bool) (
+	*foundationmodel.ProblemDaily,
+	error,
+) {
 	nowTime := metatime.GetTimeNow()
 	nowId := nowTime.Format("2006-01-02")
-	if id > nowId {
-		return nil, nil
+	if !hasAuth {
+		if id > nowId {
+			return nil, nil
+		}
 	}
 	filter := bson.M{
 		"_id": bson.M{
-			"$lte": nowId,
-			"$eq":  id,
+			"$eq": id,
 		},
 	}
 	projection := bson.M{
 		"_id":        1,
 		"problem_id": 1,
 	}
-	if id < nowId {
+	if hasAuth || id < nowId {
 		projection["solution"] = 1
 		projection["code"] = 1
 	} else {
@@ -172,6 +180,7 @@ func (d *ProblemDailyDao) GetProblemDailyEdit(ctx *gin.Context, id string) (*fou
 
 func (d *ProblemDailyDao) GetDailyList(
 	ctx *gin.Context,
+	hasAuth bool,
 	startDate *string,
 	endDate *string,
 	problemId string,
@@ -183,14 +192,20 @@ func (d *ProblemDailyDao) GetDailyList(
 	if startDate != nil && *startDate != "" {
 		idFilter["$gte"] = *startDate
 	}
-	if endDate != nil && *endDate != "" {
-		if *endDate < nowId {
+	if hasAuth {
+		if endDate != nil && *endDate != "" {
 			idFilter["$lte"] = *endDate
+		}
+	} else {
+		if endDate != nil && *endDate != "" {
+			if *endDate < nowId {
+				idFilter["$lte"] = *endDate
+			} else {
+				idFilter["$lte"] = nowId
+			}
 		} else {
 			idFilter["$lte"] = nowId
 		}
-	} else {
-		idFilter["$lte"] = nowId
 	}
 	filter := bson.M{
 		"_id": idFilter,

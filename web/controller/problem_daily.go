@@ -86,7 +86,11 @@ func (c *ProblemController) GetDaily(ctx *gin.Context) {
 		return
 	}
 	problemService := foundationservice.GetProblemService()
-	problemDaily, err := problemService.GetProblemDaily(ctx, id)
+	_, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
+		ctx,
+		foundationauth.AuthTypeManageProblemDaily,
+	)
+	problemDaily, err := problemService.GetProblemDaily(ctx, id, hasAuth)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -141,7 +145,11 @@ func (c *ProblemController) GetDailyId(ctx *gin.Context) {
 		return
 	}
 	problemService := foundationservice.GetProblemService()
-	problemId, err := problemService.GetProblemIdByDaily(ctx, id)
+	_, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
+		ctx,
+		foundationauth.AuthTypeManageProblemDaily,
+	)
+	problemId, err := problemService.GetProblemIdByDaily(ctx, id, hasAuth)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -188,11 +196,15 @@ func (c *ProblemController) GetDailyList(ctx *gin.Context) {
 	problemService := foundationservice.GetProblemService()
 	problemId := ctx.Query("problem_id")
 
-	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
+		ctx,
+		foundationauth.AuthTypeManageProblemDaily,
+	)
 
 	list, totalCount, tags, problemStatus, err := problemService.GetDailyList(
 		ctx,
 		userId,
+		hasAuth,
 		startDate,
 		endDate,
 		problemId,
