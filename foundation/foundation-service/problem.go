@@ -294,6 +294,14 @@ func (s *ProblemService) UpdateProblemJudgeInfo(
 	return foundationdao.GetProblemDao().UpdateProblemJudgeInfo(ctx, id, judgeType, md5)
 }
 
+func (s *ProblemService) HasProblemDaily(ctx *gin.Context, dailyId string) (bool, error) {
+	return foundationdao.GetProblemDailyDao().HasProblemDaily(ctx, dailyId)
+}
+
+func (s *ProblemService) HasProblemDailyProblem(ctx *gin.Context, problemId string) (bool, error) {
+	return foundationdao.GetProblemDailyDao().HasProblemDailyProblem(ctx, problemId)
+}
+
 func (s *ProblemService) GetProblemIdByDaily(ctx *gin.Context, dailyId string) (*string, error) {
 	return foundationdao.GetProblemDailyDao().GetProblemIdByDaily(ctx, dailyId)
 }

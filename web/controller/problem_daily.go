@@ -244,6 +244,24 @@ func (c *ProblemController) PostDailyCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
+	ok, err = foundationservice.GetProblemService().HasProblemDaily(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if ok {
+		metaresponse.NewResponse(ctx, weberrorcode.ProblemDailyAlreadyExists, nil)
+		return
+	}
+	ok, err = foundationservice.GetProblemService().HasProblemDailyProblem(ctx, requestData.ProblemId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if ok {
+		metaresponse.NewResponse(ctx, weberrorcode.ProblemDailyProblemAlreadyExists, nil)
+		return
+	}
 	ok, err = foundationservice.GetProblemService().HasProblem(ctx, requestData.ProblemId)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)

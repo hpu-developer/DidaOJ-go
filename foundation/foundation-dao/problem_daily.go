@@ -50,6 +50,34 @@ func (d *ProblemDailyDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
+func (d *ProblemDailyDao) HasProblemDaily(ctx *gin.Context, id string) (bool, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	count, err := d.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, metaerror.Wrap(err, "failed to count documents")
+	}
+	if count == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (d *ProblemDailyDao) HasProblemDailyProblem(ctx *gin.Context, problemId string) (bool, error) {
+	filter := bson.M{
+		"problem_id": problemId,
+	}
+	count, err := d.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return false, metaerror.Wrap(err, "failed to count documents")
+	}
+	if count == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
 func (d *ProblemDailyDao) GetProblemIdByDaily(ctx *gin.Context, id string) (*string, error) {
 	nowId := metatime.GetTimeNow().Format("2006-01-02")
 	filter := bson.M{
