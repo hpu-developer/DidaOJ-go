@@ -207,8 +207,9 @@ func (d *ProblemDailyDao) GetDailyList(
 			idFilter["$lte"] = nowId
 		}
 	}
-	filter := bson.M{
-		"_id": idFilter,
+	filter := bson.M{}
+	if len(idFilter) > 0 {
+		filter["_id"] = idFilter
 	}
 	if problemId != "" {
 		filter["problem_id"] = problemId
