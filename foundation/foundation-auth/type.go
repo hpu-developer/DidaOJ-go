@@ -9,4 +9,5 @@ const (
 	AuthTypeManageProblemDaily AuthType = "i-manage-problem-daily"
 	AuthTypeManageContest      AuthType = "i-manage-contest"
 	AuthTypeManageCollection   AuthType = "i-manage-collection"
+	AuthTypeManageDiscuss      AuthType = "i-manage-discuss"
 )

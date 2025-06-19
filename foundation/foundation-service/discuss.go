@@ -2,6 +2,7 @@ package foundationservice
 
 import (
 	"context"
+	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
@@ -19,6 +20,34 @@ func GetDiscussService() *DiscussService {
 			return &DiscussService{}
 		},
 	)
+}
+
+func (s *DiscussService) CheckEditAuth(ctx *gin.Context, id int) (
+	int,
+	bool,
+	error,
+) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageDiscuss)
+	if err != nil {
+		return userId, false, err
+	}
+	if userId <= 0 {
+		return userId, false, nil
+	}
+	if !hasAuth {
+		ownerId, err := foundationdao.GetDiscussDao().GetAuthorId(ctx, id)
+		if err != nil {
+			return userId, false, err
+		}
+		if ownerId != userId {
+			return userId, false, nil
+		}
+	}
+	return userId, true, nil
+}
+
+func (s *DiscussService) GetContent(ctx *gin.Context, id int) (*string, error) {
+	return foundationdao.GetDiscussDao().GetContent(ctx, id)
 }
 
 func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmodel.Discuss, error) {
@@ -217,4 +246,12 @@ func (s *DiscussService) GetDiscussCommentList(
 		}
 	}
 	return discussComments, totalCount, nil
+}
+
+func (s *DiscussService) UpdateContent(ctx *gin.Context, id int, description string) error {
+	return foundationdao.GetDiscussDao().UpdateContent(ctx, id, description)
+}
+
+func (s *DiscussService) PostEdit(ctx *gin.Context, id int, discuss *foundationmodel.Discuss) error {
+	return foundationdao.GetDiscussDao().UpdateDiscuss(ctx, id, discuss)
 }

@@ -15,7 +15,6 @@ type Discuss struct {
 	ViewCount      int       `json:"view_count" bson:"view_count"`                               // 浏览次数
 
 	// 用于标识帖子的关联
-	KeywordId           int     `json:"keyword,omitempty" bson:"keyword,omitempty"`             // 话题Id
 	ProblemId           *string `json:"problem_id,omitempty" bson:"problem_id,omitempty"`       // 问题Id
 	ProblemTitle        *string `json:"problem_title,omitempty" bson:"problem_title,omitempty"` // 问题标题
 	ContestId           int     `json:"contest_id,omitempty" bson:"contest_id,omitempty"`       // 比赛Id
@@ -81,11 +80,6 @@ func (b *DiscussBuilder) UpdateTime(updateTime time.Time) *DiscussBuilder {
 
 func (b *DiscussBuilder) ViewCount(viewCount int) *DiscussBuilder {
 	b.item.ViewCount = viewCount
-	return b
-}
-
-func (b *DiscussBuilder) KeywordId(keywordId int) *DiscussBuilder {
-	b.item.KeywordId = keywordId
 	return b
 }
 

@@ -10,6 +10,7 @@ roles:
     - i-manage-judge
     - i-manage-contest
     - i-manage-collection
+    - i-manage-discuss
 
 feishu:
   notify-robot: ""

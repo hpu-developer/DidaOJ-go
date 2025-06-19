@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	foundationmodel "foundation/foundation-model"
+	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -41,19 +42,44 @@ func (d *DiscussDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
-func (d *DiscussDao) UpdateDiscuss(ctx context.Context, key string, discuss *foundationmodel.Discuss) error {
-	filter := bson.D{
-		{"_id", key},
+func (d *DiscussDao) GetAuthorId(ctx context.Context, id int) (int, error) {
+	filter := bson.M{
+		"_id": id,
 	}
-	update := bson.M{
-		"$set": discuss,
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"author_id": 1,
+			},
+		)
+	var discuss foundationmodel.Discuss
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&discuss); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return 0, nil
+		}
+		return 0, metaerror.Wrap(err, "find discuss error")
 	}
-	updateOptions := options.Update().SetUpsert(true)
-	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
+	return discuss.AuthorId, nil
+}
+
+func (d *DiscussDao) GetContent(ctx context.Context, id int) (*string, error) {
+	filter := bson.M{
+		"_id": id,
 	}
-	return nil
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"content": 1,
+			},
+		)
+	var discuss foundationmodel.Discuss
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&discuss); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find discuss content error")
+	}
+	return &discuss.Content, nil
 }
 
 func (d *DiscussDao) GetDiscuss(ctx context.Context, id int) (*foundationmodel.Discuss, error) {
@@ -73,7 +99,6 @@ func (d *DiscussDao) GetDiscuss(ctx context.Context, id int) (*foundationmodel.D
 				"create_time": 1,
 				"view_count":  1,
 				"tags":        1,
-				"keyword_id":  1,
 				"problem_id":  1,
 				"contest_id":  1,
 				"judge_id":    1,
@@ -167,7 +192,51 @@ func (d *DiscussDao) GetDiscussList(
 	return list, int(totalCount), nil
 }
 
-func (d *DiscussDao) UpdateDiscusss(ctx context.Context, tags []*foundationmodel.Discuss) error {
+func (d *DiscussDao) UpdateContent(ctx *gin.Context, id int, description string) error {
+	filter := bson.M{
+		"_id": id,
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"content": description,
+		},
+	}
+	_, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update discuss content")
+	}
+	return nil
+}
+
+func (d *DiscussDao) UpdateDiscuss(ctx context.Context, discussId int, discuss *foundationmodel.Discuss) error {
+	filter := bson.D{
+		{"_id", discussId},
+	}
+	setData := metamongo.StructToMapInclude(
+		discuss,
+		"title",
+		"content",
+		"modify_time",
+		"update_time",
+	)
+	unsetData := bson.M{}
+	if discuss.ProblemId != nil {
+		setData["problem_id"] = discuss.ProblemId
+	} else {
+		unsetData["problem_id"] = 1
+	}
+	update := bson.M{
+		"$set":   setData,
+		"$unset": unsetData,
+	}
+	_, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to save discuss")
+	}
+	return nil
+}
+
+func (d *DiscussDao) UpdateDiscusses(ctx context.Context, tags []*foundationmodel.Discuss) error {
 	var models []mongo.WriteModel
 	for _, tab := range tags {
 		filter := bson.D{
