@@ -61,22 +61,24 @@ func (d *DiscussDao) GetDiscuss(ctx context.Context, id int) (*foundationmodel.D
 		"_id": id,
 	}
 	opts := options.FindOne().
-		SetProjection(bson.M{
-			"_id":         1,
-			"title":       1,
-			"content":     1,
-			"insert_time": 1,
-			"modify_time": 1,
-			"update_time": 1,
-			"author_id":   1,
-			"create_time": 1,
-			"view_count":  1,
-			"tags":        1,
-			"keyword_id":  1,
-			"problem_id":  1,
-			"contest_id":  1,
-			"judge_id":    1,
-		})
+		SetProjection(
+			bson.M{
+				"_id":         1,
+				"title":       1,
+				"content":     1,
+				"insert_time": 1,
+				"modify_time": 1,
+				"update_time": 1,
+				"author_id":   1,
+				"create_time": 1,
+				"view_count":  1,
+				"tags":        1,
+				"keyword_id":  1,
+				"problem_id":  1,
+				"contest_id":  1,
+				"judge_id":    1,
+			},
+		)
 	var discuss foundationmodel.Discuss
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&discuss); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -87,10 +89,15 @@ func (d *DiscussDao) GetDiscuss(ctx context.Context, id int) (*foundationmodel.D
 	return &discuss, nil
 }
 
-func (d *DiscussDao) GetDiscussList(ctx context.Context,
-	contestId int, problemId string,
-	title string, userId int,
-	page int, pageSize int,
+func (d *DiscussDao) GetDiscussList(
+	ctx context.Context,
+	onlyProblem bool,
+	contestId int,
+	problemId string,
+	title string,
+	userId int,
+	page int,
+	pageSize int,
 ) ([]*foundationmodel.Discuss, int, error) {
 	filter := bson.M{}
 	if contestId > 0 {
@@ -100,6 +107,10 @@ func (d *DiscussDao) GetDiscussList(ctx context.Context,
 	}
 	if problemId != "" {
 		filter["problem_id"] = problemId
+	} else {
+		if onlyProblem {
+			filter["problem_id"] = bson.M{"$exists": true}
+		}
 	}
 	if title != "" {
 		filter["title"] = bson.M{
@@ -187,21 +198,23 @@ func (d *DiscussDao) InsertDiscuss(ctx context.Context, discuss *foundationmodel
 		return err
 	}
 	defer sess.EndSession(ctx)
-	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
-		// 获取下一个序列号
-		seq, err := GetCounterDao().GetNextSequence(sc, "discuss_id")
-		if err != nil {
-			return nil, err
-		}
-		// 更新 Discuss 的 ID
-		discuss.Id = seq
-		// 插入新的 Discuss
-		_, err = d.collection.InsertOne(sc, discuss)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
+	_, err = sess.WithTransaction(
+		ctx, func(sc mongo.SessionContext) (interface{}, error) {
+			// 获取下一个序列号
+			seq, err := GetCounterDao().GetNextSequence(sc, "discuss_id")
+			if err != nil {
+				return nil, err
+			}
+			// 更新 Discuss 的 ID
+			discuss.Id = seq
+			// 插入新的 Discuss
+			_, err = d.collection.InsertOne(sc, discuss)
+			if err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	)
 	if err != nil {
 		return err
 	}

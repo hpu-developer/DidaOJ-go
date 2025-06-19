@@ -77,6 +77,11 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	onlyProblemStr := ctx.Query("only_problem")
+	onlyProblem := false
+	if onlyProblemStr == "1" {
+		onlyProblem = true
+	}
 	problemId := ctx.Query("problem_id")
 	var contestId, constProblemIndex int
 	contestIdStr := ctx.Query("contest_id")
@@ -105,6 +110,7 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 	var totalCount int
 	list, totalCount, err = discussService.GetDiscussList(
 		ctx,
+		onlyProblem,
 		contestId, constProblemIndex, problemId,
 		title, username,
 		page, pageSize,

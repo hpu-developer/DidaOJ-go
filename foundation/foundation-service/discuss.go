@@ -83,10 +83,14 @@ func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmod
 
 func (s *DiscussService) GetDiscussList(
 	ctx context.Context,
-	contestId int, contestProblemIndex int,
+	onlyProblem bool,
+	contestId int,
+	contestProblemIndex int,
 	problemId string,
-	title string, username string,
-	page int, pageSize int,
+	title string,
+	username string,
+	page int,
+	pageSize int,
 ) ([]*foundationmodel.Discuss, int, error) {
 	var err error
 	userId := -1
@@ -118,7 +122,7 @@ func (s *DiscussService) GetDiscussList(
 	}
 
 	discusses, totalCount, err := foundationdao.GetDiscussDao().GetDiscussList(
-		ctx, contestId, problemId, title, userId,
+		ctx, onlyProblem, contestId, problemId, title, userId,
 		page, pageSize,
 	)
 	if err != nil {
