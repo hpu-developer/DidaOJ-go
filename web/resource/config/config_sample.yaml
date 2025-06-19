@@ -8,3 +8,35 @@ mongo:
   uri: ""
   username: ""
   password: ""
+
+redis:
+  addr: ""
+  password: ""
+
+go-judge:
+  url: ""
+
+cf-turnstile: ""
+
+cf-r2:
+  judge-data:
+    url: ""
+    token: ""
+    key: ""
+    secret: ""
+  didapipa-oj:
+    url: ""
+    token: ""
+    key: ""
+    secret: ""
+
+r2-url: ""
+
+email:
+  email: ""
+  password: ""
+  host: ""
+  port: 587
+
+template:
+  hdu: "resource/template/hdu.md"
