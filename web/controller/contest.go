@@ -1,13 +1,23 @@
 package controller
 
 import (
+	"errors"
+	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationmodel "foundation/foundation-model"
+	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/mongo"
+	"log"
+	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
 	"meta/error-code"
+	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
 	"meta/meta-response"
 	metastring "meta/meta-string"
@@ -17,6 +27,7 @@ import (
 	"time"
 	weberrorcode "web/error-code"
 	"web/request"
+	"web/service"
 )
 
 type ContestController struct {
@@ -287,6 +298,67 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ContestController) GetImageToken(ctx *gin.Context) {
+	idStr := ctx.Query("id")
+	if idStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, err = foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	// 获取 R2 客户端
+	r2Client := cfr2.GetSubsystem().GetClient("didapipa-oj")
+	if r2Client == nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	var key string
+	if id > 0 {
+		key = strconv.Itoa(id)
+	}
+
+	// 配置参数
+	bucketName := "didapipa-oj"
+	objectKey := metahttp.UrlJoin(
+		"uploading/contest",
+		key,
+		fmt.Sprintf("%d_%s", time.Now().Unix(), uuid.New().String()),
+	)
+
+	// 设置 URL 有效期
+	req, _ := r2Client.PutObjectRequest(
+		&s3.PutObjectInput{
+			Bucket: aws.String(bucketName),
+			Key:    aws.String(objectKey),
+		},
+	)
+
+	// 设置 URL 有效时间，例如 15 分钟
+	urlStr, err := req.Presign(15 * time.Minute)
+	if err != nil {
+		log.Printf("Failed to sign request: %v", err)
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	// 返回上传信息
+	metaresponse.NewResponse(
+		ctx, metaerrorcode.Success, gin.H{
+			"upload_url":  urlStr,
+			"preview_url": metahttp.UrlJoin("https://r2-oj.didapipa.com", objectKey),
+		},
+	)
+}
+
 func (c *ContestController) PostCreate(ctx *gin.Context) {
 	var requestData request.ContestEdit
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
@@ -360,8 +432,8 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Score(0).               // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
@@ -403,6 +475,30 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
+
+	var description string
+	var needUpdateUrls []*foundationr2.R2ImageUrl
+	description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
+		requestData.Description,
+		nil,
+		metahttp.UrlJoin("contest"),
+		metahttp.UrlJoin("contest", strconv.Itoa(contest.Id)),
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if len(needUpdateUrls) > 0 {
+		err := foundationservice.GetContestService().UpdateDescription(ctx, contest.Id, description)
+		if err != nil {
+			return
+		}
+		err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
+		if err != nil {
+			metapanic.ProcessError(err)
+		}
+	}
+	contest.Description = description
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest)
 }
@@ -476,13 +572,37 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 
 	contestService := foundationservice.GetContestService()
 
+	contestId := requestData.Id
+
+	oldDescription, err := contestService.GetContestDescription(ctx, contestId)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+			return
+		}
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	var needUpdateUrls []*foundationr2.R2ImageUrl
+	requestData.Description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
+		requestData.Description,
+		oldDescription,
+		metahttp.UrlJoin("contest", strconv.Itoa(contestId)),
+		metahttp.UrlJoin("contest", strconv.Itoa(contestId)),
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
 	var problems []*foundationmodel.ContestProblem
 	for _, problemId := range realProblemIds {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Score(0).               // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
@@ -525,7 +645,21 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest.UpdateTime)
+	// 因为数据库已经保存了，因此即使图片失败这里也返回成功
+	err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
+	if err != nil {
+		metapanic.ProcessError(err)
+	}
+
+	responseData := struct {
+		Description string     `json:"description"`
+		UpdateTime  *time.Time `json:"update_time"`
+	}{
+		Description: requestData.Description,
+		UpdateTime:  &contest.UpdateTime,
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
 func (c *ContestController) PostDolos(ctx *gin.Context) {

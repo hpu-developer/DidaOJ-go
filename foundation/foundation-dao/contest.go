@@ -55,6 +55,29 @@ func (d *ContestDao) HasContestTitle(ctx context.Context, ownerId int, title str
 	return count > 0, nil
 }
 
+func (d *ContestDao) GetContestDescription(ctx context.Context, id int) (*string, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":         1,
+				"description": 1,
+			},
+		)
+	var contest struct {
+		Description string `bson:"description"`
+	}
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest description error")
+	}
+	return &contest.Description, nil
+}
+
 func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.Contest, error) {
 	filter := bson.M{
 		"_id": id,
@@ -424,6 +447,22 @@ func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId in
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (d *ContestDao) UpdateDescription(ctx context.Context, id int, description string) error {
+	filter := bson.M{
+		"_id": id,
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"description": description,
+		},
+	}
+	_, err := d.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to update contest description, id: %d", id)
+	}
+	return nil
 }
 
 func (d *ContestDao) UpdateContest(ctx context.Context, contestId int, contest *foundationmodel.Contest) error {

@@ -97,6 +97,10 @@ func (s *ContestService) HasContestTitle(ctx *gin.Context, userId int, title str
 	return foundationdao.GetContestDao().HasContestTitle(ctx, userId, title)
 }
 
+func (s *ContestService) GetContestDescription(ctx *gin.Context, id int) (*string, error) {
+	return foundationdao.GetContestDao().GetContestDescription(ctx, id)
+}
+
 func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time) (
 	*foundationmodel.Contest,
 	bool, bool,
@@ -395,6 +399,10 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int, nowTime ti
 
 func (s *ContestService) UpdateContest(ctx *gin.Context, id int, contest *foundationmodel.Contest) error {
 	return foundationdao.GetContestDao().UpdateContest(ctx, id, contest)
+}
+
+func (s *ContestService) UpdateDescription(ctx *gin.Context, id int, description string) error {
+	return foundationdao.GetContestDao().UpdateDescription(ctx, id, description)
 }
 
 func (s *ContestService) PostPassword(ctx *gin.Context, userId int, contestId int, password string) (bool, error) {
