@@ -46,7 +46,7 @@ func (s *R2ImageService) ProcessContentFromMarkdown(
 
 	r2Url := config.GetConfig().R2Url
 
-	reg := regexp.MustCompile(`!\[[^\]]*\]\(([^)]+)\)`)
+	reg := regexp.MustCompile(`!\[[^\]]*]\(\s*([^\s)]+)`)
 	newMatches := reg.FindAllStringSubmatch(content, -1)
 
 	var needDeleteUrls []*s3.ObjectIdentifier

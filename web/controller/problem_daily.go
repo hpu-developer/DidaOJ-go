@@ -436,7 +436,7 @@ func (c *ProblemController) PostDailyEdit(ctx *gin.Context) {
 		Build()
 	err = foundationservice.GetProblemService().PostDailyEdit(ctx, id, problemDaily)
 	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		metaresponse.NewResponse(ctx, weberrorcode.ProblemDailyProblemAlreadyExists, nil)
 		return
 	}
 
