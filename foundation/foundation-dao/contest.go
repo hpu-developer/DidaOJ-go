@@ -13,6 +13,7 @@ import (
 	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
 	"meta/singleton"
+	"regexp"
 	"time"
 )
 
@@ -40,6 +41,26 @@ func GetContestDao() *ContestDao {
 }
 
 func (d *ContestDao) InitDao(ctx context.Context) error {
+
+	_, err := d.collection.Indexes().CreateMany(
+		ctx, []mongo.IndexModel{
+			{
+				Keys: bson.D{
+					{Key: "title", Value: 1},
+				},
+				Options: options.Index().SetName("title"),
+			},
+			{
+				Keys: bson.D{
+					{Key: "owner_id", Value: 1},
+				},
+				Options: options.Index().SetName("owner_id"),
+			},
+		},
+	)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to create indexes for contest collection")
+	}
 	return nil
 }
 
@@ -354,14 +375,21 @@ func (d *ContestDao) GetContestStartTime(ctx context.Context, id int) (*time.Tim
 
 func (d *ContestDao) GetContestList(
 	ctx context.Context,
+	title string,
+	userId int,
 	page int,
 	pageSize int,
-) (
-	[]*foundationmodel.Contest,
-	int,
-	error,
-) {
+) ([]*foundationmodel.Contest, int, error) {
 	filter := bson.M{}
+	if title != "" {
+		filter["title"] = bson.M{
+			"$regex":   regexp.QuoteMeta(title),
+			"$options": "i", // 不区分大小写
+		}
+	}
+	if userId > 0 {
+		filter["owner_id"] = userId
+	}
 	limit := int64(pageSize)
 	skip := int64((page - 1) * pageSize)
 

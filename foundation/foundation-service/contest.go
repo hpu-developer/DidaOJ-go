@@ -291,12 +291,22 @@ func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, i
 	return problemIndexes, attemptStatusesMap, nil
 }
 
-func (s *ContestService) GetContestList(ctx context.Context, page int, pageSize int) (
-	[]*foundationmodel.Contest,
-	int,
-	error,
-) {
-	contests, totalCount, err := foundationdao.GetContestDao().GetContestList(ctx, page, pageSize)
+func (s *ContestService) GetContestList(
+	ctx context.Context,
+	title string,
+	username string,
+	page int,
+	pageSize int,
+) ([]*foundationmodel.Contest, int, error) {
+	userId := -1
+	if username != "" {
+		var err error
+		userId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	contests, totalCount, err := foundationdao.GetContestDao().GetContestList(ctx, title, userId, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}

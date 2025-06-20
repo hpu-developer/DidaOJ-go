@@ -130,9 +130,11 @@ func (c *ContestController) GetList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	title := ctx.Query("title")
+	username := ctx.Query("username")
 	var list []*foundationmodel.Contest
 	var totalCount int
-	list, totalCount, err = contestService.GetContestList(ctx, page, pageSize)
+	list, totalCount, err = contestService.GetContestList(ctx, title, username, page, pageSize)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -432,8 +434,8 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Score(0).               // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
@@ -601,8 +603,8 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Score(0).               // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(len(problems)+1). // 索引从1开始
 				Build(),
 		)
