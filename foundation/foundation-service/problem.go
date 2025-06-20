@@ -394,9 +394,12 @@ func (s *ProblemService) GetDailyList(
 	for _, problem := range problemList {
 		tagIds = append(tagIds, problem.Tags...)
 	}
-	tags, err := foundationdao.GetProblemTagDao().GetProblemTagByIds(ctx, tagIds)
-	if err != nil {
-		return nil, 0, nil, nil, err
+	var tags []*foundationmodel.ProblemTag
+	if len(tagIds) > 0 {
+		tags, err = foundationdao.GetProblemTagDao().GetProblemTagByIds(ctx, tagIds)
+		if err != nil {
+			return nil, 0, nil, nil, err
+		}
 	}
 	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
 	if userId > 0 {
