@@ -332,6 +332,20 @@ func (s *JudgeService) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 	return foundationdao.GetJudgeJobDao().GetJudgeJobCountStaticsRecently(ctx)
 }
 
+func (s *JudgeService) GetProblemAttemptStatus(
+	ctx context.Context, problemIds []string, authorId int,
+	contestId int, startTime *time.Time, endTime *time.Time,
+) (map[string]foundationmodel.ProblemAttemptStatus, error) {
+	return foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
+		ctx,
+		problemIds,
+		authorId,
+		contestId,
+		startTime,
+		endTime,
+	)
+}
+
 func (s *JudgeService) UpdateJudge(ctx context.Context, id int, judgeJob *foundationmodel.JudgeJob) error {
 	return foundationdao.GetJudgeJobDao().UpdateJudgeJob(ctx, id, judgeJob)
 }

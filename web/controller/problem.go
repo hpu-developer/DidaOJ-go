@@ -206,6 +206,42 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ProblemController) GetAttemptStatus(ctx *gin.Context) {
+	idsStr := ctx.Query("ids")
+	if idsStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	ids := strings.Split(idsStr, ",")
+	validProblemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, ids)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if len(validProblemIds) == 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	problemStatus, err := foundationservice.GetJudgeService().GetProblemAttemptStatus(
+		ctx,
+		validProblemIds,
+		userId,
+		-1,
+		nil,
+		nil,
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemStatus)
+}
+
 func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
 		ctx,
