@@ -96,6 +96,20 @@ func (d *UserDao) GetUser(ctx context.Context, userId int) (*foundationmodel.Use
 	return &User, nil
 }
 
+func (d *UserDao) GetUserByUsername(ctx context.Context, username string) (*foundationmodel.User, error) {
+	filter := bson.M{
+		"username_lower": strings.ToLower(username),
+	}
+	var User foundationmodel.User
+	if err := d.collection.FindOne(ctx, filter).Decode(&User); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find UserId error")
+	}
+	return &User, nil
+}
+
 func (d *UserDao) GetInfo(ctx *gin.Context, username string) (*foundationmodel.UserInfo, error) {
 	filter := bson.M{
 		"username_lower": strings.ToLower(username),

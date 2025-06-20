@@ -1020,7 +1020,20 @@ func (c *ProblemController) PostCreate(ctx *gin.Context) {
 		return
 	}
 
-	problemId, err := foundationservice.GetProblemService().PostCreate(ctx, userId, &requestData)
+	nowTime := metatime.GetTimeNow()
+
+	problem := foundationmodel.NewProblemBuilder().
+		Title(requestData.Title).
+		Description(requestData.Description).
+		Source(requestData.Source).
+		TimeLimit(requestData.TimeLimit).
+		MemoryLimit(requestData.MemoryLimit).
+		InsertTime(nowTime).
+		UpdateTime(nowTime).
+		CreatorId(userId).
+		Private(requestData.Private).
+		Build()
+	problemId, err := foundationservice.GetProblemService().PostCreate(ctx, problem, requestData.Tags)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

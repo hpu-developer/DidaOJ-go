@@ -585,19 +585,21 @@ func (d *ProblemDao) InsertProblem(ctx context.Context, problem *foundationmodel
 	return nil
 }
 
-func (d *ProblemDao) PostCreate(ctx context.Context, userId int, requestData *request.ProblemEdit) (*string, error) {
+func (d *ProblemDao) PostCreate(ctx context.Context, problem *foundationmodel.Problem, tags []string) (
+	*string,
+	error,
+) {
 	session, err := d.collection.Database().Client().StartSession()
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to start mongo session")
 	}
 	defer session.EndSession(ctx)
 
-	nowTime := metatime.GetTimeNow()
 	var newProblemId *string
 	_, err = session.WithTransaction(
 		ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 			var tagIds []int
-			for _, tagName := range requestData.Tags {
+			for _, tagName := range tags {
 				tag := foundationmodel.NewProblemTagBuilder().Name(tagName).Build()
 				err := GetProblemTagDao().InsertTag(sessCtx, tag)
 				if err != nil {
@@ -605,18 +607,7 @@ func (d *ProblemDao) PostCreate(ctx context.Context, userId int, requestData *re
 				}
 				tagIds = append(tagIds, tag.Id)
 			}
-			problem := foundationmodel.NewProblemBuilder().
-				Title(requestData.Title).
-				Description(requestData.Description).
-				Source(requestData.Source).
-				TimeLimit(requestData.TimeLimit).
-				MemoryLimit(requestData.MemoryLimit).
-				InsertTime(nowTime).
-				UpdateTime(nowTime).
-				Tags(tagIds).
-				CreatorId(userId).
-				Private(requestData.Private).
-				Build()
+			problem.Tags = tagIds
 			seq, err := GetCounterDao().GetNextSequence(sessCtx, "problem_id")
 			if err != nil {
 				return nil, err

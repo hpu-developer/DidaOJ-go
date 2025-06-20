@@ -418,7 +418,7 @@ func (c *UserController) PostLogin(ctx *gin.Context) {
 		userLoginRequest.Password,
 	)
 	if err != nil {
-		metaresponse.NewResponseError(ctx, err, nil)
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	if loginResponse == nil {

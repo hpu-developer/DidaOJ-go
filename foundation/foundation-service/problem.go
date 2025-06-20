@@ -248,11 +248,12 @@ func (s *ProblemService) FilterValidProblemIds(ctx *gin.Context, ids []string) (
 	return foundationdao.GetProblemDao().FilterValidProblemIds(ctx, ids)
 }
 
-func (s *ProblemService) PostCreate(ctx context.Context, userId int, requestData *request.ProblemEdit) (
-	*string,
-	error,
-) {
-	return foundationdao.GetProblemDao().PostCreate(ctx, userId, requestData)
+func (s *ProblemService) PostCreate(
+	ctx context.Context,
+	problem *foundationmodel.Problem,
+	tags []string,
+) (*string, error) {
+	return foundationdao.GetProblemDao().PostCreate(ctx, problem, tags)
 }
 
 func (s *ProblemService) PostEdit(ctx context.Context, userId int, requestData *request.ProblemEdit) (

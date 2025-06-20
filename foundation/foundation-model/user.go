@@ -20,6 +20,7 @@ type User struct {
 	Nickname      string    `json:"nickname,omitempty" bson:"nickname"`                       // 显示的昵称
 	Password      string    `json:"password" bson:"password"`                                 // 密码
 	Email         string    `json:"email,omitempty" bson:"email,omitempty"`                   // 邮箱
+	Number        string    `json:"number,omitempty" bson:"number,omitempty"`                 // 身份标识符
 	QQ            string    `json:"qq,omitempty" bson:"qq,omitempty"`                         // QQ
 	Slogan        string    `json:"slogan,omitempty" bson:"slogan,omitempty"`                 // 签名
 	Organization  string    `json:"organization,omitempty" bson:"organization,omitempty"`     // 组织
@@ -99,6 +100,11 @@ func (b *UserBuilder) Slogan(slogan string) *UserBuilder {
 
 func (b *UserBuilder) Organization(organization string) *UserBuilder {
 	b.item.Organization = organization
+	return b
+}
+
+func (b *UserBuilder) Number(number string) *UserBuilder {
+	b.item.Number = number
 	return b
 }
 

@@ -37,7 +37,7 @@ type Problem struct {
 	CreatorUsername *string `json:"creator_username,omitempty" bson:"creator_username,omitempty"`
 	CreatorNickname *string `json:"creator_nickname,omitempty" bson:"creator_nickname,omitempty"`
 
-	TimeLimit   int                       `json:"time_limit" bson:"time_limit"`
+	TimeLimit   int                       `json:"time_limit" bson:"time_limit"`     // 题目时间限制，单位为毫秒
 	MemoryLimit int                       `json:"memory_limit" bson:"memory_limit"` // 题目内存限制，单位为KB
 	Tags        []int                     `json:"tags,omitempty" bson:"tags,omitempty"`
 	JudgeType   foundationjudge.JudgeType `json:"judge_type" bson:"judge_type"`

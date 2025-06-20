@@ -21,6 +21,14 @@ var (
 	ContestScoreTypePartial  ContestScoreType = 2 // 题目部分得分也按比例得分
 )
 
+type ContestDiscussType int
+
+var (
+	ContestDiscussTypeNormal  ContestDiscussType = 0 // 正常讨论
+	ContestDiscussTypeSelf    ContestDiscussType = 1 // 仅能参与自己发表的讨论（管理员不受限制）
+	ContestDiscussTypeDisable ContestDiscussType = 2 // 不接受讨论
+)
+
 type VirtualReplay struct {
 	RankList []struct {
 		Nickname         string        `json:"nickname" bson:"nickname"`                     // 昵称
@@ -58,6 +66,7 @@ type Contest struct {
 
 	SubmitAnytime bool `json:"submit_anytime,omitempty" bson:"submit_anytime,omitempty"` // 是否允许在比赛结束后提交，默认为false
 
+	Authors     []int `json:"authors,omitempty" bson:"authors,omitempty"`           // 作者列表，用于展示出题人
 	AuthMembers []int `json:"auth_members,omitempty" bson:"auth_members,omitempty"` // 管理员，可以对本比赛进行编辑与查看
 
 	// 排名相关
@@ -72,6 +81,8 @@ type Contest struct {
 
 	// 题目相关
 	Problems []*ContestProblem `json:"problems,omitempty" bson:"problems,omitempty"` // 题目Id列表
+
+	DiscussType ContestDiscussType `json:"discuss_type,omitempty" bson:"discuss_type,omitempty"` // 讨论类型，0表示不启用讨论，1表示启用讨论
 
 	// Migrate相关
 	MigrateJolId  int `json:"-" bson:"-"` // Jol中的Id
