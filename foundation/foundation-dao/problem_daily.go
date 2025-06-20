@@ -79,7 +79,7 @@ func (d *ProblemDailyDao) HasProblemDailyProblem(ctx *gin.Context, problemId str
 }
 
 func (d *ProblemDailyDao) GetProblemIdByDaily(ctx *gin.Context, id string, hasAuth bool) (*string, error) {
-	nowId := metatime.GetTimeNow().Format("2006-01-02")
+	nowId := metatime.GetTimeNowBeijing().Format("2006-01-02")
 	if !hasAuth {
 		if id > nowId {
 			return nil, nil
@@ -113,7 +113,7 @@ func (d *ProblemDailyDao) GetProblemDaily(ctx *gin.Context, id string, hasAuth b
 	*foundationmodel.ProblemDaily,
 	error,
 ) {
-	nowTime := metatime.GetTimeNow()
+	nowTime := metatime.GetTimeNowBeijing()
 	nowId := nowTime.Format("2006-01-02")
 	if !hasAuth {
 		if id > nowId {
@@ -187,7 +187,7 @@ func (d *ProblemDailyDao) GetDailyList(
 	page int,
 	pageSize int,
 ) ([]*foundationmodel.ProblemDaily, int, error) {
-	nowId := metatime.GetTimeNow().Format("2006-01-02")
+	nowId := metatime.GetTimeNowBeijing().Format("2006-01-02")
 	idFilter := bson.M{}
 	if startDate != nil && *startDate != "" {
 		idFilter["$gte"] = *startDate
@@ -258,7 +258,7 @@ func (d *ProblemDailyDao) GetDailyList(
 func (d *ProblemDailyDao) GetDailyRecently(ctx *gin.Context) ([]*foundationmodel.ProblemDaily, error) {
 	filter := bson.M{
 		"_id": bson.M{
-			"$lte": metatime.GetTimeNow().Format("2006-01-02"),
+			"$lte": metatime.GetTimeNowBeijing().Format("2006-01-02"),
 		},
 	}
 	opts := options.Find().
