@@ -1377,7 +1377,7 @@ func (d *JudgeJobDao) MarkJudgeJobCompileMessage(ctx context.Context, id int, me
 	updateOptions := options.Update()
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to update job")
+		return metaerror.Wrap(err, "failed to update job", "id", id)
 	}
 	return nil
 }
@@ -1395,7 +1395,7 @@ func (d *JudgeJobDao) MarkJudgeJobTaskTotal(ctx context.Context, id int, taskTot
 	updateOptions := options.Update()
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to update job")
+		return metaerror.Wrap(err, "failed to update job", "id", id)
 	}
 	return nil
 }
@@ -1415,7 +1415,7 @@ func (d *JudgeJobDao) AddJudgeJobTaskCurrent(ctx context.Context, id int, task *
 	updateOptions := options.Update()
 	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to update job")
+		return metaerror.Wrap(err, "failed to update job", "id", id)
 	}
 	return nil
 }

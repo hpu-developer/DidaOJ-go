@@ -40,7 +40,11 @@ func (d *DiscussCommentDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
-func (d *DiscussCommentDao) UpdateDiscussComment(ctx context.Context, key string, discussComment *foundationmodel.DiscussComment) error {
+func (d *DiscussCommentDao) UpdateDiscussComment(
+	ctx context.Context,
+	key string,
+	discussComment *foundationmodel.DiscussComment,
+) error {
 	filter := bson.D{
 		{"_id", key},
 	}
@@ -60,13 +64,15 @@ func (d *DiscussCommentDao) GetDiscussComment(ctx context.Context, id int) (*fou
 		"_id": id,
 	}
 	opts := options.FindOne().
-		SetProjection(bson.M{
-			"_id":         1,
-			"content":     1,
-			"author_id":   1,
-			"insert_time": 1,
-			"update_time": 1,
-		})
+		SetProjection(
+			bson.M{
+				"_id":         1,
+				"content":     1,
+				"author_id":   1,
+				"insert_time": 1,
+				"update_time": 1,
+			},
+		)
 	var discussComment foundationmodel.DiscussComment
 	if err := d.collection.FindOne(ctx, filter, opts).Decode(&discussComment); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -77,11 +83,13 @@ func (d *DiscussCommentDao) GetDiscussComment(ctx context.Context, id int) (*fou
 	return &discussComment, nil
 }
 
-func (d *DiscussCommentDao) GetDiscussCommentList(ctx context.Context,
+func (d *DiscussCommentDao) GetDiscussCommentList(
+	ctx context.Context,
 	discussId int,
 	page int,
 	pageSize int,
-) ([]*foundationmodel.DiscussComment,
+) (
+	[]*foundationmodel.DiscussComment,
 	int,
 	error,
 ) {
@@ -93,13 +101,15 @@ func (d *DiscussCommentDao) GetDiscussCommentList(ctx context.Context,
 
 	// 只获取id、title、tags、accept
 	opts := options.Find().
-		SetProjection(bson.M{
-			"_id":         1,
-			"content":     1,
-			"author_id":   1,
-			"insert_time": 1,
-			"update_time": 1,
-		}).
+		SetProjection(
+			bson.M{
+				"_id":         1,
+				"content":     1,
+				"author_id":   1,
+				"insert_time": 1,
+				"update_time": 1,
+			},
+		).
 		SetSkip(skip).
 		SetLimit(limit).
 		SetSort(bson.M{"_id": 1})
@@ -149,7 +159,10 @@ func (d *DiscussCommentDao) UpdateDiscussComments(ctx context.Context, tags []*f
 	return nil
 }
 
-func (d *DiscussCommentDao) InsertDiscussComment(ctx context.Context, discussComment *foundationmodel.DiscussComment) error {
+func (d *DiscussCommentDao) InsertDiscussComment(
+	ctx context.Context,
+	discussComment *foundationmodel.DiscussComment,
+) error {
 	mongoSubsystem := metamongo.GetSubsystem()
 	client := mongoSubsystem.GetClient()
 	sess, err := client.StartSession()
@@ -157,35 +170,42 @@ func (d *DiscussCommentDao) InsertDiscussComment(ctx context.Context, discussCom
 		return err
 	}
 	defer sess.EndSession(ctx)
-	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
-		// 获取下一个序列号
-		seq, err := GetCounterDao().GetNextSequence(sc, "discuss_comment_id")
-		if err != nil {
-			return nil, err
-		}
-		// 更新 DiscussComment 的 ID
-		discussComment.Id = seq
-		// 插入新的 DiscussComment
-		_, err = d.collection.InsertOne(sc, discussComment)
-		if err != nil {
-			return nil, err
-		}
-		// 更新Discuss表的comment计数
-		filter := bson.D{
-			{"_id", discussComment.DiscussId},
-		}
-		update := bson.M{
-			"$inc": bson.M{
-				"comment_count": 1,
-			},
-		}
-		updateOptions := options.Update()
-		_, err = GetDiscussDao().collection.UpdateOne(sc, filter, update, updateOptions)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
+	_, err = sess.WithTransaction(
+		ctx, func(sc mongo.SessionContext) (interface{}, error) {
+			// 更新Discuss表的comment计数
+			filter := bson.M{
+				"_id": discussComment.DiscussId,
+			}
+			update := bson.M{
+				"$set": bson.M{
+					"update_time": discussComment.UpdateTime,
+				},
+			}
+			res, err := GetDiscussDao().collection.UpdateOne(sc, filter, update)
+			if err != nil {
+				return nil, err
+			}
+			if res.MatchedCount == 0 {
+				return nil, metaerror.New(
+					"update discuss comment no document matched, discussId:%d",
+					discussComment.DiscussId,
+				)
+			}
+			// 获取下一个序列号
+			seq, err := GetCounterDao().GetNextSequence(sc, "discuss_comment_id")
+			if err != nil {
+				return nil, err
+			}
+			// 更新 DiscussComment 的 ID
+			discussComment.Id = seq
+			// 插入新的 DiscussComment
+			_, err = d.collection.InsertOne(sc, discussComment)
+			if err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	)
 	if err != nil {
 		return err
 	}

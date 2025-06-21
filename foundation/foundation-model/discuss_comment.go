@@ -1,6 +1,9 @@
 package foundationmodel
 
-import "time"
+import (
+	metautf "meta/meta-utf"
+	"time"
+)
 
 type DiscussComment struct {
 	Id             int       `json:"id" bson:"_id"`                                              // 数据库索引时的Id
@@ -11,6 +14,10 @@ type DiscussComment struct {
 	AuthorNickname *string   `json:"author_nickname,omitempty" bson:"author_nickname,omitempty"` // 讨论作者昵称
 	InsertTime     time.Time `json:"insert_time" bson:"insert_time"`                             // 创建时间
 	UpdateTime     time.Time `json:"update_time" bson:"update_time"`                             // 更新时间
+
+	MigrateEojBlogId          int
+	MigrateDidaOJId           int
+	MigrateEojClarificationId int
 }
 
 type DiscussCommentBuilder struct {
@@ -32,7 +39,7 @@ func (b *DiscussCommentBuilder) DiscussId(discussId int) *DiscussCommentBuilder 
 }
 
 func (b *DiscussCommentBuilder) Content(content string) *DiscussCommentBuilder {
-	b.item.Content = content
+	b.item.Content = metautf.SanitizeText(content)
 	return b
 }
 

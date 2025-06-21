@@ -373,7 +373,18 @@ func (s *JudgeService) updateJudgeData(ctx context.Context, problemId string, md
 		// 其他错误，返回报错
 		return metaerror.Wrap(err, "failed to stat judge md5 file")
 	}
-	return s.downloadJudgeData(ctx, problemId, md5)
+	err = s.downloadJudgeData(ctx, problemId, md5)
+	if err != nil {
+		// 有可能下载了一半，因此删除文件夹
+		slog.Error("download judge data failed", "problemId", problemId, "error", err)
+		judgeDataDir := path.Join(".judge_data", problemId)
+		removeErr := os.RemoveAll(judgeDataDir)
+		if err != nil {
+			err = metaerror.Join(err, removeErr)
+		}
+		return metaerror.Wrap(err, "failed to download judge data")
+	}
+	return err
 }
 
 func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, md5 string) error {
