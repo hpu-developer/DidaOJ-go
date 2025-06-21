@@ -306,14 +306,18 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 	}
 
 	if requestData.ProblemId != nil {
-		ok, err := foundationservice.GetProblemService().HasProblem(ctx, *requestData.ProblemId)
-		if err != nil {
-			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-			return
-		}
-		if !ok {
-			metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
-			return
+		if *requestData.ProblemId == "" {
+			requestData.ProblemId = nil
+		} else {
+			ok, err := foundationservice.GetProblemService().HasProblem(ctx, *requestData.ProblemId)
+			if err != nil {
+				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+				return
+			}
+			if !ok {
+				metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
+				return
+			}
 		}
 	}
 
@@ -452,10 +456,10 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 
 	responseData := struct {
 		Content    string    `json:"content"`
-		UpdateTime time.Time `json:"update_time"`
+		ModifyTime time.Time `json:"modify_time"`
 	}{
 		Content:    content,
-		UpdateTime: nowTime,
+		ModifyTime: nowTime,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
