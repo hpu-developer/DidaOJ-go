@@ -13,6 +13,8 @@ import (
 
 type MigrateMarkDao struct {
 	collection *mongo.Collection
+
+	caches map[string]map[string]string // typeKey -> oldId -> newId
 }
 
 var singletonMigrateMarkDao = singleton.Singleton[MigrateMarkDao]{}
@@ -35,6 +37,14 @@ func GetMigrateMarkDao() *MigrateMarkDao {
 }
 
 func (d *MigrateMarkDao) GetMark(ctx context.Context, typeKey string, oldId string) (*string, error) {
+	// Check cache first
+	if d.caches != nil {
+		if oldIdMap, exists := d.caches[typeKey]; exists {
+			if newId, exists := oldIdMap[oldId]; exists {
+				return &newId, nil // Return cached newId
+			}
+		}
+	}
 	filter := bson.M{
 		"type":   typeKey,
 		"old_id": oldId,
@@ -48,6 +58,15 @@ func (d *MigrateMarkDao) GetMark(ctx context.Context, typeKey string, oldId stri
 			return nil, nil // No document found
 		}
 		return nil, metaerror.Wrap(err, "failed to find migrate mark")
+	}
+	if d.caches == nil {
+		d.caches = make(map[string]map[string]string)
+	}
+	if _, exists := d.caches[typeKey]; !exists {
+		d.caches[typeKey] = make(map[string]string)
+	}
+	if result.NewId != nil {
+		d.caches[typeKey][oldId] = *result.NewId // Cache the result
 	}
 	return result.NewId, nil
 }

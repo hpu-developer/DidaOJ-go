@@ -1,5 +1,6 @@
 package foundationcontest
 
+// GetContestProblemIndexStr 根据1返回A，2返回B，3返回C等
 func GetContestProblemIndexStr(index int) string {
 	result := ""
 	for index > 0 {
@@ -10,6 +11,7 @@ func GetContestProblemIndexStr(index int) string {
 	return result
 }
 
+// GetContestProblemIndex 根据A返回1，B返回2，C返回3等
 func GetContestProblemIndex(indexStr string) int {
 	// 判断是否仅包含大写字母
 	for i := 0; i < len(indexStr); i++ {

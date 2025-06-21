@@ -407,19 +407,19 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int, nowTime ti
 	return contest, problemIndexes, contestRanks, isLocked, nil
 }
 
-func (s *ContestService) UpdateContest(ctx *gin.Context, id int, contest *foundationmodel.Contest) error {
+func (s *ContestService) UpdateContest(ctx context.Context, id int, contest *foundationmodel.Contest) error {
 	return foundationdao.GetContestDao().UpdateContest(ctx, id, contest)
 }
 
-func (s *ContestService) UpdateDescription(ctx *gin.Context, id int, description string) error {
+func (s *ContestService) UpdateDescription(ctx context.Context, id int, description string) error {
 	return foundationdao.GetContestDao().UpdateDescription(ctx, id, description)
 }
 
-func (s *ContestService) PostPassword(ctx *gin.Context, userId int, contestId int, password string) (bool, error) {
+func (s *ContestService) PostPassword(ctx context.Context, userId int, contestId int, password string) (bool, error) {
 	return foundationdao.GetContestDao().PostPassword(ctx, userId, contestId, password)
 }
 
-func (s *ContestService) DolosContest(ctx *gin.Context, id int) (*string, error) {
+func (s *ContestService) DolosContest(ctx context.Context, id int) (*string, error) {
 
 	tempDir, err := os.MkdirTemp("", "didaoj-contest-data-*")
 	if err != nil {

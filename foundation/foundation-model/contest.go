@@ -69,6 +69,8 @@ type Contest struct {
 	Authors     []int `json:"authors,omitempty" bson:"authors,omitempty"`           // 作者列表，用于展示出题人
 	AuthMembers []int `json:"auth_members,omitempty" bson:"auth_members,omitempty"` // 管理员，可以对本比赛进行编辑与查看
 
+	Volunteers []int `json:"volunteers,omitempty" bson:"volunteers,omitempty"` // 志愿者列表，可以对本比赛的进度查看，方便发气球等工作
+
 	// 排名相关
 	Type          ContestType      `json:"type" bson:"type"`                                         // 比赛类型
 	ScoreType     ContestScoreType `json:"score_type" bson:"score_type"`                             // 分数类型
@@ -229,6 +231,16 @@ func (b *ContestBuilder) SubmitAnytime(submitAnytime bool) *ContestBuilder {
 
 func (b *ContestBuilder) AuthMembers(authMembers []int) *ContestBuilder {
 	b.item.AuthMembers = authMembers
+	return b
+}
+
+func (b *ContestBuilder) Authors(authors []int) *ContestBuilder {
+	b.item.Authors = authors
+	return b
+}
+
+func (b *ContestBuilder) Volunteers(volunteers []int) *ContestBuilder {
+	b.item.Volunteers = volunteers
 	return b
 }
 

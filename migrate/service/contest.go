@@ -181,7 +181,7 @@ func (s *MigrateContestService) processJolContest(ctx context.Context) ([]*found
 				finalContest.Problems,
 				foundationmodel.NewContestProblemBuilder().
 					ProblemId(newProblemId).
-					Score(problem.Scores).
+					Weight(problem.Scores).
 					Index(problem.Num+1).
 					Build(),
 			)

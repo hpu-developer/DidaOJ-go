@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-type MigrateProblemV2Service struct {
+type MigrateProblemEojService struct {
 }
 
 // GORM 模型定义
@@ -74,17 +74,17 @@ func (EojProblemTag) TableName() string {
 	return "tagging_tag"
 }
 
-var singletonMigrateProblemV2Service = singleton.Singleton[MigrateProblemV2Service]{}
+var singletonMigrateProblemV2Service = singleton.Singleton[MigrateProblemEojService]{}
 
-func GetMigrateProblemEojService() *MigrateProblemV2Service {
+func GetMigrateProblemEojService() *MigrateProblemEojService {
 	return singletonMigrateProblemV2Service.GetInstance(
-		func() *MigrateProblemV2Service {
-			return &MigrateProblemV2Service{}
+		func() *MigrateProblemEojService {
+			return &MigrateProblemEojService{}
 		},
 	)
 }
 
-func (s *MigrateProblemV2Service) Start() error {
+func (s *MigrateProblemEojService) Start() error {
 	ctx := context.Background()
 
 	ignoreProblem := []int{

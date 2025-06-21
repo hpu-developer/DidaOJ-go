@@ -24,6 +24,9 @@ import (
 	metapath "meta/meta-path"
 	metaslice "meta/meta-slice"
 	metastring "meta/meta-string"
+	metazip "meta/meta-zip"
+	"meta/retry"
+	"meta/routine"
 	"meta/singleton"
 	"os"
 	"path"
@@ -31,6 +34,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 	weberrorcode "web/error-code"
 )
 
@@ -497,7 +502,7 @@ func (s *ProblemService) PostJudgeData(
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataWithoutTask)
 	}
 
-	if taskCount > 1000 {
+	if taskCount > 200 {
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataTaskCountTooMany1000)
 	}
 
@@ -505,29 +510,28 @@ func (s *ProblemService) PostJudgeData(
 	for _, taskConfig := range jobConfig.Tasks {
 		totalScore += taskConfig.Score
 	}
+	leftScore := 0
 	if totalScore <= 0 {
 		totalScore = 1000
 		averageScore := totalScore / taskCount
-		for i, taskConfig := range jobConfig.Tasks {
-			if i != taskCount-1 {
-				taskConfig.Score = averageScore
-			} else {
-				taskConfig.Score = totalScore - averageScore*(taskCount-1)
-			}
+		for _, taskConfig := range jobConfig.Tasks {
+			taskConfig.Score = averageScore
 		}
+		leftScore = totalScore % taskCount
 	} else {
 		//把totalScore转为0~1000
 		rate := 1000.0 / float64(totalScore)
 		totalScore = 1000
 		sumScore := 0
-		for i, taskConfig := range jobConfig.Tasks {
-			if i != taskCount-1 {
-				taskConfig.Score = int(float64(taskConfig.Score) * rate)
-				sumScore += taskConfig.Score
-			} else {
-				taskConfig.Score = totalScore - sumScore
-			}
+		for _, taskConfig := range jobConfig.Tasks {
+			taskConfig.Score = int(float64(taskConfig.Score) * rate)
+			sumScore += taskConfig.Score
 		}
+		leftScore = totalScore - sumScore
+	}
+	for i := taskCount - 1; i >= 0 && leftScore > 0; i-- {
+		jobConfig.Tasks[i].Score += 1
+		leftScore--
 	}
 
 	// 重新生成一个rule.yaml
@@ -598,7 +602,11 @@ func (s *ProblemService) PostJudgeData(
 	if r2Client == nil {
 		return metaerror.NewCode(metaerrorcode.CommonError)
 	}
-	// 遍历解压目录并上传文件
+
+	var maxConcurrency = 10
+
+	// 收集所有文件
+	var uploadFiles []string
 	err = filepath.Walk(
 		unzipDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -607,69 +615,203 @@ func (s *ProblemService) PostJudgeData(
 			if info.IsDir() {
 				return nil
 			}
-			relativePath, err := filepath.Rel(unzipDir, path)
-			if err != nil {
-				return err
-			}
-			key := filepath.ToSlash(filepath.Join(problemId, judgeDataMd5, relativePath))
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			defer func(file *os.File) {
-				err := file.Close()
-				if err != nil {
-					metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
-				}
-			}(file)
-			slog.Info("put object start", "key", key)
-			_, err = r2Client.PutObjectWithContext(
-				ctx, &s3.PutObjectInput{
-					Bucket: aws.String("didaoj-judge"),
-					Key:    aws.String(key),
-					Body:   file,
-				},
-			)
-			if err != nil {
-				slog.Info("put object error", "key", key)
-				return metaerror.Wrap(err, "put object error, key:%s", key)
-			}
-			slog.Info("put object success", "key", key)
+			uploadFiles = append(uploadFiles, path)
 			return nil
 		},
 	)
 	if err != nil {
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
 	}
-	// 删除旧的路径
-	if oldMd5 != nil {
-		prefix := filepath.ToSlash(path.Join(problemId, *oldMd5))
-		input := &s3.ListObjectsV2Input{
-			Bucket: aws.String("didaoj-judge"),
-			Prefix: aws.String(prefix),
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxConcurrency)
+	errChan := make(chan error, 1) // 只保留第一个错误
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	for _, uploadFile := range uploadFiles {
+		select {
+		case <-ctx.Done():
+			break
+		default:
 		}
-		err = r2Client.ListObjectsV2PagesWithContext(
-			ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
-				for _, obj := range page.Contents {
-					_, err := r2Client.DeleteObjectWithContext(
-						ctx, &s3.DeleteObjectInput{
-							Bucket: aws.String("didaoj-judge"),
-							Key:    obj.Key,
-						},
-					)
-					if err != nil {
-						metapanic.ProcessError(metaerror.Wrap(err, "delete object error, key:%s", obj.Key))
-						return false
+		wg.Add(1)
+		sem <- struct{}{} // acquire
+		goPath := uploadFile
+		routine.SafeGo(
+			"upload judge data file", func() error {
+				defer wg.Done()
+				defer func() { <-sem }() // release
+				relativePath, err := filepath.Rel(unzipDir, goPath)
+				if err != nil {
+					select {
+					case errChan <- err:
+					default:
 					}
+					return nil
 				}
-				return true
+				key := filepath.ToSlash(filepath.Join(problemId, judgeDataMd5, relativePath))
+				file, err := os.Open(goPath)
+				if err != nil {
+					select {
+					case errChan <- err:
+					default:
+					}
+					return nil
+				}
+				defer func() {
+					if err := file.Close(); err != nil {
+						metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
+					}
+				}()
+				slog.Info("put object start", "key", key)
+				var finalErr error
+				err = retry.TryRetrySleep(
+					"put object", 3, time.Second*3, func(i int) bool {
+						_, err = r2Client.PutObjectWithContext(
+							ctx, &s3.PutObjectInput{
+								Bucket: aws.String("didaoj-judge"),
+								Key:    aws.String(key),
+								Body:   file,
+							},
+						)
+						if err != nil {
+							finalErr = err
+							return true
+						}
+						return true
+					},
+				)
+				if err != nil {
+					slog.Info("put object error", "key", key)
+					select {
+					case errChan <- metaerror.Wrap(finalErr, "put object error, key:%s", key):
+					default:
+					}
+					return nil
+				}
+				slog.Info("put object success", "key", key)
+				return nil
 			},
 		)
 	}
+
+	// 等待所有任务完成
+	wg.Wait()
+	close(errChan)
+
+	if err, ok := <-errChan; ok {
+		metapanic.ProcessError(err)
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
+	}
+
+	zipFileName := fmt.Sprintf("%s-%s.zip", problemId, judgeDataMd5)
+	err = metazip.PackagePath(unzipDir, zipFileName)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
+	}
+	zipFile, err := os.Open(path.Join(unzipDir, zipFileName))
+	zipKey := filepath.ToSlash(filepath.Join(problemId, judgeDataMd5, zipFileName))
+	_, err = r2Client.PutObjectWithContext(
+		ctx, &s3.PutObjectInput{
+			Bucket: aws.String("didaoj-judge"),
+			Key:    aws.String(zipKey),
+			Body:   zipFile,
+		},
+	)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
+	}
+
 	err = s.UpdateProblemJudgeInfo(ctx, problemId, judgeType, judgeDataMd5)
 	if err != nil {
 		return err
 	}
+
+	// 删除旧的路径
+	putPrefix := filepath.ToSlash(path.Join(problemId, judgeDataMd5))
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String("didaoj-judge"),
+		Prefix: aws.String(problemId),
+	}
+	var deleteKeys []string
+	err = r2Client.ListObjectsV2PagesWithContext(
+		ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+			for _, obj := range page.Contents {
+				if strings.HasPrefix(*obj.Key, putPrefix) {
+					continue
+				}
+				deleteKeys = append(deleteKeys, *obj.Key)
+			}
+			return true
+		},
+	)
+
+	if len(deleteKeys) > 0 {
+		// 这里不应该依赖PostJudge的流程，走到这里必须执行完毕删除逻辑，否则就会产生遗留数据，只能等待下一次更新判题数据时删除
+		routine.SafeGo(
+			"delete judge data object", func() error {
+				sem = make(chan struct{}, maxConcurrency)
+				errChan = make(chan error, 1) // 只保留第一个错误
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				for _, delKey := range deleteKeys {
+					select {
+					case <-ctx.Done():
+						break
+					default:
+					}
+					wg.Add(1)
+					sem <- struct{}{}    // acquire
+					currentKey := delKey // 避免闭包问题
+					routine.SafeGo(
+						"delete judge data object", func() error {
+							defer wg.Done()
+							defer func() { <-sem }() // release
+
+							slog.Info("delete object start", "key", currentKey)
+
+							var finalErr error
+							err := retry.TryRetrySleep(
+								"delete object", 3, time.Second*3, func(i int) bool {
+									_, err := r2Client.DeleteObjectWithContext(
+										ctx, &s3.DeleteObjectInput{
+											Bucket: aws.String("didaoj-judge"),
+											Key:    aws.String(currentKey),
+										},
+									)
+									if err != nil {
+										finalErr = err
+										return true // 重试
+									}
+									return true // 成功也退出
+								},
+							)
+							if err != nil {
+								slog.Info("delete object error", "key", currentKey)
+								select {
+								case errChan <- metaerror.Wrap(finalErr, "delete object error, key:%s", currentKey):
+								default:
+								}
+								return nil
+							}
+							slog.Info("delete object success", "key", currentKey)
+							return nil
+						},
+					)
+				}
+
+				// 等待所有任务完成
+				wg.Wait()
+				close(errChan)
+
+				if err, ok := <-errChan; ok {
+					metapanic.ProcessError(err)
+					return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
+				}
+				return nil
+			},
+		)
+	}
+
 	return nil
 }
 

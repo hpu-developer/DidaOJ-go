@@ -3,7 +3,7 @@ package foundationmodel
 type ContestProblem struct {
 	ProblemId string  `json:"problem_id,omitempty" bson:"problem_id,omitempty"` // 实际的题目Id，添加的那一刻需要具有对应问题权限
 	ViewId    *string `json:"view_id,omitempty" bson:"view_id,omitempty"`       // 题目描述Id，如果不存在则使用默认描述
-	Score     int     `json:"score" bson:"score"`                               // 搭配ScoreType使用，定义题目分数，不填写则为0分
+	Weight    int     `json:"weight" bson:"weight"`                             // 搭配ScoreType使用，定义题目分数的权重
 	Index     int     `json:"index" bson:"index"`                               // 问题顺序，用于在展示时标识问题，为了方便标识，从1开始
 
 	Title *string `json:"title,omitempty" bson:"title,omitempty"` // 题目标题
@@ -30,8 +30,8 @@ func (b *ContestProblemBuilder) ViewId(viewId *string) *ContestProblemBuilder {
 	return b
 }
 
-func (b *ContestProblemBuilder) Score(score int) *ContestProblemBuilder {
-	b.item.Score = score
+func (b *ContestProblemBuilder) Weight(weight int) *ContestProblemBuilder {
+	b.item.Weight = weight
 	return b
 }
 

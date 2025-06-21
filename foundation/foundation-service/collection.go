@@ -277,6 +277,10 @@ func (s *CollectionService) PostQuit(ctx *gin.Context, collectionId int, userId 
 	return foundationdao.GetCollectionDao().PostQuit(ctx, collectionId, userId)
 }
 
-func (s *CollectionService) UpdateCollection(ctx *gin.Context, id int, collection *foundationmodel.Collection) error {
+func (s *CollectionService) UpdateCollection(
+	ctx context.Context,
+	id int,
+	collection *foundationmodel.Collection,
+) error {
 	return foundationdao.GetCollectionDao().UpdateCollection(ctx, id, collection)
 }

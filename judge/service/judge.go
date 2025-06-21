@@ -402,6 +402,9 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 	err = r2Client.ListObjectsV2PagesWithContext(
 		ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
 			for _, obj := range page.Contents {
+				if strings.HasSuffix(*obj.Key, ".zip") {
+					continue
+				}
 				wg.Add(1)
 				go func(obj *s3.Object) {
 					defer wg.Done()
@@ -639,8 +642,9 @@ func (s *JudgeService) runJudgeJob(
 			},
 		)
 		totalScore := 1000
-		averageScore := totalScore / len(outFileNames)
-		for i, file := range outFileNames {
+		taskCount = len(outFileNames)
+		averageScore := totalScore / taskCount
+		for _, file := range outFileNames {
 			outFile, err := os.Stat(path.Join(judgeDataDir, file+".out"))
 			if err != nil {
 				continue
@@ -653,12 +657,13 @@ func (s *JudgeService) runJudgeJob(
 			if hasInFiles[file] {
 				judgeTaskConfig.InFile = file + ".in"
 			}
-			if i == len(outFileNames)-1 {
-				judgeTaskConfig.Score = totalScore - averageScore*(len(outFileNames)-1)
-			} else {
-				judgeTaskConfig.Score = averageScore
-			}
+			judgeTaskConfig.Score = averageScore
 			jobConfig.Tasks = append(jobConfig.Tasks, judgeTaskConfig)
+		}
+		leftScore := totalScore % taskCount
+		for i := taskCount - 1; i >= 0 && leftScore > 0; i-- {
+			jobConfig.Tasks[i].Score += 1
+			leftScore--
 		}
 	}
 
@@ -675,13 +680,14 @@ func (s *JudgeService) runJudgeJob(
 	}
 	scoreRate := 1000.0 / sumScore
 	sumScore = 0
-	for i, taskConfig := range jobConfig.Tasks {
-		if i == len(jobConfig.Tasks)-1 {
-			taskConfig.Score = 1000 - sumScore
-		} else {
-			taskConfig.Score = taskConfig.Score * scoreRate
-			sumScore += taskConfig.Score
-		}
+	for _, taskConfig := range jobConfig.Tasks {
+		taskConfig.Score = taskConfig.Score * scoreRate
+		sumScore += taskConfig.Score
+	}
+	leftScore := 1000 - sumScore
+	for i := taskCount - 1; i >= 0 && leftScore > 0; i-- {
+		jobConfig.Tasks[i].Score += 1
+		leftScore--
 	}
 
 	err = foundationdao.GetJudgeJobDao().MarkJudgeJobTaskTotal(ctx, job.Id, taskCount)
