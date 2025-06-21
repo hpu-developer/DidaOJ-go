@@ -48,8 +48,9 @@ type Problem struct {
 	Accept  int `json:"accept" bson:"accept"`
 	Attempt int `json:"attempt" bson:"attempt"`
 
-	Private   bool  `json:"private,omitempty" bson:"private,omitempty"`
-	AuthUsers []int `json:"auth_users,omitempty" bson:"auth_users,omitempty"` // 访问权限用户列表，只有在私有题目时才有意义
+	Private     bool  `json:"private,omitempty" bson:"private,omitempty"`
+	Members     []int `json:"members,omitempty" bson:"members,omitempty"`           // 访问权限用户列表，只有在私有题目时才有意义
+	AuthMembers []int `json:"auth_members,omitempty" bson:"auth_members,omitempty"` // 题目管理员，对题目有编辑权限
 }
 
 type ProblemViewTitle struct {
@@ -58,10 +59,11 @@ type ProblemViewTitle struct {
 }
 
 type ProblemViewAuth struct {
-	Id        string `json:"id" bson:"_id"`
-	CreatorId int    `json:"creator_id" bson:"creator_id"` // 创建者Id
-	Private   bool   `json:"private" bson:"private"`       // 是否私有
-	AuthUsers []int  `json:"auth_users" bson:"auth_users"` // 访问权限用户列表，只有在私有题目时才有意义
+	Id          string `json:"id" bson:"_id"`
+	CreatorId   int    `json:"creator_id" bson:"creator_id"`     // 创建者Id
+	Private     bool   `json:"private" bson:"private"`           // 是否私有
+	Members     []int  `json:"members" bson:"members"`           // 访问权限用户列表，只有在私有题目时才有意义
+	AuthMembers []int  `json:"auth_members" bson:"auth_members"` // 题目管理员，对题目有编辑权限
 }
 
 type ProblemViewAttempt struct {
@@ -175,6 +177,21 @@ func (b *ProblemBuilder) InsertTime(insertTime time.Time) *ProblemBuilder {
 
 func (b *ProblemBuilder) UpdateTime(updateTime time.Time) *ProblemBuilder {
 	b.item.UpdateTime = updateTime
+	return b
+}
+
+func (b *ProblemBuilder) JudgeMd5(judgeMd5 string) *ProblemBuilder {
+	b.item.JudgeMd5 = &judgeMd5
+	return b
+}
+
+func (b *ProblemBuilder) Members(members []int) *ProblemBuilder {
+	b.item.Members = members
+	return b
+}
+
+func (b *ProblemBuilder) AuthMembers(authMembers []int) *ProblemBuilder {
+	b.item.AuthMembers = authMembers
 	return b
 }
 

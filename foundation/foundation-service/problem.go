@@ -11,8 +11,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
-	"web/request"
 )
 
 type ProblemService struct {
@@ -26,6 +24,33 @@ func GetProblemService() *ProblemService {
 			return &ProblemService{}
 		},
 	)
+}
+
+func (s *ProblemService) CheckEditAuth(ctx *gin.Context, id string) (
+	int,
+	bool,
+	error,
+) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	if err != nil {
+		return userId, false, err
+	}
+	if userId <= 0 {
+		return userId, false, nil
+	}
+	if !hasAuth {
+		problem, err := foundationdao.GetProblemDao().GetProblemEditAuth(ctx, id)
+		if err != nil {
+			return userId, false, err
+		}
+		if problem == nil {
+			return userId, false, nil
+		}
+		if problem.CreatorId != userId && !slices.Contains(problem.AuthMembers, userId) {
+			return userId, false, nil
+		}
+	}
+	return userId, true, nil
 }
 
 func (s *ProblemService) CheckSubmitAuth(ctx *gin.Context, id string) (
@@ -50,7 +75,8 @@ func (s *ProblemService) CheckSubmitAuth(ctx *gin.Context, id string) (
 		}
 		if problem.Private &&
 			problem.CreatorId != userId &&
-			!slices.Contains(problem.AuthUsers, userId) {
+			!slices.Contains(problem.Members, userId) &&
+			!slices.Contains(problem.AuthMembers, userId) {
 			return userId, false, nil
 		}
 	}
@@ -248,7 +274,7 @@ func (s *ProblemService) FilterValidProblemIds(ctx *gin.Context, ids []string) (
 	return foundationdao.GetProblemDao().FilterValidProblemIds(ctx, ids)
 }
 
-func (s *ProblemService) PostCreate(
+func (s *ProblemService) InsertProblem(
 	ctx context.Context,
 	problem *foundationmodel.Problem,
 	tags []string,
@@ -256,11 +282,13 @@ func (s *ProblemService) PostCreate(
 	return foundationdao.GetProblemDao().PostCreate(ctx, problem, tags)
 }
 
-func (s *ProblemService) PostEdit(ctx context.Context, userId int, requestData *request.ProblemEdit) (
-	*time.Time,
-	error,
-) {
-	return foundationdao.GetProblemDao().PostEdit(ctx, userId, requestData)
+func (s *ProblemService) UpdateProblem(
+	ctx context.Context,
+	problemId string,
+	problem *foundationmodel.Problem,
+	tags []string,
+) error {
+	return foundationdao.GetProblemDao().UpdateProblem(ctx, problemId, problem, tags)
 }
 
 func (s *ProblemService) PostDailyCreate(

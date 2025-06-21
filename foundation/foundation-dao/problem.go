@@ -16,8 +16,6 @@ import (
 	"meta/singleton"
 	"regexp"
 	"strconv"
-	"time"
-	"web/request"
 )
 
 type ProblemDao struct {
@@ -90,16 +88,38 @@ func (d *ProblemDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
+func (d *ProblemDao) GetProblemEditAuth(ctx context.Context, id string) (*foundationmodel.ProblemViewAuth, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"_id":          1,
+			"creator_id":   1,
+			"auth_members": 1,
+		},
+	)
+	var problem foundationmodel.ProblemViewAuth
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem error")
+	}
+	return &problem, nil
+}
+
 func (d *ProblemDao) GetProblemViewAuth(ctx context.Context, id string) (*foundationmodel.ProblemViewAuth, error) {
 	filter := bson.M{
 		"_id": id,
 	}
 	opts := options.FindOne().SetProjection(
 		bson.M{
-			"_id":        1,
-			"creator_id": 1,
-			"private":    1,
-			"auth_users": 1,
+			"_id":          1,
+			"creator_id":   1,
+			"private":      1,
+			"members":      1,
+			"auth_members": 1,
 		},
 	)
 	var problem foundationmodel.ProblemViewAuth
@@ -152,7 +172,8 @@ func (d *ProblemDao) GetProblemView(ctx context.Context, id string, userId int, 
 			filter["$or"] = []bson.M{
 				{"private": bson.M{"$exists": false}},
 				{"creator_id": userId},
-				{"auth_users": userId},
+				{"members": userId},
+				{"auth_members": userId},
 			}
 		} else {
 			filter["private"] = bson.M{
@@ -162,7 +183,8 @@ func (d *ProblemDao) GetProblemView(ctx context.Context, id string, userId int, 
 	}
 	opts := options.FindOne().SetProjection(
 		bson.M{
-			"auth_users": 0,
+			"members":      0,
+			"auth_members": 0,
 		},
 	)
 	var problem foundationmodel.Problem
@@ -235,7 +257,8 @@ func (d *ProblemDao) GetProblemTitles(
 			filter["$or"] = []bson.M{
 				{"private": bson.M{"$exists": false}},
 				{"creator_id": userId},
-				{"auth_users": userId},
+				{"members": userId},
+				{"auth_members": userId},
 			}
 		} else {
 			filter["private"] = bson.M{
@@ -334,7 +357,8 @@ func (d *ProblemDao) GetProblemList(
 			filter["$or"] = []bson.M{
 				{"private": bson.M{"$exists": false}},
 				{"creator_id": userId},
-				{"auth_users": userId},
+				{"members": userId},
+				{"auth_members": userId},
 			}
 		} else {
 			filter["private"] = bson.M{
@@ -628,19 +652,23 @@ func (d *ProblemDao) PostCreate(ctx context.Context, problem *foundationmodel.Pr
 	return newProblemId, nil
 }
 
-func (d *ProblemDao) PostEdit(ctx context.Context, userId int, requestData *request.ProblemEdit) (*time.Time, error) {
+func (d *ProblemDao) UpdateProblem(
+	ctx context.Context,
+	problemId string,
+	problem *foundationmodel.Problem,
+	tags []string,
+) error {
 	session, err := d.collection.Database().Client().StartSession()
 	if err != nil {
-		return nil, metaerror.Wrap(err, "failed to start mongo session")
+		return metaerror.Wrap(err, "failed to start mongo session")
 	}
 	defer session.EndSession(ctx)
 
-	nowTime := metatime.GetTimeNow()
 	_, err = session.WithTransaction(
 		ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
 
 			var tagIds []int
-			for _, tagName := range requestData.Tags {
+			for _, tagName := range tags {
 				tag := foundationmodel.NewProblemTagBuilder().Name(tagName).Build()
 				err := GetProblemTagDao().InsertTag(sessCtx, tag)
 				if err != nil {
@@ -649,22 +677,22 @@ func (d *ProblemDao) PostEdit(ctx context.Context, userId int, requestData *requ
 				tagIds = append(tagIds, tag.Id)
 			}
 			setData := bson.M{
-				"title":        requestData.Title,
-				"description":  requestData.Description,
+				"title":        problem.Title,
+				"description":  problem.Description,
 				"tags":         tagIds,
-				"update_time":  nowTime,
-				"time_limit":   requestData.TimeLimit,
-				"memory_limit": requestData.MemoryLimit,
-				"source":       requestData.Source,
+				"update_time":  problem.UpdateTime,
+				"time_limit":   problem.TimeLimit,
+				"memory_limit": problem.MemoryLimit,
+				"source":       problem.Source,
 			}
 			unsetData := bson.M{}
-			if requestData.Private {
-				setData["private"] = requestData.Private
+			if problem.Private {
+				setData["private"] = problem.Private
 			} else {
 				unsetData["private"] = 1
 			}
 			_, err = d.collection.UpdateOne(
-				sessCtx, bson.M{"_id": requestData.Id}, bson.M{
+				sessCtx, bson.M{"_id": problemId}, bson.M{
 					"$set":   setData,
 					"$unset": unsetData,
 				},
@@ -676,9 +704,9 @@ func (d *ProblemDao) PostEdit(ctx context.Context, userId int, requestData *requ
 		},
 	)
 	if err != nil {
-		return nil, metaerror.Wrap(err, "failed to rejudge submissions in transaction")
+		return metaerror.Wrap(err, "failed to rejudge submissions in transaction")
 	}
-	return &nowTime, nil
+	return nil
 }
 
 func (d *ProblemDao) UpdateProblemDescription(

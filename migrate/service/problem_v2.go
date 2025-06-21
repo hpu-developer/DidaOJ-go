@@ -2,13 +2,20 @@ package service
 
 import (
 	"context"
+	"fmt"
+	foundationdao "foundation/foundation-dao"
+	foundationmodel "foundation/foundation-model"
 	"log/slog"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
+	metapath "meta/meta-path"
+	metastring "meta/meta-string"
 	"meta/singleton"
 	migratedao "migrate/dao"
+	"path"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -36,9 +43,38 @@ func (EojProblem) TableName() string {
 	return "problem_problem"
 }
 
+type EojProblemManager struct {
+	Id        int `gorm:"column:id"`
+	ProblemId int `gorm:"column:problem_id"`
+	UserId    int `gorm:"column:user_id"`
+}
+
+func (EojProblemManager) TableName() string {
+	return "problem_problem_managers"
+}
+
+type EojProblemTaggedItem struct {
+	Id       int `gorm:"column:id"`
+	ObjectId int `gorm:"column:object_id"`
+	TagId    int `gorm:"column:tag_id"`
+}
+
+func (EojProblemTaggedItem) TableName() string {
+	return "tagging_taggeditem"
+}
+
+type EojProblemTag struct {
+	Id   int    `gorm:"column:id"`
+	Name string `gorm:"column:name"`
+}
+
+func (EojProblemTag) TableName() string {
+	return "tagging_tag"
+}
+
 var singletonMigrateProblemV2Service = singleton.Singleton[MigrateProblemV2Service]{}
 
-func GetMigrateProblemV2Service() *MigrateProblemV2Service {
+func GetMigrateProblemEojService() *MigrateProblemV2Service {
 	return singletonMigrateProblemV2Service.GetInstance(
 		func() *MigrateProblemV2Service {
 			return &MigrateProblemV2Service{}
@@ -112,7 +148,7 @@ func (s *MigrateProblemV2Service) Start() error {
 		Where("description IS NOT NULL").
 		Where("description <> ''").
 		Find(&problemModels).Error; err != nil {
-		return metaerror.Wrap(err, "query problem_tag rels failed")
+		return metaerror.Wrap(err, "query eoj problem failed")
 	}
 
 	for _, problemModel := range problemModels {
@@ -128,29 +164,212 @@ func (s *MigrateProblemV2Service) Start() error {
 			slog.Info("ignore eoj problem", "id", problemModel.Id, "title", problemModel.Title)
 			continue
 		}
+		var problemModelManagers []EojProblemManager
+		if err := eojDb.
+			Model(&EojProblemManager{}).
+			Where("problem_id = ?", problemModel.Id).
+			Find(&problemModelManagers).Error; err != nil {
+			return metaerror.Wrap(err, "query eoj problem managers failed")
+		}
 
-		//description := problemModel.Description
-		//
-		//problem := foundationmodel.NewProblemBuilder().
-		//	Title(problemModel.Title).
-		//	Description(description).
-		//	Source(problemModel.Source).
-		//	TimeLimit(problemModel.TimeLimit).
-		//	MemoryLimit(problemModel.MemoryLimit * 1024).
-		//	InsertTime(problemModel.CreateTime).
-		//	UpdateTime(problemModel.UpdateTime).
-		//	CreatorId(userId).
-		//	Build()
-		//
-		//problemModel, err := foundationdao.GetProblemDao().PostCreate(ctx, problem, tags)
-		//if err != nil {
-		//	return err
-		//}
-		//
-		//err := migratedao.GetMigrateMarkDao().MarkEojProblem(nil, problemModel.Id, newId)
-		//if err != nil {
-		//	return metaerror.Wrap(err, "mark eoj problem failed")
-		//}
+		userId := 3441
+		var authMembers []int
+		if len(problemModelManagers) > 0 {
+			userId = problemModelManagers[0].UserId
+			realId, err := migratedao.GetMigrateMarkDao().GetMark(ctx, "eoj-user", strconv.Itoa(userId))
+			if err != nil {
+				return metaerror.Wrap(err, "get eoj user mark failed")
+			}
+			if realId == nil {
+				return metaerror.Wrap(err, "get eoj user mark failed")
+			}
+			userId, err = strconv.Atoi(*realId)
+			if err != nil {
+				return metaerror.Wrap(err, "convert eoj user mark to int failed")
+			}
+			for _, manager := range problemModelManagers {
+				realId, err = migratedao.GetMigrateMarkDao().GetMark(ctx, "eoj-user", strconv.Itoa(manager.UserId))
+				if err != nil {
+					return metaerror.Wrap(err, "get eoj user mark failed")
+				}
+				if realId == nil {
+					return metaerror.Wrap(err, "get eoj user mark failed")
+				}
+				authUserId, err := strconv.Atoi(*realId)
+				if err != nil {
+					return metaerror.Wrap(err, "convert eoj user mark to int failed")
+				}
+				authMembers = append(authMembers, authUserId)
+			}
+		}
+
+		description := "## 题目描述\n\n" + problemModel.Description
+
+		if problemModel.Input != "" {
+			description += "\n\n## 输入\n\n" + problemModel.Input
+		}
+		if problemModel.Output != "" {
+			description += "\n\n## 输出\n\n" + problemModel.Output
+		}
+		sample := ""
+		if problemModel.Sample != "" {
+			sampleSlices := strings.Split(problemModel.Sample, ",")
+			index := 1
+			for _, sampleSlice := range sampleSlices {
+				fileA := sampleSlice[0:2]
+				fileB := sampleSlice[2:4]
+				fileRoot := "C:\\Users\\BoilT\\OneDrive\\Backup\\ServerBackup\\DidaOJ\\eoj\\eoj\\eoj\\data\\"
+				filePathIn := path.Join(
+					fileRoot,
+					"in",
+					fileA,
+					fileB,
+					sampleSlice,
+				)
+				filePathOut := path.Join(
+					fileRoot,
+					"out",
+					fileA,
+					fileB,
+					sampleSlice,
+				)
+				inString, _ := metastring.GetStringFromOpenFile(filePathIn)
+				outString, _ := metastring.GetStringFromOpenFile(filePathOut)
+				if inString != "" || outString != "" {
+					if inString != "" {
+						sample += fmt.Sprintf("\n\n### 输入 #%d", index) + "\n\n" + inString
+					}
+					if outString != "" {
+						sample += fmt.Sprintf("\n\n### 输出 #%d", index) + "\n\n" + outString
+					}
+					index++
+				} else {
+					slog.Warn("empty sample", "file", sampleSlice, "in", inString, "out", outString)
+				}
+			}
+			if index <= 2 {
+				sample = strings.Replace(sample, "### 输入 #1", "## 样例输入", 1)
+				sample = strings.Replace(sample, "### 输出 #1", "## 样例输出", 1)
+			} else {
+				sample = "\n\n## 样例\n\n" + sample
+			}
+		}
+		if sample != "" {
+			description += sample
+		}
+		if problemModel.Hint != "" {
+			description += "\n\n## 提示\n\n" + problemModel.Hint
+		}
+
+		problem := foundationmodel.NewProblemBuilder().
+			Title(problemModel.Title).
+			Description(description).
+			Source(problemModel.Source).
+			TimeLimit(problemModel.TimeLimit).
+			MemoryLimit(problemModel.MemoryLimit * 1024).
+			InsertTime(problemModel.CreateTime).
+			UpdateTime(problemModel.UpdateTime).
+			CreatorId(userId).
+			AuthMembers(authMembers).
+			Build()
+
+		casesSlices := strings.Split(problemModel.Cases, ",")
+		index := 1
+		for _, casesSlice := range casesSlices {
+			fileA := casesSlice[0:2]
+			fileB := casesSlice[2:4]
+			fileRoot := "C:\\Users\\BoilT\\OneDrive\\Backup\\ServerBackup\\DidaOJ\\eoj\\eoj\\eoj\\data\\"
+			filePathIn := path.Join(
+				fileRoot,
+				"in",
+				fileA,
+				fileB,
+				casesSlice,
+			)
+			filePathOut := path.Join(
+				fileRoot,
+				"out",
+				fileA,
+				fileB,
+				casesSlice,
+			)
+			inString, _ := metastring.GetStringFromOpenFile(filePathIn)
+			outString, _ := metastring.GetStringFromOpenFile(filePathOut)
+			if inString != "" || outString != "" {
+				rootPath := "C:\\Users\\BoilT\\OneDrive\\Backup\\ServerBackup\\DidaOJ\\eoj\\judge_data"
+				key := fmt.Sprintf("%02d", index)
+				if inString != "" {
+					savePath := path.Join(rootPath, strconv.Itoa(problemModel.Id), key+".in")
+					err := metapath.WriteStringToFile(savePath, inString)
+					if err != nil {
+						return metaerror.Wrap(err, "write eoj problem input file failed")
+					}
+				}
+				if outString != "" {
+					savePath := path.Join(rootPath, strconv.Itoa(problemModel.Id), key+".out")
+					err := metapath.WriteStringToFile(savePath, outString)
+					if err != nil {
+						return metaerror.Wrap(err, "write eoj problem output file failed")
+					}
+				}
+				index++
+			} else {
+				slog.Warn(
+					"empty test case",
+					"id",
+					problemModel.Id,
+					"file",
+					casesSlice,
+					"in",
+					inString,
+					"out",
+					outString,
+				)
+			}
+		}
+
+		var problemTags []EojProblemTaggedItem
+		if err := eojDb.
+			Model(&EojProblemTaggedItem{}).
+			Where("object_id = ?", problemModel.Id).
+			Find(&problemTags).Error; err != nil {
+			return metaerror.Wrap(err, "query eoj problem managers failed")
+		}
+
+		var tags []string
+
+		for _, problemTag := range problemTags {
+			var tagModel EojProblemTag
+			if err := eojDb.
+				Model(&EojProblemTag{}).
+				Where("id = ?", problemTag.TagId).
+				Find(&tagModel).Error; err != nil {
+				return metaerror.Wrap(err, "query eoj problem managers failed")
+			}
+			tags = append(tags, tagModel.Name)
+		}
+
+		slog.Info("migrate eoj problem", "id", problemModel.Id, "problem", problem)
+
+		newId, err := migratedao.GetMigrateMarkDao().GetMark(ctx, "eoj-problem", strconv.Itoa(problemModel.Id))
+		if err != nil {
+			return metaerror.Wrap(err, "get eoj problem mark failed")
+		}
+		if newId != nil {
+			err := foundationdao.GetProblemDao().UpdateProblem(ctx, *newId, problem, tags)
+			if err != nil {
+				return err
+			}
+		} else {
+			problemId, err := foundationdao.GetProblemDao().PostCreate(ctx, problem, tags)
+			if err != nil {
+				return err
+			}
+			err = migratedao.GetMigrateMarkDao().Mark(ctx, "eoj-problem", strconv.Itoa(problemModel.Id), *problemId)
+			if err != nil {
+				return metaerror.Wrap(err, "mark eoj problem failed")
+			}
+		}
 	}
 
 	slog.Info("ces", "len", len(problemModels))

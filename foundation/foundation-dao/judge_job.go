@@ -1039,7 +1039,7 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 			filter = bson.M{
 				"$or": []bson.M{
 					{"look_problem.private": bson.M{"$exists": false}},
-					{"look_problem.auth_users": userId},
+					{"look_problem.auth_members": userId},
 				},
 			}
 		} else {

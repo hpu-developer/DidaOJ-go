@@ -35,6 +35,11 @@ func (s *Subsystem) startSubSystem() error {
 
 	var err error
 
+	err = service.GetMigrateProblemEojService().Start()
+	if err != nil {
+		return err
+	}
+
 	if true {
 		return nil
 	}

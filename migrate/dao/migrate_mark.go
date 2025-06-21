@@ -56,7 +56,6 @@ func (d *MigrateMarkDao) Mark(ctx context.Context, typeKey string, oldId string,
 	filter := bson.M{}
 	filter["type"] = typeKey
 	filter["old_id"] = oldId
-	filter["new_id"] = newId
 	update := bson.M{
 		"$set": bson.M{
 			"type":   typeKey,

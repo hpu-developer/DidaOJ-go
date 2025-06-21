@@ -1033,7 +1033,7 @@ func (c *ProblemController) PostCreate(ctx *gin.Context) {
 		CreatorId(userId).
 		Private(requestData.Private).
 		Build()
-	problemId, err := foundationservice.GetProblemService().PostCreate(ctx, problem, requestData.Tags)
+	problemId, err := foundationservice.GetProblemService().InsertProblem(ctx, problem, requestData.Tags)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -1079,8 +1079,9 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	problemId := requestData.Id
 
-	userId, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+	_, ok, err := foundationservice.GetProblemService().CheckEditAuth(ctx, problemId)
 	if err != nil {
 		metapanic.ProcessError(err)
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -1091,7 +1092,6 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
-	problemId := requestData.Id
 	description := requestData.Description
 
 	oldDescription, err := foundationservice.GetProblemService().GetProblemDescription(ctx, problemId)
@@ -1118,7 +1118,19 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 
 	requestData.Description = description
 
-	updateTime, err := foundationservice.GetProblemService().PostEdit(ctx, userId, &requestData)
+	nowTime := metatime.GetTimeNow()
+
+	problem := foundationmodel.NewProblemBuilder().
+		Title(requestData.Title).
+		Description(requestData.Description).
+		Source(requestData.Source).
+		TimeLimit(requestData.TimeLimit).
+		MemoryLimit(requestData.MemoryLimit).
+		Private(requestData.Private).
+		UpdateTime(nowTime).
+		Build()
+
+	err = foundationservice.GetProblemService().UpdateProblem(ctx, problemId, problem, requestData.Tags)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -1131,11 +1143,11 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 	}
 
 	responseData := struct {
-		Description string     `json:"description"`
-		UpdateTime  *time.Time `json:"update_time"`
+		Description string    `json:"description"`
+		UpdateTime  time.Time `json:"update_time"`
 	}{
 		Description: description,
-		UpdateTime:  updateTime,
+		UpdateTime:  nowTime,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
