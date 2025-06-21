@@ -10,3 +10,13 @@ mysql:
   username: ""
   password: ""
   database: ""
+
+cf-r2:
+  judge-data:
+    url: ""
+    token: ""
+    key: ""
+    secret: ""
+
+go-judge:
+  url: ""

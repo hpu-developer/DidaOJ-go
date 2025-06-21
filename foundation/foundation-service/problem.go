@@ -1,16 +1,37 @@
 package foundationservice
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
+	"log/slog"
+	cfr2 "meta/cf-r2"
+	metaerrorcode "meta/error-code"
+	metaerror "meta/meta-error"
+	metahttp "meta/meta-http"
+	metamath "meta/meta-math"
+	metamd5 "meta/meta-md5"
+	metapanic "meta/meta-panic"
+	metapath "meta/meta-path"
+	metaslice "meta/meta-slice"
+	metastring "meta/meta-string"
 	"meta/singleton"
+	"os"
+	"path"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
+	weberrorcode "web/error-code"
 )
 
 type ProblemService struct {
@@ -289,6 +310,359 @@ func (s *ProblemService) UpdateProblem(
 	tags []string,
 ) error {
 	return foundationdao.GetProblemDao().UpdateProblem(ctx, problemId, problem, tags)
+}
+
+func (s *ProblemService) PostJudgeData(
+	ctx context.Context,
+	problemId string,
+	unzipDir string,
+	oldMd5 *string,
+	goJudgeUrl string,
+) error {
+	// 如果包含文件夹，认为失败
+	err := filepath.Walk(
+		unzipDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				// 跳过根目录本身
+				if path != unzipDir {
+					return metaerror.New("<UNK>: " + path + " is not a directory")
+				}
+				return nil
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataCannotDir)
+	}
+
+	judgeType := foundationjudge.JudgeTypeNormal
+
+	var jobConfig foundationjudge.JudgeJobConfig
+
+	// 解析rule.yaml
+	ruleFile := filepath.Join(unzipDir, "rule.yaml")
+	yamlFile, err := os.ReadFile(ruleFile)
+	if err == nil {
+		err = yaml.Unmarshal(yamlFile, &jobConfig)
+		if err != nil {
+			return metaerror.NewCode(weberrorcode.ProblemJudgeDataRuleYamlFail)
+		}
+	} else {
+		if !os.IsNotExist(err) {
+			return metaerror.NewCode(metaerrorcode.CommonError)
+		}
+	}
+
+	if jobConfig.SpecialJudge == nil {
+		specialFiles := map[string]string{
+			"spj.c":   "c",
+			"spj.cc":  "cpp",
+			"spj.cpp": "cpp",
+		}
+		// 判断是否存在对应文件
+		for fileName, language := range specialFiles {
+			filePath := path.Join(unzipDir, fileName)
+			_, err := os.Stat(filePath)
+			if err == nil {
+				jobConfig.SpecialJudge = &foundationjudge.SpecialJudgeConfig{}
+				jobConfig.SpecialJudge.Language = language
+				jobConfig.SpecialJudge.Source = fileName
+				break
+			}
+		}
+	}
+
+	if jobConfig.SpecialJudge != nil {
+		runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
+
+		language := foundationjudge.GetLanguageByKey(jobConfig.SpecialJudge.Language)
+		if !foundationjudge.IsValidJudgeLanguage(int(language)) {
+			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSpjLanguageNotValid)
+		}
+
+		// 考虑编译机性能影响，暂时仅允许部分语言
+		if !foundationjudge.IsValidSpecialJudgeLanguage(language) {
+			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSpjLanguageNotValid)
+		}
+
+		codeFilePath := filepath.Join(unzipDir, jobConfig.SpecialJudge.Source)
+		codeContent, err := metastring.GetStringFromOpenFile(codeFilePath)
+		if err != nil {
+			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSpjContentNotValid)
+
+		}
+
+		jobKey := uuid.New().String()
+
+		execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
+			jobKey,
+			runUrl,
+			language,
+			codeContent,
+			nil,
+		)
+		if extraMessage != "" {
+			slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
+		}
+		if compileStatus != foundationjudge.JudgeStatusAC {
+			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSpjCompileFail)
+		}
+		if err != nil {
+			metapanic.ProcessError(err)
+			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSpjCompileFail)
+		}
+		for _, fileId := range execFileIds {
+			deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
+			err := foundationjudge.DeleteFile(jobKey, deleteUrl)
+			if err != nil {
+				metapanic.ProcessError(err)
+			}
+		}
+		judgeType = foundationjudge.JudgeTypeSpecial
+	}
+
+	if len(jobConfig.Tasks) <= 0 {
+		// 如果没有rule.yaml文件，则根据文件生成Config信息
+		files, err := os.ReadDir(unzipDir)
+		if err != nil {
+			return metaerror.NewCode(metaerrorcode.CommonError)
+		}
+		taskKeyMap := make(map[string]bool)
+		hasInFiles := make(map[string]bool)
+		hasOutFiles := make(map[string]bool)
+		for _, file := range files {
+			fileBaseName := metapath.GetBaseName(file.Name())
+			if strings.HasSuffix(file.Name(), ".out") {
+				hasOutFiles[fileBaseName] = true
+			} else if strings.HasSuffix(file.Name(), ".in") {
+				hasInFiles[fileBaseName] = true
+			}
+			taskKeyMap[fileBaseName] = true
+		}
+		var taskKeys []string
+		for key, _ := range taskKeyMap {
+			taskKeys = append(taskKeys, key)
+		}
+		taskKeys = metaslice.RemoveAllFunc(
+			taskKeys, func(key string) bool {
+				return !hasInFiles[key] && !hasOutFiles[key]
+			},
+		)
+		taskCount := len(taskKeys)
+
+		if taskCount <= 0 {
+			return metaerror.NewCode(weberrorcode.ProblemJudgeDataWithoutTask)
+		}
+
+		sort.Slice(
+			taskKeys, func(i, j int) bool {
+				return taskKeys[i] < taskKeys[j]
+			},
+		)
+
+		for _, key := range taskKeys {
+			if !hasInFiles[key] && !hasOutFiles[key] {
+				continue
+			}
+			judgeTaskConfig := &foundationjudge.JudgeTaskConfig{
+				Key: key,
+			}
+			if hasInFiles[key] {
+				judgeTaskConfig.InFile = key + ".in"
+			}
+			if hasOutFiles[key] {
+				judgeTaskConfig.OutFile = key + ".out"
+				outFile, err := os.Stat(path.Join(unzipDir, judgeTaskConfig.OutFile))
+				if err != nil {
+					return metaerror.NewCode(weberrorcode.ProblemJudgeDataTaskLoadFail)
+				}
+				judgeTaskConfig.OutLimit = metamath.Max(outFile.Size()*2, 1024)
+			} else {
+				// 考虑到SpecialJudge的情况可能也需要输出，这里默认给个大小
+				if jobConfig.SpecialJudge != nil {
+					judgeTaskConfig.OutLimit = 1048576 * 1 //1MB
+				}
+			}
+			jobConfig.Tasks = append(jobConfig.Tasks, judgeTaskConfig)
+		}
+	}
+
+	taskCount := len(jobConfig.Tasks)
+
+	totalScore := 0
+	for _, taskConfig := range jobConfig.Tasks {
+		totalScore += taskConfig.Score
+	}
+	if totalScore <= 0 {
+		totalScore = 100
+		averageScore := totalScore / taskCount
+		for i, taskConfig := range jobConfig.Tasks {
+			if i != taskCount-1 {
+				taskConfig.Score = averageScore
+			} else {
+				taskConfig.Score = totalScore - averageScore*(taskCount-1)
+			}
+		}
+	} else {
+		//把totalScore转为0~100
+		rate := 100.0 / float64(totalScore)
+		totalScore = 100
+		sumScore := 0
+		for i, taskConfig := range jobConfig.Tasks {
+			if i != taskCount-1 {
+				taskConfig.Score = int(float64(taskConfig.Score) * rate)
+				sumScore += taskConfig.Score
+			} else {
+				taskConfig.Score = totalScore - sumScore
+			}
+		}
+	}
+
+	// 重新生成一个rule.yaml
+	ruleFile = filepath.Join(unzipDir, "rule.yaml")
+	yamlData, err := yaml.Marshal(jobConfig)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataRuleYamlFail)
+	}
+	err = os.WriteFile(ruleFile, yamlData, 0644)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataRuleYamlFail)
+	}
+
+	// 把所有文件的换行改为Linux格式
+	err = filepath.Walk(
+		unzipDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return metaerror.Wrap(err, "<UNK>: "+path+" is not readable")
+			}
+			// 将 CRLF (\r\n) 和 CR (\r) 替换为 LF (\n)
+			normalized := bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+			normalized = bytes.ReplaceAll(normalized, []byte("\r"), []byte("\n"))
+			// 写回文件
+			err = os.WriteFile(path, normalized, 0644)
+			if err != nil {
+				return fmt.Errorf("写入文件失败: %s, %w", path, err)
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataProcessWrapLineFail)
+	}
+
+	var files []string
+	err = filepath.Walk(
+		unzipDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			files = append(files, path)
+			return nil
+		},
+	)
+
+	judgeDataMd5, err := metamd5.MultiFileMD5(files)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataProcessMd5Fail)
+	}
+	slog.Info("judge data md5", "md5", judgeDataMd5)
+
+	if oldMd5 != nil && *oldMd5 == judgeDataMd5 {
+		return nil
+	}
+
+	// 上传r2
+	r2Client := cfr2.GetSubsystem().GetClient("judge-data")
+	if r2Client == nil {
+		return metaerror.NewCode(metaerrorcode.CommonError)
+	}
+	// 遍历解压目录并上传文件
+	err = filepath.Walk(
+		unzipDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			relativePath, err := filepath.Rel(unzipDir, path)
+			if err != nil {
+				return err
+			}
+			key := filepath.ToSlash(filepath.Join(problemId, judgeDataMd5, relativePath))
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer func(file *os.File) {
+				err := file.Close()
+				if err != nil {
+					metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
+				}
+			}(file)
+			slog.Info("put object start", "key", key)
+			_, err = r2Client.PutObjectWithContext(
+				ctx, &s3.PutObjectInput{
+					Bucket: aws.String("didaoj-judge"),
+					Key:    aws.String(key),
+					Body:   file,
+				},
+			)
+			if err != nil {
+				slog.Info("put object error", "key", key)
+				return metaerror.Wrap(err, "put object error, key:%s", key)
+			}
+			slog.Info("put object success", "key", key)
+			return nil
+		},
+	)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
+	}
+	// 删除旧的路径
+	if oldMd5 != nil {
+		prefix := filepath.ToSlash(path.Join(problemId, *oldMd5))
+		input := &s3.ListObjectsV2Input{
+			Bucket: aws.String("didaoj-judge"),
+			Prefix: aws.String(prefix),
+		}
+		err = r2Client.ListObjectsV2PagesWithContext(
+			ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+				for _, obj := range page.Contents {
+					_, err := r2Client.DeleteObjectWithContext(
+						ctx, &s3.DeleteObjectInput{
+							Bucket: aws.String("didaoj-judge"),
+							Key:    obj.Key,
+						},
+					)
+					if err != nil {
+						metapanic.ProcessError(metaerror.Wrap(err, "delete object error, key:%s", obj.Key))
+						return false
+					}
+				}
+				return true
+			},
+		)
+	}
+	err = s.UpdateProblemJudgeInfo(ctx, problemId, judgeType, judgeDataMd5)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *ProblemService) PostDailyCreate(

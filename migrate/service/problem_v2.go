@@ -5,12 +5,14 @@ import (
 	"fmt"
 	foundationdao "foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
+	foundationservice "foundation/foundation-service"
 	"log/slog"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	metapath "meta/meta-path"
 	metastring "meta/meta-string"
 	"meta/singleton"
+	"migrate/config"
 	migratedao "migrate/dao"
 	"path"
 	"slices"
@@ -273,6 +275,7 @@ func (s *MigrateProblemV2Service) Start() error {
 			AuthMembers(authMembers).
 			Build()
 
+		judgeDataRootPath := "C:\\Users\\BoilT\\OneDrive\\Backup\\ServerBackup\\DidaOJ\\eoj\\judge_data"
 		casesSlices := strings.Split(problemModel.Cases, ",")
 		index := 1
 		for _, casesSlice := range casesSlices {
@@ -296,17 +299,16 @@ func (s *MigrateProblemV2Service) Start() error {
 			inString, _ := metastring.GetStringFromOpenFile(filePathIn)
 			outString, _ := metastring.GetStringFromOpenFile(filePathOut)
 			if inString != "" || outString != "" {
-				rootPath := "C:\\Users\\BoilT\\OneDrive\\Backup\\ServerBackup\\DidaOJ\\eoj\\judge_data"
 				key := fmt.Sprintf("%02d", index)
 				if inString != "" {
-					savePath := path.Join(rootPath, strconv.Itoa(problemModel.Id), key+".in")
+					savePath := path.Join(judgeDataRootPath, strconv.Itoa(problemModel.Id), key+".in")
 					err := metapath.WriteStringToFile(savePath, inString)
 					if err != nil {
 						return metaerror.Wrap(err, "write eoj problem input file failed")
 					}
 				}
 				if outString != "" {
-					savePath := path.Join(rootPath, strconv.Itoa(problemModel.Id), key+".out")
+					savePath := path.Join(judgeDataRootPath, strconv.Itoa(problemModel.Id), key+".out")
 					err := metapath.WriteStringToFile(savePath, outString)
 					if err != nil {
 						return metaerror.Wrap(err, "write eoj problem output file failed")
@@ -369,6 +371,20 @@ func (s *MigrateProblemV2Service) Start() error {
 			if err != nil {
 				return metaerror.Wrap(err, "mark eoj problem failed")
 			}
+			newId = problemId
+		}
+
+		judgeDataPath := path.Join(judgeDataRootPath, strconv.Itoa(problemModel.Id))
+
+		err = foundationservice.GetProblemService().PostJudgeData(
+			ctx,
+			*newId,
+			path.Join(judgeDataPath),
+			problem.JudgeMd5,
+			config.GetConfig().GoJudge.Url,
+		)
+		if err != nil {
+			return err
 		}
 	}
 
