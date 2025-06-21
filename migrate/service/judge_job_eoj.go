@@ -151,7 +151,7 @@ func (s *MigrateJudgeJobEojService) processEojJudgeJob(ctx context.Context) ([]*
 				ContestId(newContestId).
 				AuthorId(realUserId).
 				ApproveTime(judgeJobModel.CreateTime).
-				Language(migratetype.GetJudgeLanguageByEOJ(judgeJobModel.Lang)).
+				Language(language).
 				Code(judgeJobModel.Code).
 				CodeLength(judgeJobModel.CodeLength).
 				Status(foundationjudge.JudgeStatusUnknown).

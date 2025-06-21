@@ -30,7 +30,8 @@ type User struct {
 	CheckinCount  int       `json:"checkin_count" bson:"checkin_count"`                       // 签到次数
 	Roles         []string  `json:"roles,omitempty" bson:"roles,omitempty"`                   // 角色
 
-	Gender UserGender `json:"gender" bson:"gender"` // 性别，0未知，1男，2女
+	Gender   UserGender `json:"gender" bson:"gender"`                           // 性别，0未知，1男，2女
+	RealName string     `json:"real_name,omitempty" bson:"real_name,omitempty"` // 真实姓名
 
 	// 账号关联
 	VjudgeId   string `json:"vjudge_id,omitempty" bson:"vjudge_id,omitempty"` // vjudge.net Id
@@ -110,6 +111,21 @@ func (b *UserBuilder) Number(number string) *UserBuilder {
 
 func (b *UserBuilder) QQ(qq string) *UserBuilder {
 	b.item.QQ = qq
+	return b
+}
+
+func (b *UserBuilder) RealName(realName string) *UserBuilder {
+	b.item.RealName = realName
+	return b
+}
+
+func (b *UserBuilder) Gender(gender UserGender) *UserBuilder {
+	b.item.Gender = gender
+	return b
+}
+
+func (b *UserBuilder) Github(github string) *UserBuilder {
+	b.item.Github = github
 	return b
 }
 

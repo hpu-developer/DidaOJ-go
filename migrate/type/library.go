@@ -120,34 +120,30 @@ func GetJudgeStatusByVhoj(status string) foundationjudge.JudgeStatus {
 
 func GetJudgeLanguageByEOJ(language string) foundationjudge.JudgeLanguage {
 	switch language {
-	case "c":
+	case "C":
+		fallthrough
+	case "C With O2":
 		return foundationjudge.JudgeLanguageC
-	case "cpp":
+	case "C++":
 		fallthrough
-	case "cc14":
+	case "C++ 17":
 		fallthrough
-	case "cc17":
+	case "C++ 17 With O2":
+		fallthrough
+	case "C++ 20 With O2":
+		fallthrough
+	case "C++ With O2":
+		fallthrough
+	case "C++ 20":
 		return foundationjudge.JudgeLanguageCpp
-	case "cs":
-		// 目前CS都是CPP的误提交
-		return foundationjudge.JudgeLanguageCpp
-	case "rs":
-		// 目前CS都是CPP的误提交
-		return foundationjudge.JudgeLanguageCpp
-	case "java":
-		return foundationjudge.JudgeLanguageJava
-	case "js":
-		return foundationjudge.JudgeLanguageTypeScript
-	case "pas":
-		return foundationjudge.JudgeLanguagePascal
-	case "pypy":
+	case "PyPy3":
 		fallthrough
-	case "py2":
+	case "Python2":
 		fallthrough
-	case "python":
-		fallthrough
-	case "pypy3":
+	case "Python3":
 		return foundationjudge.JudgeLanguagePython
+	case "Java":
+		return foundationjudge.JudgeLanguageJava
 	}
 	return foundationjudge.JudgeLanguageUnknown
 }

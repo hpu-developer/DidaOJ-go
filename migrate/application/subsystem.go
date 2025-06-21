@@ -35,7 +35,7 @@ func (s *Subsystem) startSubSystem() error {
 
 	var err error
 
-	err = service.GetMigrateDiscussEojService().Start()
+	err = service.GetMigrateUserDmojService().Start()
 	if err != nil {
 		return err
 	}
