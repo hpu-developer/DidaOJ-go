@@ -493,12 +493,20 @@ func (s *ProblemService) PostJudgeData(
 
 	taskCount := len(jobConfig.Tasks)
 
+	if taskCount <= 0 {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataWithoutTask)
+	}
+
+	if taskCount > 1000 {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataTaskCountTooMany1000)
+	}
+
 	totalScore := 0
 	for _, taskConfig := range jobConfig.Tasks {
 		totalScore += taskConfig.Score
 	}
 	if totalScore <= 0 {
-		totalScore = 100
+		totalScore = 1000
 		averageScore := totalScore / taskCount
 		for i, taskConfig := range jobConfig.Tasks {
 			if i != taskCount-1 {
@@ -508,9 +516,9 @@ func (s *ProblemService) PostJudgeData(
 			}
 		}
 	} else {
-		//把totalScore转为0~100
-		rate := 100.0 / float64(totalScore)
-		totalScore = 100
+		//把totalScore转为0~1000
+		rate := 1000.0 / float64(totalScore)
+		totalScore = 1000
 		sumScore := 0
 		for i, taskConfig := range jobConfig.Tasks {
 			if i != taskCount-1 {

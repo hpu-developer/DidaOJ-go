@@ -322,6 +322,29 @@ func (d *ProblemDao) GetProblemJudge(ctx context.Context, id string) (*foundatio
 	return &problem, nil
 }
 
+func (d *ProblemDao) GetProblemJudgeMd5(ctx context.Context, id string) (*string, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"_id":       1,
+			"judge_md5": 1,
+		},
+	)
+	var problem struct {
+		Id       string  `bson:"_id"`
+		JudgeMd5 *string `bson:"judge_md5"`
+	}
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem error")
+	}
+	return problem.JudgeMd5, nil
+}
+
 func (d *ProblemDao) GetProblemDescription(ctx context.Context, id string) (*string, error) {
 	filter := bson.M{
 		"_id": id,

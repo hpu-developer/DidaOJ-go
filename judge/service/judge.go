@@ -638,7 +638,7 @@ func (s *JudgeService) runJudgeJob(
 				return outFileNames[i] < outFileNames[j]
 			},
 		)
-		totalScore := 100
+		totalScore := 1000
 		averageScore := totalScore / len(outFileNames)
 		for i, file := range outFileNames {
 			outFile, err := os.Stat(path.Join(judgeDataDir, file+".out"))
@@ -666,6 +666,22 @@ func (s *JudgeService) runJudgeJob(
 
 	if taskCount == 0 {
 		return metaerror.New("no job task found")
+	}
+
+	// 把配置的分数转换为总值为1000
+	sumScore := 0
+	for _, taskConfig := range jobConfig.Tasks {
+		sumScore += taskConfig.Score
+	}
+	scoreRate := 1000.0 / sumScore
+	sumScore = 0
+	for i, taskConfig := range jobConfig.Tasks {
+		if i == len(jobConfig.Tasks)-1 {
+			taskConfig.Score = 1000 - sumScore
+		} else {
+			taskConfig.Score = taskConfig.Score * scoreRate
+			sumScore += taskConfig.Score
+		}
 	}
 
 	err = foundationdao.GetJudgeJobDao().MarkJudgeJobTaskTotal(ctx, job.Id, taskCount)

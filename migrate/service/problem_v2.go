@@ -239,10 +239,10 @@ func (s *MigrateProblemV2Service) Start() error {
 				outString, _ := metastring.GetStringFromOpenFile(filePathOut)
 				if inString != "" || outString != "" {
 					if inString != "" {
-						sample += fmt.Sprintf("\n\n### 输入 #%d", index) + "\n\n" + inString
+						sample += fmt.Sprintf("\n\n### 输入 #%d", index) + "\n\n```\n" + inString + "\n```\n"
 					}
 					if outString != "" {
-						sample += fmt.Sprintf("\n\n### 输出 #%d", index) + "\n\n" + outString
+						sample += fmt.Sprintf("\n\n### 输出 #%d", index) + "\n\n```\n" + outString + "\n```\n"
 					}
 					index++
 				} else {
@@ -374,17 +374,24 @@ func (s *MigrateProblemV2Service) Start() error {
 			newId = problemId
 		}
 
-		judgeDataPath := path.Join(judgeDataRootPath, strconv.Itoa(problemModel.Id))
-
-		err = foundationservice.GetProblemService().PostJudgeData(
-			ctx,
-			*newId,
-			path.Join(judgeDataPath),
-			problem.JudgeMd5,
-			config.GetConfig().GoJudge.Url,
-		)
-		if err != nil {
-			return err
+		uploadJudgeData := true
+		if uploadJudgeData {
+			md5, err := foundationdao.GetProblemDao().GetProblemJudgeMd5(ctx, *newId)
+			if err != nil {
+				return err
+			}
+			judgeDataPath := path.Join(judgeDataRootPath, strconv.Itoa(problemModel.Id))
+			err = foundationservice.GetProblemService().PostJudgeData(
+				ctx,
+				*newId,
+				path.Join(judgeDataPath),
+				md5,
+				config.GetConfig().GoJudge.Url,
+			)
+			if err != nil {
+				slog.Error("upload judge data failed", "id", problemModel.Id, "newId", newId, "error", err)
+				return err
+			}
 		}
 	}
 
