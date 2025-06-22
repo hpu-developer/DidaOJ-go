@@ -32,4 +32,5 @@ const (
 	ProblemJudgeDataProcessWrapLineFail  metaerrorcode.ErrorCode = 100027
 	ProblemJudgeDataProcessMd5Fail       metaerrorcode.ErrorCode = 100028
 	ProblemJudgeDataSubmitFail           metaerrorcode.ErrorCode = 100029
+	JudgeApproveCannotOriginOj           metaerrorcode.ErrorCode = 100030
 )

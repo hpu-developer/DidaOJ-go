@@ -136,13 +136,14 @@ func (s *MigrateProblemDmojService) Start() error {
 			if err != nil {
 				return err
 			}
-			judgeDataPath := path.Join(judgeDataRootPath, strconv.Itoa(problemModel.Id))
+			judgeDataPath := path.Join(judgeDataRootPath, "problem_"+strconv.Itoa(problemModel.Id))
 			err = foundationservice.GetProblemService().PostJudgeData(
 				ctx,
 				*newId,
-				path.Join(judgeDataPath),
+				judgeDataPath,
 				md5,
 				config.GetConfig().GoJudge.Url,
+				true,
 			)
 			if err != nil {
 				slog.Error("upload judge data failed", "id", problemModel.Id, "newId", newId, "error", err)

@@ -21,6 +21,7 @@ import (
 	metapanic "meta/meta-panic"
 	metapath "meta/meta-path"
 	metastring "meta/meta-string"
+	"meta/retry"
 	"meta/routine"
 	"meta/singleton"
 	"mime/multipart"
@@ -33,6 +34,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -417,18 +419,32 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 					continue
 				}
 				wg.Add(1)
-				go func(obj *s3.Object) {
-					defer wg.Done()
-					localPath := path.Join(".judge_data", *obj.Key)
-					err := s.downloadObject(ctx, r2Client, "didaoj-judge", *obj.Key, localPath)
-					if err != nil {
-						mu.Lock()
-						if downloadErr == nil {
-							downloadErr = err
+				routine.SafeGo(
+					"download judge data", func() error {
+						defer wg.Done()
+						localPath := path.Join(".judge_data", *obj.Key)
+						var finalErr error
+						_ = retry.TryRetrySleep(
+							"download judge data", 3, time.Second, func(i int) bool {
+								err := s.downloadObject(ctx, r2Client, "didaoj-judge", *obj.Key, localPath)
+								if err != nil {
+									finalErr = err
+									return false
+								}
+								finalErr = nil
+								return true
+							},
+						)
+						if finalErr != nil {
+							mu.Lock()
+							defer mu.Unlock()
+							if downloadErr == nil {
+								downloadErr = finalErr
+							}
 						}
-						mu.Unlock()
-					}
-				}(obj)
+						return nil
+					},
+				)
 			}
 			return true
 		},
@@ -823,7 +839,7 @@ func (s *JudgeService) runJudgeTask(
 			},
 		}
 	case foundationjudge.JudgeLanguageJava:
-		args = []string{"java", "-cp", "Main.jar", "Main", "-Dfile.encoding=UTF-8"}
+		args = []string{"java", "-Dfile.encoding=UTF-8", "-cp", "Main.jar", "Main"}
 		fileId, ok := execFileIds["Main.jar"]
 		if !ok {
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)

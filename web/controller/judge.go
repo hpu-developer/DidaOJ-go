@@ -267,6 +267,21 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		return
 	}
 
+	problem, err := foundationservice.GetProblemService().GetProblemViewApproveJudge(ctx, problemId)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if problem == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+
+	if problem.OriginId != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.JudgeApproveCannotOriginOj, nil)
+		return
+	}
+
 	judgeService := foundationservice.GetJudgeService()
 
 	nowTime := metatime.GetTimeNow()

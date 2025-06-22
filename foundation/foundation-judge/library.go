@@ -68,7 +68,7 @@ func CompileCode(
 		copyOutCached = []string{"a"}
 		break
 	case JudgeLanguageJava:
-		cmd := "javac -J-Xms128m -J-Xmx512m -encoding UTF-8 Main.java && jar -cvf Main.jar *.class"
+		cmd := "javac -J-Xms128m -J-Xmx512m -encoding UTF-8 -Xlint:unchecked Main.java && jar -cvf Main.jar *.class"
 		args = []string{"bash", "-c", cmd}
 		copyIns = map[string]interface{}{
 			"Main.java": map[string]interface{}{

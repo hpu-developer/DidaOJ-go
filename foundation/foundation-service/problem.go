@@ -147,8 +147,8 @@ func (s *ProblemService) GetProblemDescription(
 	return foundationdao.GetProblemDao().GetProblemDescription(ctx, id)
 }
 
-func (s *ProblemService) GetProblemJudge(ctx context.Context, id string) (*foundationmodel.Problem, error) {
-	problem, err := foundationdao.GetProblemDao().GetProblemJudge(ctx, id)
+func (s *ProblemService) GetProblemViewJudgeData(ctx context.Context, id string) (*foundationmodel.Problem, error) {
+	problem, err := foundationdao.GetProblemDao().GetProblemViewJudgeData(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +167,13 @@ func (s *ProblemService) GetProblemJudge(ctx context.Context, id string) (*found
 		problem.CreatorNickname = &user.Nickname
 	}
 	return problem, nil
+}
+
+func (s *ProblemService) GetProblemViewApproveJudge(ctx context.Context, id string) (
+	*foundationmodel.ProblemViewApproveJudge,
+	error,
+) {
+	return foundationdao.GetProblemDao().GetProblemViewApproveJudge(ctx, id)
 }
 
 func (s *ProblemService) HasProblem(ctx context.Context, id string) (bool, error) {
@@ -323,6 +330,7 @@ func (s *ProblemService) PostJudgeData(
 	unzipDir string,
 	oldMd5 *string,
 	goJudgeUrl string,
+	checkR2FileCount bool,
 ) error {
 	// 如果包含文件夹，认为失败
 	err := filepath.Walk(
@@ -593,14 +601,34 @@ func (s *ProblemService) PostJudgeData(
 	}
 	slog.Info("judge data md5", "problemId", problemId, "md5", judgeDataMd5)
 
-	if oldMd5 != nil && *oldMd5 == judgeDataMd5 {
-		return nil
-	}
-
 	// 上传r2
 	r2Client := cfr2.GetSubsystem().GetClient("judge-data")
 	if r2Client == nil {
 		return metaerror.NewCode(metaerrorcode.CommonError)
+	}
+
+	if oldMd5 != nil && *oldMd5 == judgeDataMd5 {
+		if checkR2FileCount {
+			var oldKeys []string
+			input := &s3.ListObjectsV2Input{
+				Bucket: aws.String("didaoj-judge"),
+				Prefix: aws.String(path.Join(problemId, *oldMd5)),
+			}
+			err = r2Client.ListObjectsV2PagesWithContext(
+				ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+					for _, obj := range page.Contents {
+						oldKeys = append(oldKeys, *obj.Key)
+					}
+					return true
+				},
+			)
+			// 正常情况下R2中应该存在所有文件+1个汇总的压缩包
+			if len(uploadFiles)+1 == len(oldKeys) {
+				return nil
+			}
+		} else {
+			return nil
+		}
 	}
 
 	var maxConcurrency = 10

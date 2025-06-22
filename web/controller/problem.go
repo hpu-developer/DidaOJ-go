@@ -328,7 +328,7 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 		return
 	}
 	problemService := foundationservice.GetProblemService()
-	problem, err := problemService.GetProblemJudge(ctx, id)
+	problem, err := problemService.GetProblemViewJudgeData(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -403,7 +403,7 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 	}
 	// 获取题目信息
 	problemService := foundationservice.GetProblemService()
-	problem, err := problemService.GetProblemJudge(ctx, id)
+	problem, err := problemService.GetProblemViewJudgeData(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -574,7 +574,7 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		return
 	}
 	problemService := foundationservice.GetProblemService()
-	problem, err := problemService.GetProblemJudge(ctx, problemId)
+	problem, err := problemService.GetProblemViewJudgeData(ctx, problemId)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -610,7 +610,14 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		return
 	}
 
-	err = problemService.PostJudgeData(ctx, problemId, unzipDir, problem.JudgeMd5, config.GetConfig().GoJudge.Url)
+	err = problemService.PostJudgeData(
+		ctx,
+		problemId,
+		unzipDir,
+		problem.JudgeMd5,
+		config.GetConfig().GoJudge.Url,
+		false,
+	)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return

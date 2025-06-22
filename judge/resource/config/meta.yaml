@@ -1,4 +1,4 @@
 module:
   name: "judge"
 node:
-  name: "daily-dev"
+  name: "dev-msi"

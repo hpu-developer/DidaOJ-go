@@ -387,6 +387,7 @@ func (s *MigrateProblemEojService) Start() error {
 				path.Join(judgeDataPath),
 				md5,
 				config.GetConfig().GoJudge.Url,
+				true,
 			)
 			if err != nil {
 				slog.Error("upload judge data failed", "id", problemModel.Id, "newId", newId, "error", err)

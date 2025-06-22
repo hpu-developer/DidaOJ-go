@@ -296,7 +296,31 @@ func (d *ProblemDao) GetProblemTitles(
 	return titles, nil
 }
 
-func (d *ProblemDao) GetProblemJudge(ctx context.Context, id string) (*foundationmodel.Problem, error) {
+func (d *ProblemDao) GetProblemViewApproveJudge(
+	ctx context.Context,
+	id string,
+) (*foundationmodel.ProblemViewApproveJudge, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().SetProjection(
+		bson.M{
+			"_id":       1,
+			"origin_oj": 1,
+			"origin_id": 1,
+		},
+	)
+	var problem foundationmodel.ProblemViewApproveJudge
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&problem); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem error")
+	}
+	return &problem, nil
+}
+
+func (d *ProblemDao) GetProblemViewJudgeData(ctx context.Context, id string) (*foundationmodel.Problem, error) {
 	filter := bson.M{
 		"_id": id,
 	}

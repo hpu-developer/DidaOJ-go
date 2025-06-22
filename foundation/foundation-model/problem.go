@@ -66,6 +66,12 @@ type ProblemViewAuth struct {
 	AuthMembers []int  `json:"auth_members" bson:"auth_members"` // 题目管理员，对题目有编辑权限
 }
 
+type ProblemViewApproveJudge struct {
+	Id       string  `json:"id" bson:"_id"`
+	OriginOj *string `json:"origin_oj" bson:"origin_oj"` // 题目来源的OJ
+	OriginId *string `json:"origin_id" bson:"origin_id"` // 题目来源的Id
+}
+
 type ProblemViewAttempt struct {
 	Id      string `json:"id" bson:"_id"`
 	Accept  int    `json:"accept" bson:"accept"`
