@@ -24,7 +24,7 @@ func (r *ProblemEdit) CheckRequest() (bool, int) {
 	if r.TimeLimit <= 0 || r.MemoryLimit <= 0 {
 		return false, int(foundationerrorcode.ParamError)
 	}
-	if r.TimeLimit > 3000 {
+	if r.TimeLimit > 30000 {
 		return false, int(foundationerrorcode.ParamError)
 	}
 	if r.MemoryLimit > 1024*1024 {
