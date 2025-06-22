@@ -8,6 +8,7 @@ import (
 	gojudge "judge/go-judge"
 	"log/slog"
 	metaerror "meta/meta-error"
+	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
 	metastring "meta/meta-string"
 	"meta/retry"
@@ -22,6 +23,7 @@ func CompileCode(
 	language JudgeLanguage,
 	code string,
 	configFiles map[string]string,
+	isSpj bool,
 ) (map[string]string, string, JudgeStatus, error) {
 	slog.Info("compile code", "job", jobKey)
 
@@ -164,7 +166,7 @@ func CompileCode(
 		} `json:"fileError"`
 	}
 	_ = retry.TryRetrySleep(
-		"compile_code", 3, time.Second*3, func(int) bool {
+		"compile_code", 6, time.Second*10, func(int) bool {
 			jsonData, err := json.Marshal(data)
 			if err != nil {
 				finalMessage = "compile failed, request data marshal error."
@@ -185,6 +187,7 @@ func CompileCode(
 				return false
 			}
 			defer func(Body io.ReadCloser) {
+				_, _ = io.Copy(io.Discard, Body) // 先读完，确保连接复用
 				err := Body.Close()
 				if err != nil {
 					metapanic.ProcessError(err)
@@ -261,15 +264,19 @@ func CompileCode(
 	return responseData.FileIds, errorMessage, JudgeStatusAC, nil
 }
 
-func DeleteFile(jobKey string, deleteFileUrl string) error {
-	client := &http.Client{}
-	request, err := http.NewRequest(http.MethodDelete, deleteFileUrl, nil)
+func DeleteFile(client *http.Client, jobKey string, deleteFileUrl string) error {
+	_, _, err := metahttp.SendRequestRetry(
+		client,
+		fmt.Sprintf("DeleteFile_%s", jobKey),
+		6,
+		time.Second*10,
+		http.MethodDelete, deleteFileUrl,
+		nil,
+		nil,
+		true,
+	)
 	if err != nil {
-		return err
-	}
-	_, err = client.Do(request)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to delete file")
+		return metaerror.Wrap(err, "failed to get file list from GoJudge")
 	}
 	return nil
 }

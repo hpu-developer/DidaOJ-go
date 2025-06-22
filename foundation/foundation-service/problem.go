@@ -28,6 +28,7 @@ import (
 	"meta/retry"
 	"meta/routine"
 	"meta/singleton"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -411,12 +412,16 @@ func (s *ProblemService) PostJudgeData(
 
 		jobKey := uuid.New().String()
 
+		goJudgeClient := http.DefaultClient
+
 		execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
+			goJudgeClient,
 			jobKey,
 			runUrl,
 			language,
 			codeContent,
 			nil,
+			true,
 		)
 		if extraMessage != "" {
 			slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
@@ -430,7 +435,7 @@ func (s *ProblemService) PostJudgeData(
 		}
 		for _, fileId := range execFileIds {
 			deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
-			err := foundationjudge.DeleteFile(jobKey, deleteUrl)
+			err := foundationjudge.DeleteFile(goJudgeClient, jobKey, deleteUrl)
 			if err != nil {
 				metapanic.ProcessError(err)
 			}

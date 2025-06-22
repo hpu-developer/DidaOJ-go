@@ -47,6 +47,7 @@ type judgeDataDownloadEntry struct {
 }
 
 type JudgeService struct {
+	requestMutex sync.Mutex
 	runningTasks atomic.Int32
 
 	// 有些时候同一个问题只能有一个逻辑去处理
@@ -72,7 +73,7 @@ func GetJudgeService() *JudgeService {
 					MaxConnsPerHost:     100,
 					IdleConnTimeout:     90 * time.Second,
 				},
-				Timeout: 30 * time.Second, // 请求整体超时
+				Timeout: 60 * time.Second, // 请求整体超时
 			}
 			return s
 		},
@@ -137,48 +138,39 @@ func (s *JudgeService) cleanGoJudge() error {
 	goJudgeUrl := config.GetConfig().GoJudge.Url
 	goJudgeFileUrl := metahttp.UrlJoin(goJudgeUrl, "file")
 
-	fileListRequest, err := http.NewRequest("GET", goJudgeFileUrl, nil)
+	_, respBody, err := metahttp.SendRequestRetry(
+		s.goJudgeClient,
+		"cleanGoJudge",
+		6,
+		time.Second*10,
+		http.MethodGet, goJudgeFileUrl,
+		nil,
+		nil,
+		true,
+	)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to create file list request")
+		return metaerror.Wrap(err, "failed to get file list from GoJudge")
 	}
-	fileListRequest.Header.Set("Accept", "application/json")
-	fileListResp, err := s.goJudgeClient.Do(fileListRequest)
-	if err != nil {
-		return err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-		_, _ = io.Copy(io.Discard, Body) // 防止连接复用失败
-	}(fileListResp.Body)
 	var fileList map[string]string
-	err = json.NewDecoder(fileListResp.Body).Decode(&fileList)
+	err = json.Unmarshal(respBody, &fileList)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to decode file list")
 	}
 	for fileId, _ := range fileList {
 		deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
-		request, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
+		err := foundationjudge.DeleteFile(s.goJudgeClient, "cleanGoJudge", deleteUrl)
 		if err != nil {
 			return err
 		}
-		_, err = s.goJudgeClient.Do(request)
-		if err != nil {
-			return metaerror.Wrap(err, "failed to delete file")
-		}
 	}
-
 	return nil
 }
 
 func (s *JudgeService) uploadFiles() error {
-	client := &http.Client{}
 	filesConfig := config.GetFilesConfig()
 
 	for fileKey, filePath := range filesConfig {
-		fileId, err := s.uploadFile(client, filePath)
+		fileId, err := s.uploadFile(filePath)
 		if err != nil {
 			return metaerror.Wrap(err, "failed to upload file: %s", filePath)
 		}
@@ -192,7 +184,7 @@ func (s *JudgeService) uploadFiles() error {
 	return nil
 }
 
-func (s *JudgeService) uploadFile(client *http.Client, filePath string) (*string, error) {
+func (s *JudgeService) uploadFile(filePath string) (*string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to open file: %s", filePath)
@@ -219,26 +211,25 @@ func (s *JudgeService) uploadFile(client *http.Client, filePath string) (*string
 	}
 	goJudgeUrl := config.GetConfig().GoJudge.Url
 	uploadUrl := metahttp.UrlJoin(goJudgeUrl, "file")
-	request, err := http.NewRequest(http.MethodPost, uploadUrl, body)
-	if err != nil {
-		return nil, metaerror.Wrap(err, "failed to create upload request for file: %s", filePath)
+
+	headers := map[string]string{
+		"Content-Type": writer.FormDataContentType(),
 	}
-	request.Header.Set("Content-Type", writer.FormDataContentType())
-	response, err := client.Do(request)
+
+	_, respBody, err := metahttp.SendRequestRetry(
+		s.goJudgeClient,
+		fmt.Sprintf("UploadFile_%s", filePath),
+		6,
+		time.Second*10,
+		http.MethodPost, uploadUrl,
+		headers, body,
+		true,
+	)
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to upload file: %s", filePath)
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err, "failed to close response body for file: %s", filePath))
-		}
-	}(response.Body)
-	if response.StatusCode != http.StatusOK {
-		return nil, metaerror.New("failed to upload file: %s, status code: %d", filePath, response.StatusCode)
-	}
 	var fileId string
-	err = json.NewDecoder(response.Body).Decode(&fileId)
+	err = json.Unmarshal(respBody, &fileId)
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to decode upload response for file: %s", filePath)
 	}
@@ -252,14 +243,21 @@ func (s *JudgeService) handleStart() error {
 		return nil
 	}
 
+	// 保证同时只有一个handleStart
+	if !s.requestMutex.TryLock() {
+		return nil
+	}
+	defer s.requestMutex.Unlock()
+
 	maxJob := config.GetConfig().MaxJob
-	if int(s.runningTasks.Load()) >= maxJob {
+	runningCount := int(s.runningTasks.Load())
+	if runningCount >= maxJob {
 		return nil
 	}
 	ctx := context.Background()
 	jobs, err := foundationdao.GetJudgeJobDao().RequestJudgeJobListPendingJudge(
 		ctx,
-		maxJob,
+		maxJob-runningCount,
 		config.GetConfig().Judger.Key,
 	)
 	if err != nil {
@@ -270,7 +268,7 @@ func (s *JudgeService) handleStart() error {
 		return nil
 	}
 
-	slog.Info("get judge job list", "count", jobsCount, "maxJob", maxJob)
+	slog.Info("get judge job list", "runningCount", runningCount, "maxJob", maxJob, "count", jobsCount)
 
 	s.runningTasks.Add(int32(jobsCount))
 
@@ -303,7 +301,7 @@ func (s *JudgeService) handleStart() error {
 
 func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	ctx := context.Background()
-
+	jobId := job.Id
 	err := foundationdao.GetJudgeJobDao().StartProcessJudgeJob(ctx, job.Id, config.GetConfig().Judger.Key)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to start process judge job")
@@ -335,19 +333,12 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 			}
 		}
 		defer func() {
-			client := &http.Client{}
 			for _, fileId := range execFileIds {
 				goJudgeUrl := config.GetConfig().GoJudge.Url
 				deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
-				request, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
+				err := foundationjudge.DeleteFile(s.goJudgeClient, strconv.Itoa(jobId), deleteUrl)
 				if err != nil {
-					metapanic.ProcessError(metaerror.Wrap(err, "failed to create delete request"))
-					continue
-				}
-				_, err = client.Do(request)
-				if err != nil {
-					metapanic.ProcessError(metaerror.Wrap(err, "failed to delete file"))
-					continue
+					return
 				}
 			}
 		}()
@@ -442,7 +433,7 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 						localPath := path.Join(".judge_data", *obj.Key)
 						var finalErr error
 						_ = retry.TryRetrySleep(
-							"download judge data", 3, time.Second, func(i int) bool {
+							"download judge data", 6, time.Second*10, func(i int) bool {
 								err := s.downloadObject(ctx, r2Client, "didaoj-judge", *obj.Key, localPath)
 								if err != nil {
 									finalErr = err
@@ -572,7 +563,8 @@ func (s *JudgeService) compileSpecialJudge(
 		runUrl,
 		language,
 		codeContent,
-		nil,
+		s.configFileIds,
+		true,
 	)
 	if extraMessage != "" {
 		slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
@@ -611,6 +603,7 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (
 		job.Language,
 		job.Code,
 		s.configFileIds,
+		false,
 	)
 }
 
@@ -938,28 +931,20 @@ func (s *JudgeService) runJudgeTask(
 		}
 		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", runUrl, bytes.NewBuffer(jsonData))
+
+	_, respBody, err := metahttp.SendRequestRetry(
+		s.goJudgeClient,
+		strconv.Itoa(job.Id),
+		6,
+		time.Second*10,
+		http.MethodPost, runUrl,
+		nil,
+		bytes.NewBuffer(jsonData),
+		true,
+	)
 	if err != nil {
-		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err, "failed to create request")
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := s.goJudgeClient.Do(req)
-	if err != nil {
-		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-		_, _ = io.Copy(io.Discard, Body) // 防止连接复用失败
-	}(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-		if markErr != nil {
-			metapanic.ProcessError(markErr)
-		}
-		return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("unexpected status code: %d", resp.StatusCode)
+		slog.Warn("runJudgeTask err", "jsonData", data)
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err, "failed to send request to GoJudge")
 	}
 	var responseDataList []struct {
 		Status gojudge.Status `json:"status"`
@@ -970,7 +955,7 @@ func (s *JudgeService) runJudgeTask(
 		Time   int `json:"time"`
 		Memory int `json:"memory"`
 	}
-	err = json.NewDecoder(resp.Body).Decode(&responseDataList)
+	err = json.Unmarshal(respBody, &responseDataList)
 	if err != nil {
 		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
 		if markErr != nil {
@@ -1105,31 +1090,18 @@ func (s *JudgeService) runJudgeTask(
 			}
 			return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
 		}
-		specialReq, err := http.NewRequestWithContext(ctx, "POST", runUrl, bytes.NewBuffer(specialJsonData))
-		if err != nil {
-			return 0, 0, 0, 0, metaerror.Wrap(err)
-		}
-		specialReq.Header.Set("Content-Type", "application/json")
-		specialResp, err := s.goJudgeClient.Do(specialReq)
+		_, specialResp, err := metahttp.SendRequestRetry(
+			s.goJudgeClient,
+			strconv.Itoa(job.Id),
+			6,
+			time.Second*10,
+			http.MethodPost, runUrl,
+			nil,
+			bytes.NewBuffer(specialJsonData),
+			true,
+		)
 		if err != nil {
 			return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
-		}
-		defer func(Body io.ReadCloser) {
-			err := Body.Close()
-			if err != nil {
-				metapanic.ProcessError(err)
-			}
-			_, _ = io.Copy(io.Discard, Body) // 防止连接复用失败
-		}(specialResp.Body)
-		if specialResp.StatusCode != http.StatusOK {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
-			if markErr != nil {
-				metapanic.ProcessError(markErr)
-			}
-			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New(
-				"unexpected status code: %d",
-				specialResp.StatusCode,
-			)
 		}
 		var specialRespDataList []struct {
 			Status     gojudge.Status `json:"status"`
@@ -1141,7 +1113,7 @@ func (s *JudgeService) runJudgeTask(
 			Time   int `json:"time"`
 			Memory int `json:"memory"`
 		}
-		err = json.NewDecoder(specialResp.Body).Decode(&specialRespDataList)
+		err = json.Unmarshal(specialResp, &specialRespDataList)
 		if err != nil {
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
 			if markErr != nil {
