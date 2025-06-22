@@ -143,6 +143,7 @@ func (s *MigrateProblemDmojService) Start() error {
 				judgeDataPath,
 				md5,
 				config.GetConfig().GoJudge.Url,
+				nil,
 				true,
 			)
 			if err != nil {

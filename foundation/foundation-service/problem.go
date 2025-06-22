@@ -331,6 +331,7 @@ func (s *ProblemService) PostJudgeData(
 	unzipDir string,
 	oldMd5 *string,
 	goJudgeUrl string,
+	goJudgeConfigFiles map[string]string,
 	checkR2FileCount bool,
 ) error {
 	// 如果包含文件夹，认为失败
@@ -420,7 +421,7 @@ func (s *ProblemService) PostJudgeData(
 			runUrl,
 			language,
 			codeContent,
-			nil,
+			goJudgeConfigFiles,
 			true,
 		)
 		if extraMessage != "" {

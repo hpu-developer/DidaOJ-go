@@ -5,6 +5,7 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationoj "foundation/foundation-oj"
 	foundationr2 "foundation/foundation-r2"
@@ -25,6 +26,7 @@ import (
 	metatime "meta/meta-time"
 	metazip "meta/meta-zip"
 	"meta/set"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -45,6 +47,8 @@ type ProblemJudgeData struct {
 
 type ProblemController struct {
 	metacontroller.Controller
+
+	goJudgeConfigFiles map[string]string
 }
 
 func (c *ProblemController) Get(ctx *gin.Context) {
@@ -610,12 +614,30 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		return
 	}
 
+	if c.goJudgeConfigFiles == nil {
+		c.goJudgeConfigFiles = make(map[string]string)
+	}
+	_, ok = c.goJudgeConfigFiles["testlib"]
+	if !ok {
+		fileId, err := foundationjudge.UploadFile(
+			http.DefaultClient,
+			config.GetConfig().GoJudge.Url,
+			config.GetConfig().TestlibFile,
+		)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		c.goJudgeConfigFiles["testlib"] = *fileId
+	}
+
 	err = problemService.PostJudgeData(
 		ctx,
 		problemId,
 		unzipDir,
 		problem.JudgeMd5,
 		config.GetConfig().GoJudge.Url,
+		c.goJudgeConfigFiles,
 		false,
 	)
 	if err != nil {

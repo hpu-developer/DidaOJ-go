@@ -12,9 +12,63 @@ import (
 	metapanic "meta/meta-panic"
 	metastring "meta/meta-string"
 	"meta/retry"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 )
+
+func UploadFile(client *http.Client, goJudgeUrl string, filePath string) (*string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to open file: %s", filePath)
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close file: %s", filePath))
+		}
+	}(file)
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to create form file part")
+	}
+	_, err = io.Copy(part, file)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to copy file content")
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to close multipart writer")
+	}
+	uploadUrl := metahttp.UrlJoin(goJudgeUrl, "file")
+
+	headers := map[string]string{
+		"Content-Type": writer.FormDataContentType(),
+	}
+
+	_, respBody, err := metahttp.SendRequestRetry(
+		client,
+		fmt.Sprintf("UploadFile_%s", filePath),
+		6,
+		time.Second*10,
+		http.MethodPost, uploadUrl,
+		headers, body,
+		true,
+	)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to upload file: %s", filePath)
+	}
+	var fileId string
+	err = json.Unmarshal(respBody, &fileId)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to decode upload response for file: %s", filePath)
+	}
+	return &fileId, nil
+}
 
 func CompileCode(
 	client *http.Client,
@@ -55,6 +109,11 @@ func CompileCode(
 				"content": code,
 			},
 		}
+		if isSpj {
+			copyIns["testlib.h"] = map[string]interface{}{
+				"fileId": configFiles["testlib"],
+			}
+		}
 		copyOutCached = []string{"a"}
 		break
 	case JudgeLanguageCpp:
@@ -67,6 +126,11 @@ func CompileCode(
 			"a.cc": map[string]interface{}{
 				"content": code,
 			},
+		}
+		if isSpj {
+			copyIns["testlib.h"] = map[string]interface{}{
+				"fileId": configFiles["testlib"],
+			}
 		}
 		copyOutCached = []string{"a"}
 		break

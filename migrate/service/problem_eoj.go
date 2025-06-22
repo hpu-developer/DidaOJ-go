@@ -387,6 +387,7 @@ func (s *MigrateProblemEojService) Start() error {
 				path.Join(judgeDataPath),
 				md5,
 				config.GetConfig().GoJudge.Url,
+				nil,
 				true,
 			)
 			if err != nil {
