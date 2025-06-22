@@ -394,6 +394,7 @@ func (d *ContestDao) GetContestList(
 	skip := int64((page - 1) * pageSize)
 
 	// 只获取id、title、tags、accept
+
 	opts := options.Find().
 		SetProjection(
 			bson.M{
@@ -407,7 +408,12 @@ func (d *ContestDao) GetContestList(
 		).
 		SetSkip(skip).
 		SetLimit(limit).
-		SetSort(bson.M{"_id": -1})
+		SetSort(
+			bson.D{
+				{"start_time", -1},
+				{"_id", -1},
+			},
+		)
 	// 查询总记录数
 	totalCount, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {
@@ -436,10 +442,10 @@ func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int)
 		{"_id", id},
 		{
 			"$or", bson.A{
-				bson.D{{"owner_id", userId}},
-				bson.D{{"private", bson.M{"$exists": false}}},
-				bson.D{{"members", bson.M{"$in": []int{userId}}}},
-			},
+			bson.D{{"owner_id", userId}},
+			bson.D{{"private", bson.M{"$exists": false}}},
+			bson.D{{"members", bson.M{"$in": []int{userId}}}},
+		},
 		},
 	}
 	count, err := d.collection.CountDocuments(ctx, filter)
@@ -455,16 +461,16 @@ func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId in
 		{"_id", id},
 		{
 			"$or", bson.A{
-				bson.D{{"owner_id", userId}},
-				bson.D{{"private", bson.M{"$exists": false}}},
-				bson.D{{"members", bson.M{"$in": []int{userId}}}},
-			},
+			bson.D{{"owner_id", userId}},
+			bson.D{{"private", bson.M{"$exists": false}}},
+			bson.D{{"members", bson.M{"$in": []int{userId}}}},
+		},
 		},
 		{
 			"$or", bson.A{
-				bson.D{{"submit_anytime", true}},
-				bson.D{{"end_time", bson.M{"$gte": nowTime}}},
-			},
+			bson.D{{"submit_anytime", true}},
+			bson.D{{"end_time", bson.M{"$gte": nowTime}}},
+		},
 		},
 		{
 			"start_time", bson.M{"$lte": nowTime},
