@@ -16,6 +16,7 @@ import (
 )
 
 func CompileCode(
+	client *http.Client,
 	jobKey string,
 	runUrl string,
 	language JudgeLanguage,
@@ -170,7 +171,14 @@ func CompileCode(
 				finalErr = metaerror.Wrap(err, "failed to marshal request data")
 				return true
 			}
-			resp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(jsonData))
+			request, err := http.NewRequest(http.MethodPost, runUrl, bytes.NewBuffer(jsonData))
+			if err != nil {
+				finalMessage = "compile failed, request data create error."
+				finalErr = metaerror.Wrap(err, "failed to create request")
+				return true
+			}
+			request.Header.Set("Content-Type", "application/json")
+			resp, err := client.Do(request)
 			if err != nil {
 				finalMessage = "compile failed, upload file error."
 				finalErr = metaerror.Wrap(err, "failed to post request")

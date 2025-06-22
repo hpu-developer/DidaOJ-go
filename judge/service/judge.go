@@ -55,6 +55,8 @@ type JudgeService struct {
 	// 题目号对应的特判程序文件ID
 	specialFileIds map[string]string
 	configFileIds  map[string]string
+
+	goJudgeClient *http.Client
 }
 
 var singletonJudgeService = singleton.Singleton[JudgeService]{}
@@ -63,6 +65,15 @@ func GetJudgeService() *JudgeService {
 	return singletonJudgeService.GetInstance(
 		func() *JudgeService {
 			s := &JudgeService{}
+			s.goJudgeClient = &http.Client{
+				Transport: &http.Transport{
+					MaxIdleConns:        100,
+					MaxIdleConnsPerHost: 100,
+					MaxConnsPerHost:     100,
+					IdleConnTimeout:     90 * time.Second,
+				},
+				Timeout: 30 * time.Second, // 请求整体超时
+			}
 			return s
 		},
 	)
@@ -125,7 +136,13 @@ func (s *JudgeService) GetConfigFileId(fileKey string) string {
 func (s *JudgeService) cleanGoJudge() error {
 	goJudgeUrl := config.GetConfig().GoJudge.Url
 	goJudgeFileUrl := metahttp.UrlJoin(goJudgeUrl, "file")
-	fileListResp, err := http.Get(goJudgeFileUrl)
+
+	fileListRequest, err := http.NewRequest("GET", goJudgeFileUrl, nil)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to create file list request")
+	}
+	fileListRequest.Header.Set("Accept", "application/json")
+	fileListResp, err := s.goJudgeClient.Do(fileListRequest)
 	if err != nil {
 		return err
 	}
@@ -134,20 +151,20 @@ func (s *JudgeService) cleanGoJudge() error {
 		if err != nil {
 			metapanic.ProcessError(err)
 		}
+		_, _ = io.Copy(io.Discard, Body) // 防止连接复用失败
 	}(fileListResp.Body)
 	var fileList map[string]string
 	err = json.NewDecoder(fileListResp.Body).Decode(&fileList)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to decode file list")
 	}
-	client := &http.Client{}
 	for fileId, _ := range fileList {
 		deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
 		request, err := http.NewRequest(http.MethodDelete, deleteUrl, nil)
 		if err != nil {
 			return err
 		}
-		_, err = client.Do(request)
+		_, err = s.goJudgeClient.Do(request)
 		if err != nil {
 			return metaerror.Wrap(err, "failed to delete file")
 		}
@@ -550,6 +567,7 @@ func (s *JudgeService) compileSpecialJudge(
 	}
 
 	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
+		s.goJudgeClient,
 		strconv.Itoa(job.Id),
 		runUrl,
 		language,
@@ -586,7 +604,14 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (
 ) {
 	goJudgeUrl := config.GetConfig().GoJudge.Url
 	runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
-	return foundationjudge.CompileCode(strconv.Itoa(job.Id), runUrl, job.Language, job.Code, s.configFileIds)
+	return foundationjudge.CompileCode(
+		s.goJudgeClient,
+		strconv.Itoa(job.Id),
+		runUrl,
+		job.Language,
+		job.Code,
+		s.configFileIds,
+	)
 }
 
 func (s *JudgeService) runJudgeJob(
@@ -913,7 +938,12 @@ func (s *JudgeService) runJudgeTask(
 		}
 		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
 	}
-	resp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", runUrl, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err, "failed to create request")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
 	}
@@ -922,6 +952,7 @@ func (s *JudgeService) runJudgeTask(
 		if err != nil {
 			metapanic.ProcessError(err)
 		}
+		_, _ = io.Copy(io.Discard, Body) // 防止连接复用失败
 	}(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
@@ -1074,7 +1105,12 @@ func (s *JudgeService) runJudgeTask(
 			}
 			return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
 		}
-		specialResp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(specialJsonData))
+		specialReq, err := http.NewRequestWithContext(ctx, "POST", runUrl, bytes.NewBuffer(specialJsonData))
+		if err != nil {
+			return 0, 0, 0, 0, metaerror.Wrap(err)
+		}
+		specialReq.Header.Set("Content-Type", "application/json")
+		specialResp, err := s.goJudgeClient.Do(specialReq)
 		if err != nil {
 			return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err)
 		}
@@ -1083,6 +1119,7 @@ func (s *JudgeService) runJudgeTask(
 			if err != nil {
 				metapanic.ProcessError(err)
 			}
+			_, _ = io.Copy(io.Discard, Body) // 防止连接复用失败
 		}(specialResp.Body)
 		if specialResp.StatusCode != http.StatusOK {
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)

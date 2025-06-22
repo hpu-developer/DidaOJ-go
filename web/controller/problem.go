@@ -632,12 +632,9 @@ func (c *ProblemController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	if requestData.Title == "" {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	if requestData.TimeLimit <= 0 || requestData.MemoryLimit <= 0 {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	ok, errorCode := requestData.CheckRequest()
+	if !ok {
+		metaresponse.NewResponse(ctx, errorCode, nil)
 		return
 	}
 
@@ -712,14 +709,12 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	if requestData.Title == "" {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	ok, errorCode := requestData.CheckRequest()
+	if !ok {
+		metaresponse.NewResponse(ctx, errorCode, nil)
 		return
 	}
-	if requestData.TimeLimit <= 0 || requestData.MemoryLimit <= 0 {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
+
 	problemId := requestData.Id
 
 	_, ok, err := foundationservice.GetProblemService().CheckEditAuth(ctx, problemId)
