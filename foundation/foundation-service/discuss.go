@@ -7,6 +7,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
+	"time"
 )
 
 type DiscussService struct {
@@ -44,6 +45,65 @@ func (s *DiscussService) CheckEditAuth(ctx *gin.Context, id int) (
 		}
 	}
 	return userId, true, nil
+}
+
+func (s *DiscussService) CheckViewAuth(ctx *gin.Context, id int) (
+	int,
+	bool,
+	error,
+) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageDiscuss)
+	if err != nil {
+		return userId, false, err
+	}
+	if userId <= 0 {
+		return userId, false, nil
+	}
+	if !hasAuth {
+		isBanned, err := foundationdao.GetDiscussDao().IsDiscussBannedOrNotExist(ctx, id)
+		if err != nil {
+			return userId, false, err
+		}
+		if isBanned {
+			return userId, false, nil
+		}
+	}
+	return userId, true, nil
+}
+
+func (s *DiscussService) CheckEditCommentAuth(ctx *gin.Context, commentId int) (
+	int,
+	bool,
+	*foundationmodel.DiscussCommentViewEdit,
+	error,
+) {
+	discussComment, err := foundationdao.GetDiscussCommentDao().GetCommentEditView(ctx, commentId)
+	if err != nil {
+		return 0, false, nil, err
+	}
+	if discussComment == nil {
+		return 0, false, nil, nil
+	}
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageDiscuss)
+	if err != nil {
+		return userId, false, discussComment, err
+	}
+	if userId <= 0 {
+		return userId, false, discussComment, nil
+	}
+	if !hasAuth {
+		isBanned, err := foundationdao.GetDiscussDao().IsDiscussBannedOrNotExist(ctx, discussComment.DiscussId)
+		if err != nil {
+			return userId, false, discussComment, err
+		}
+		if isBanned {
+			return userId, false, discussComment, nil
+		}
+		if discussComment.AuthorId != userId {
+			return userId, false, discussComment, nil
+		}
+	}
+	return userId, true, discussComment, nil
 }
 
 func (s *DiscussService) GetContent(ctx *gin.Context, id int) (*string, error) {
@@ -210,6 +270,10 @@ func (s *DiscussService) InsertDiscuss(ctx context.Context, discuss *foundationm
 	return foundationdao.GetDiscussDao().InsertDiscuss(ctx, discuss)
 }
 
+func (s *DiscussService) InsertDiscussComment(ctx context.Context, discuss *foundationmodel.DiscussComment) error {
+	return foundationdao.GetDiscussCommentDao().InsertDiscussComment(ctx, discuss)
+}
+
 func (s *DiscussService) GetDiscussCommentList(
 	ctx *gin.Context,
 	discussComment int,
@@ -248,10 +312,18 @@ func (s *DiscussService) GetDiscussCommentList(
 	return discussComments, totalCount, nil
 }
 
-func (s *DiscussService) UpdateContent(ctx *gin.Context, id int, description string) error {
-	return foundationdao.GetDiscussDao().UpdateContent(ctx, id, description)
+func (s *DiscussService) UpdateContent(ctx *gin.Context, id int, content string) error {
+	return foundationdao.GetDiscussDao().UpdateContent(ctx, id, content)
 }
 
 func (s *DiscussService) PostEdit(ctx *gin.Context, id int, discuss *foundationmodel.Discuss) error {
 	return foundationdao.GetDiscussDao().UpdateDiscuss(ctx, id, discuss)
+}
+
+func (s *DiscussService) UpdateCommentContent(
+	ctx *gin.Context,
+	commentId int, discussId int, content string,
+	updateTime time.Time,
+) error {
+	return foundationdao.GetDiscussCommentDao().UpdateContent(ctx, commentId, discussId, content, updateTime)
 }

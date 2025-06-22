@@ -17,6 +17,8 @@ type Discuss struct {
 	UpdateTime     time.Time `json:"update_time" bson:"update_time"`                             // 更新时间，有回复时会更新
 	ViewCount      int       `json:"view_count" bson:"view_count"`                               // 浏览次数
 
+	Banned bool `json:"banned,omitempty" bson:"banned,omitempty"` // 是否被封禁，封禁后无法查看和回复
+
 	// 用于标识帖子的关联
 	ProblemId           *string `json:"problem_id,omitempty" bson:"problem_id,omitempty"`                       // 问题Id
 	ProblemTitle        *string `json:"problem_title,omitempty" bson:"problem_title,omitempty"`                 // 问题标题，不存档

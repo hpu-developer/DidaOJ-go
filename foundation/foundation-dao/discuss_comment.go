@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	foundationmodel "foundation/foundation-model"
+	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -11,6 +12,7 @@ import (
 	metamongo "meta/meta-mongo"
 	metapanic "meta/meta-panic"
 	"meta/singleton"
+	"time"
 )
 
 type DiscussCommentDao struct {
@@ -40,23 +42,30 @@ func (d *DiscussCommentDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
-func (d *DiscussCommentDao) UpdateDiscussComment(
-	ctx context.Context,
-	key string,
-	discussComment *foundationmodel.DiscussComment,
-) error {
-	filter := bson.D{
-		{"_id", key},
+func (d *DiscussCommentDao) GetCommentEditView(ctx *gin.Context, id int) (
+	*foundationmodel.DiscussCommentViewEdit,
+	error,
+) {
+	filter := bson.M{
+		"_id": id,
 	}
-	update := bson.M{
-		"$set": discussComment,
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"_id":        1,
+				"discuss_id": 1,
+				"author_id":  1,
+				"content":    1,
+			},
+		)
+	var discussComment foundationmodel.DiscussCommentViewEdit
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&discussComment); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find discuss comment error")
 	}
-	updateOptions := options.Update().SetUpsert(true)
-	_, err := d.collection.UpdateOne(ctx, filter, update, updateOptions)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to save tapd subscription")
-	}
-	return nil
+	return &discussComment, nil
 }
 
 func (d *DiscussCommentDao) GetDiscussComment(ctx context.Context, id int) (*foundationmodel.DiscussComment, error) {
@@ -136,29 +145,6 @@ func (d *DiscussCommentDao) GetDiscussCommentList(
 	return list, int(totalCount), nil
 }
 
-func (d *DiscussCommentDao) UpdateDiscussComments(ctx context.Context, tags []*foundationmodel.DiscussComment) error {
-	var models []mongo.WriteModel
-	for _, tab := range tags {
-		filter := bson.D{
-			{"_id", tab.Id},
-		}
-		update := bson.M{
-			"$set": tab,
-		}
-		updateModel := mongo.NewUpdateManyModel().
-			SetFilter(filter).
-			SetUpdate(update).
-			SetUpsert(true)
-		models = append(models, updateModel)
-	}
-	bulkOptions := options.BulkWrite().SetOrdered(false) // 设置是否按顺序执行
-	_, err := d.collection.BulkWrite(ctx, models, bulkOptions)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to perform bulk update")
-	}
-	return nil
-}
-
 func (d *DiscussCommentDao) InsertDiscussComment(
 	ctx context.Context,
 	discussComment *foundationmodel.DiscussComment,
@@ -202,6 +188,87 @@ func (d *DiscussCommentDao) InsertDiscussComment(
 			_, err = d.collection.InsertOne(sc, discussComment)
 			if err != nil {
 				return nil, err
+			}
+			return nil, nil
+		},
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *DiscussCommentDao) UpdateDiscussComments(ctx context.Context, tags []*foundationmodel.DiscussComment) error {
+	var models []mongo.WriteModel
+	for _, tab := range tags {
+		filter := bson.D{
+			{"_id", tab.Id},
+		}
+		update := bson.M{
+			"$set": tab,
+		}
+		updateModel := mongo.NewUpdateManyModel().
+			SetFilter(filter).
+			SetUpdate(update).
+			SetUpsert(true)
+		models = append(models, updateModel)
+	}
+	bulkOptions := options.BulkWrite().SetOrdered(false) // 设置是否按顺序执行
+	_, err := d.collection.BulkWrite(ctx, models, bulkOptions)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to perform bulk update")
+	}
+	return nil
+}
+
+func (d *DiscussCommentDao) UpdateContent(
+	ctx *gin.Context,
+	id int,
+	discussId int,
+	content string,
+	updateTime time.Time,
+) error {
+
+	mongoSubsystem := metamongo.GetSubsystem()
+	client := mongoSubsystem.GetClient()
+	sess, err := client.StartSession()
+	if err != nil {
+		return err
+	}
+	defer sess.EndSession(ctx)
+	_, err = sess.WithTransaction(
+		ctx, func(sc mongo.SessionContext) (interface{}, error) {
+			filter := bson.M{
+				"_id": discussId,
+			}
+			update := bson.M{
+				"$set": bson.M{
+					"update_time": updateTime,
+				},
+			}
+			res, err := GetDiscussDao().collection.UpdateOne(sc, filter, update)
+			if err != nil {
+				return nil, err
+			}
+			if res.MatchedCount == 0 {
+				return nil, metaerror.New("update discuss comment no document matched, discussId:%d", discussId)
+			}
+			// 更新 DiscussComment 的内容
+			filter = bson.M{
+				"_id": id,
+			}
+			update = bson.M{
+				"$set": bson.M{
+					"content":     content,
+					"update_time": updateTime,
+				},
+			}
+			res, err = d.collection.UpdateOne(sc, filter, update)
+			if err != nil {
+				return nil, metaerror.Wrap(err, "update discuss comment content failed, id: %d", id)
+			}
+			if res.MatchedCount == 0 {
+				return nil, metaerror.New("update discuss comment no document matched, id:%d", id)
 			}
 			return nil, nil
 		},

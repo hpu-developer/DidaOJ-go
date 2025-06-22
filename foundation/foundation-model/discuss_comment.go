@@ -20,6 +20,13 @@ type DiscussComment struct {
 	MigrateEojClarificationId int
 }
 
+type DiscussCommentViewEdit struct {
+	Id        int    `json:"id" bson:"_id"`                                    // 数据库索引时的Id
+	DiscussId int    `json:"discuss_id,omitempty" bson:"discuss_id,omitempty"` // 讨论的Id
+	Content   string `json:"content" bson:"content"`                           // 讨论内容
+	AuthorId  int    `json:"author_id" bson:"author_id"`                       // 讨论作者Id
+}
+
 type DiscussCommentBuilder struct {
 	item *DiscussComment
 }

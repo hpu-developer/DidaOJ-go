@@ -168,6 +168,87 @@ func (c *DiscussController) GetImageToken(ctx *gin.Context) {
 	)
 }
 
+func (c *DiscussController) GetCommentImageToken(ctx *gin.Context) {
+	idStr := ctx.Query("id")
+	commentIdStr := ctx.Query("comment_id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, hasAuth, err := foundationservice.GetDiscussService().CheckViewAuth(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	commentId, err := strconv.Atoi(commentIdStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if commentId > 0 {
+		_, hasAuth, discussComment, err := foundationservice.GetDiscussService().CheckEditCommentAuth(ctx, commentId)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+			return
+		}
+		if !hasAuth {
+			metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+			return
+		}
+		idStr = strconv.Itoa(discussComment.DiscussId)
+		commentIdStr = strconv.Itoa(commentId)
+	} else {
+		idStr = strconv.Itoa(id)
+		commentIdStr = ""
+	}
+
+	// 获取 R2 客户端
+	r2Client := cfr2.GetSubsystem().GetClient("didapipa-oj")
+	if r2Client == nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	// 配置参数
+	bucketName := "didapipa-oj"
+	objectKey := metahttp.UrlJoin(
+		"uploading/discuss",
+		idStr,
+		commentIdStr,
+		strconv.Itoa(userId),
+		fmt.Sprintf("%d_%s", time.Now().Unix(), uuid.New().String()),
+	)
+
+	// 设置 URL 有效期
+	req, _ := r2Client.PutObjectRequest(
+		&s3.PutObjectInput{
+			Bucket: aws.String(bucketName),
+			Key:    aws.String(objectKey),
+		},
+	)
+
+	// 设置 URL 有效时间，例如 15 分钟
+	urlStr, err := req.Presign(15 * time.Minute)
+	if err != nil {
+		log.Printf("Failed to sign request: %v", err)
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	// 返回上传信息
+	metaresponse.NewResponse(
+		ctx, metaerrorcode.Success, gin.H{
+			"upload_url":  urlStr,
+			"preview_url": metahttp.UrlJoin("https://r2-oj.didapipa.com", objectKey),
+		},
+	)
+}
+
 func (c *DiscussController) GetList(ctx *gin.Context) {
 	discussService := foundationservice.GetDiscussService()
 	pageStr := ctx.DefaultQuery("page", "1")
@@ -461,5 +542,137 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 		Content:    content,
 		ModifyTime: nowTime,
 	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+func (c *DiscussController) PostCommentCreate(ctx *gin.Context) {
+	var requestData request.DiscussCommentEdit
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if requestData.Content == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	discussService := foundationservice.GetDiscussService()
+
+	discussId := requestData.DiscussId
+
+	userId, hasAuth, err := discussService.CheckViewAuth(ctx, discussId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+
+	timeNow := metatime.GetTimeNow()
+
+	discussComment := foundationmodel.NewDiscussCommentBuilder().
+		DiscussId(discussId).
+		Content(requestData.Content).
+		AuthorId(userId).
+		InsertTime(timeNow).
+		UpdateTime(timeNow).
+		Build()
+
+	err = discussService.InsertDiscussComment(ctx, discussComment)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	var description string
+	var needUpdateUrls []*foundationr2.R2ImageUrl
+	description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
+		requestData.Content,
+		nil,
+		metahttp.UrlJoin("discuss", strconv.Itoa(discussId)),
+		metahttp.UrlJoin("discuss", strconv.Itoa(discussId), strconv.Itoa(discussComment.Id)),
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if len(needUpdateUrls) > 0 {
+		err := discussService.UpdateContent(ctx, discussComment.Id, description)
+		if err != nil {
+			return
+		}
+		err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
+		if err != nil {
+			metapanic.ProcessError(err)
+		}
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
+func (c *DiscussController) PostCommentEdit(ctx *gin.Context) {
+	var requestData request.DiscussCommentEdit
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if requestData.Content == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	discussService := foundationservice.GetDiscussService()
+
+	// 校验是否有编辑权限（对评论）
+	_, hasAuth, discussComment, err := discussService.CheckEditCommentAuth(ctx, requestData.Id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+
+	if discussComment.DiscussId != requestData.DiscussId {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	// 获取旧内容用于图片清理
+	// 处理 markdown 内容和图片链接
+	var needUpdateUrls []*foundationr2.R2ImageUrl
+	content, needUpdateUrls, err := service.GetR2ImageService().ProcessContentFromMarkdown(
+		requestData.Content,
+		&discussComment.Content,
+		metahttp.UrlJoin("discuss", strconv.Itoa(discussComment.DiscussId), strconv.Itoa(requestData.Id)),
+		metahttp.UrlJoin("discuss", strconv.Itoa(discussComment.DiscussId), strconv.Itoa(requestData.Id)),
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	nowTime := metatime.GetTimeNow()
+
+	err = discussService.UpdateCommentContent(ctx, requestData.Id, discussComment.DiscussId, content, nowTime)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
+	if err != nil {
+		metapanic.ProcessError(err)
+	}
+
+	responseData := struct {
+		Content    string    `json:"content"`
+		UpdateTime time.Time `json:"update_time"`
+	}{
+		Content:    content,
+		UpdateTime: nowTime,
+	}
+
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }

@@ -62,6 +62,28 @@ func (d *DiscussDao) GetAuthorId(ctx context.Context, id int) (int, error) {
 	return discuss.AuthorId, nil
 }
 
+func (d *DiscussDao) IsDiscussBannedOrNotExist(ctx context.Context, id int) (bool, error) {
+	filter := bson.M{
+		"_id": id,
+	}
+	opts := options.FindOne().
+		SetProjection(
+			bson.M{
+				"banned": 1,
+			},
+		)
+	var discuss struct {
+		Banned bool `bson:"banned"`
+	}
+	if err := d.collection.FindOne(ctx, filter, opts).Decode(&discuss); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return true, nil
+		}
+		return false, metaerror.Wrap(err, "find discuss error")
+	}
+	return discuss.Banned, nil
+}
+
 func (d *DiscussDao) GetContent(ctx context.Context, id int) (*string, error) {
 	filter := bson.M{
 		"_id": id,
