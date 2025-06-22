@@ -10,10 +10,18 @@ import (
 	metaerror "meta/meta-error"
 	metapanic "meta/meta-panic"
 	metastring "meta/meta-string"
+	"meta/retry"
 	"net/http"
+	"time"
 )
 
-func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code string, configFiles map[string]string) (map[string]string, string, JudgeStatus, error) {
+func CompileCode(
+	jobKey string,
+	runUrl string,
+	language JudgeLanguage,
+	code string,
+	configFiles map[string]string,
+) (map[string]string, string, JudgeStatus, error) {
 	slog.Info("compile code", "job", jobKey)
 
 	var args []string
@@ -27,7 +35,18 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 
 	switch language {
 	case JudgeLanguageC:
-		args = []string{"gcc", "-fno-asm", "-fmax-errors=10", "-Wall", "--static", "-DONLINE_JUDGE", "-o", "a", "a.c", "-lm"}
+		args = []string{
+			"gcc",
+			"-fno-asm",
+			"-fmax-errors=10",
+			"-Wall",
+			"--static",
+			"-DONLINE_JUDGE",
+			"-o",
+			"a",
+			"a.c",
+			"-lm",
+		}
 		copyIns = map[string]interface{}{
 			"a.c": map[string]interface{}{
 				"content": code,
@@ -36,7 +55,8 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 		copyOutCached = []string{"a"}
 		break
 	case JudgeLanguageCpp:
-		args = []string{"g++", "-fno-asm", "-fmax-errors=10", "-Wall", "--static",
+		args = []string{
+			"g++", "-fno-asm", "-fmax-errors=10", "-Wall", "--static",
 			"-DONLINE_JUDGE", "-Wno-sign-compare",
 			"-o", "a", "a.cc",
 		}
@@ -48,13 +68,14 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 		copyOutCached = []string{"a"}
 		break
 	case JudgeLanguageJava:
-		args = []string{"javac", "-J-Xms128m", "-J-Xmx512m", "-encoding", "UTF-8", "Main.java"}
+		cmd := "javac -J-Xms128m -J-Xmx512m -encoding UTF-8 Main.java && jar -cvf Main.jar *.class"
+		args = []string{"bash", "-c", cmd}
 		copyIns = map[string]interface{}{
 			"Main.java": map[string]interface{}{
 				"content": code,
 			},
 		}
-		copyOutCached = []string{"Main.class"}
+		copyOutCached = []string{"Main.jar"}
 		break
 	case JudgeLanguagePython:
 		args = []string{"python3", "-c", "import py_compile; py_compile.compile(r'a.py')"}
@@ -124,23 +145,9 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 			},
 		},
 	}
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return nil, "compile failed, system error.", JudgeStatusJudgeFail, err
-	}
-	resp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, "compile failed, upload file error.", JudgeStatusJudgeFail, err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(err)
-		}
-	}(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return nil, "compile failed, upload file response error.", JudgeStatusJudgeFail, metaerror.New("unexpected status code: %d", resp.StatusCode)
-	}
+
+	var finalMessage string
+	var finalErr error
 	var responseDataList []struct {
 		Status gojudge.Status `json:"status"`
 		Error  string         `json:"error"`
@@ -155,13 +162,58 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 			Message string `json:"message"`
 		} `json:"fileError"`
 	}
-	err = json.NewDecoder(resp.Body).Decode(&responseDataList)
-	if err != nil {
-		return nil, fmt.Sprintf("compile failed, upload file response parse error."), JudgeStatusJudgeFail, metaerror.Wrap(err, "failed to decode response")
+	_ = retry.TryRetrySleep(
+		"compile_code", 3, time.Second*3, func(int) bool {
+			jsonData, err := json.Marshal(data)
+			if err != nil {
+				finalMessage = "compile failed, request data marshal error."
+				finalErr = metaerror.Wrap(err, "failed to marshal request data")
+				return true
+			}
+			resp, err := http.Post(runUrl, "application/json", bytes.NewBuffer(jsonData))
+			if err != nil {
+				finalMessage = "compile failed, upload file error."
+				finalErr = metaerror.Wrap(err, "failed to post request")
+				return false
+			}
+			defer func(Body io.ReadCloser) {
+				err := Body.Close()
+				if err != nil {
+					metapanic.ProcessError(err)
+				}
+			}(resp.Body)
+			if resp.StatusCode != http.StatusOK {
+				finalMessage = fmt.Sprintf("compile failed, response status code %d error.", resp.StatusCode)
+				finalErr = metaerror.New(
+					"unexpected status code: %d",
+					resp.StatusCode,
+				)
+				return false
+			}
+			err = json.NewDecoder(resp.Body).Decode(&responseDataList)
+			if err != nil {
+				finalMessage = "compile failed, upload file response parse error."
+				finalErr = metaerror.Wrap(err, "failed to decode response")
+				return false
+			}
+			if len(responseDataList) != 1 {
+				finalMessage = "compile failed, compile response data error."
+				finalErr = metaerror.New(
+					"unexpected response length: %d",
+					len(responseDataList),
+				)
+				return false
+			}
+			finalMessage = ""
+			finalErr = nil
+			return true
+		},
+	)
+
+	if finalErr != nil {
+		return nil, finalMessage, JudgeStatusJudgeFail, finalErr
 	}
-	if len(responseDataList) != 1 {
-		return nil, "compile failed, compile response data error.", JudgeStatusJudgeFail, metaerror.New("unexpected response length: %d", len(responseDataList))
-	}
+
 	responseData := responseDataList[0]
 	errorMessage := responseData.Error
 	if responseData.Files.Stderr != "" {
@@ -179,7 +231,12 @@ func CompileCode(jobKey string, runUrl string, language JudgeLanguage, code stri
 	if errorMessage == "" {
 		if len(responseData.FileError) > 0 {
 			for _, fileError := range responseData.FileError {
-				errorMessage += fmt.Sprintf("File: %s, Type: %s, Message: %s\n", fileError.Name, fileError.Type, fileError.Message)
+				errorMessage += fmt.Sprintf(
+					"File: %s, Type: %s, Message: %s\n",
+					fileError.Name,
+					fileError.Type,
+					fileError.Message,
+				)
 			}
 		}
 	}

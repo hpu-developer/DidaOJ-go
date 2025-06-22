@@ -823,8 +823,8 @@ func (s *JudgeService) runJudgeTask(
 			},
 		}
 	case foundationjudge.JudgeLanguageJava:
-		args = []string{"java", "Main"}
-		fileId, ok := execFileIds["Main.class"]
+		args = []string{"java", "-cp", "Main.jar", "Main", "-Dfile.encoding=UTF-8"}
+		fileId, ok := execFileIds["Main.jar"]
 		if !ok {
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
 			if markErr != nil {
@@ -833,7 +833,7 @@ func (s *JudgeService) runJudgeTask(
 			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("fileId not found")
 		}
 		copyIns = map[string]interface{}{
-			"Main.class": map[string]interface{}{
+			"Main.jar": map[string]interface{}{
 				"fileId": fileId,
 			},
 		}

@@ -5,11 +5,14 @@ import (
 	"fmt"
 	foundationdao "foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
+	foundationservice "foundation/foundation-service"
 	"log/slog"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
+	"migrate/config"
 	migratedao "migrate/dao"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -125,6 +128,24 @@ func (s *MigrateProblemDmojService) Start() error {
 		if newId != nil {
 			err := foundationdao.GetProblemDao().UpdateProblem(ctx, *newId, problem, tags)
 			if err != nil {
+				return err
+			}
+			judgeDataRootPath := "C:\\Users\\BoilT\\OneDrive\\Backup\\ServerBackup\\DidaOJ\\DM\\testcase"
+
+			md5, err := foundationdao.GetProblemDao().GetProblemJudgeMd5(ctx, *newId)
+			if err != nil {
+				return err
+			}
+			judgeDataPath := path.Join(judgeDataRootPath, strconv.Itoa(problemModel.Id))
+			err = foundationservice.GetProblemService().PostJudgeData(
+				ctx,
+				*newId,
+				path.Join(judgeDataPath),
+				md5,
+				config.GetConfig().GoJudge.Url,
+			)
+			if err != nil {
+				slog.Error("upload judge data failed", "id", problemModel.Id, "newId", newId, "error", err)
 				return err
 			}
 		} else {

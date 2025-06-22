@@ -573,39 +573,6 @@ func (s *ProblemService) PostJudgeData(
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataProcessWrapLineFail)
 	}
 
-	var files []string
-	err = filepath.Walk(
-		unzipDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				return nil
-			}
-			files = append(files, path)
-			return nil
-		},
-	)
-
-	judgeDataMd5, err := metamd5.MultiFileMD5(files)
-	if err != nil {
-		return metaerror.NewCode(weberrorcode.ProblemJudgeDataProcessMd5Fail)
-	}
-	slog.Info("judge data md5", "md5", judgeDataMd5)
-
-	if oldMd5 != nil && *oldMd5 == judgeDataMd5 {
-		return nil
-	}
-
-	// 上传r2
-	r2Client := cfr2.GetSubsystem().GetClient("judge-data")
-	if r2Client == nil {
-		return metaerror.NewCode(metaerrorcode.CommonError)
-	}
-
-	var maxConcurrency = 10
-
-	// 收集所有文件
 	var uploadFiles []string
 	err = filepath.Walk(
 		unzipDir, func(path string, info os.FileInfo, err error) error {
@@ -619,9 +586,25 @@ func (s *ProblemService) PostJudgeData(
 			return nil
 		},
 	)
+
+	judgeDataMd5, err := metamd5.MultiFileMD5(uploadFiles)
 	if err != nil {
-		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataProcessMd5Fail)
 	}
+	slog.Info("judge data md5", "problemId", problemId, "md5", judgeDataMd5)
+
+	if oldMd5 != nil && *oldMd5 == judgeDataMd5 {
+		return nil
+	}
+
+	// 上传r2
+	r2Client := cfr2.GetSubsystem().GetClient("judge-data")
+	if r2Client == nil {
+		return metaerror.NewCode(metaerrorcode.CommonError)
+	}
+
+	var maxConcurrency = 10
+
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, maxConcurrency)
 	errChan := make(chan error, 1) // 只保留第一个错误
@@ -709,6 +692,11 @@ func (s *ProblemService) PostJudgeData(
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
 	}
 	zipFile, err := os.Open(path.Join(unzipDir, zipFileName))
+	defer func() {
+		if err := zipFile.Close(); err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close zip file error"))
+		}
+	}()
 	zipKey := filepath.ToSlash(filepath.Join(problemId, judgeDataMd5, zipFileName))
 	_, err = r2Client.PutObjectWithContext(
 		ctx, &s3.PutObjectInput{
