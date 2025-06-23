@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
+	"io"
 	"log/slog"
 	cfr2 "meta/cf-r2"
 	metaerrorcode "meta/error-code"
@@ -25,7 +26,6 @@ import (
 	metaslice "meta/meta-slice"
 	metastring "meta/meta-string"
 	metazip "meta/meta-zip"
-	"meta/retry"
 	"meta/routine"
 	"meta/singleton"
 	"net/http"
@@ -641,77 +641,99 @@ func (s *ProblemService) PostJudgeData(
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, maxConcurrency)
-	errChan := make(chan error, 1) // 只保留第一个错误
+	errChan := make(chan error, 1)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	for _, uploadFile := range uploadFiles {
+		// 如果已经有错误，取消后续任务
 		select {
 		case <-ctx.Done():
 			break
 		default:
 		}
+
 		wg.Add(1)
 		sem <- struct{}{} // acquire
 		goPath := uploadFile
-		routine.SafeGo(
-			"upload judge data file", func() error {
-				defer wg.Done()
-				defer func() { <-sem }() // release
-				relativePath, err := filepath.Rel(unzipDir, goPath)
-				if err != nil {
-					select {
-					case errChan <- err:
-					default:
-					}
-					return nil
+
+		go func(path string) {
+			defer wg.Done()
+			defer func() { <-sem }() // release
+
+			relativePath, err := filepath.Rel(unzipDir, path)
+			if err != nil {
+				select {
+				case errChan <- err:
+				default:
 				}
-				key := filepath.ToSlash(filepath.Join(problemId, judgeDataMd5, relativePath))
-				file, err := os.Open(goPath)
-				if err != nil {
-					select {
-					case errChan <- err:
-					default:
-					}
-					return nil
+				cancel()
+				return
+			}
+
+			key := filepath.ToSlash(filepath.Join(problemId, judgeDataMd5, relativePath))
+
+			// 多次尝试打开文件（理论上文件打开失败重试意义不大，但为防止临时FS问题）
+			var file *os.File
+			for i := 0; i < 3; i++ {
+				file, err = os.Open(path)
+				if err == nil {
+					break
 				}
-				defer func() {
-					if err := file.Close(); err != nil {
-						metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
-					}
-				}()
-				slog.Info("put object start", "key", key)
-				var finalErr error
-				err = retry.TryRetrySleep(
-					"put object", 3, time.Second*3, func(i int) bool {
-						_, err = r2Client.PutObjectWithContext(
-							ctx, &s3.PutObjectInput{
-								Bucket: aws.String("didaoj-judge"),
-								Key:    aws.String(key),
-								Body:   file,
-							},
-						)
-						if err != nil {
-							finalErr = err
-							return true
-						}
-						return true
+				time.Sleep(2 * time.Second)
+			}
+			if err != nil {
+				select {
+				case errChan <- fmt.Errorf("open file error (%s): %w", path, err):
+				default:
+				}
+				cancel()
+				return
+			}
+			defer func(file *os.File) {
+				err := file.Close()
+				if err != nil {
+					metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
+				}
+			}(file)
+
+			slog.Info("put object start", "key", key)
+
+			var uploadErr error
+			for i := 0; i < 3; i++ {
+				// 重置文件偏移，否则重试时 Body 是空的
+				if _, err := file.Seek(0, io.SeekStart); err != nil {
+					uploadErr = fmt.Errorf("seek file error (%s): %w", path, err)
+					break
+				}
+				_, uploadErr = r2Client.PutObjectWithContext(
+					ctx, &s3.PutObjectInput{
+						Bucket: aws.String("didaoj-judge"),
+						Key:    aws.String(key),
+						Body:   file,
 					},
 				)
-				if err != nil {
-					slog.Info("put object error", "key", key)
-					select {
-					case errChan <- metaerror.Wrap(finalErr, "put object error, key:%s", key):
-					default:
-					}
-					return nil
+				if uploadErr == nil {
+					break // success
 				}
-				slog.Info("put object success", "key", key)
-				return nil
-			},
-		)
+				slog.Warn("put object retry", "attempt", i+1, "key", key, "error", uploadErr)
+				time.Sleep(3 * time.Second)
+			}
+
+			if uploadErr != nil {
+				slog.Error("put object failed", "key", key, "error", uploadErr)
+				select {
+				case errChan <- uploadErr:
+				default:
+				}
+				cancel()
+				return
+			}
+
+			slog.Info("put object success", "key", key)
+		}(goPath)
 	}
 
-	// 等待所有任务完成
 	wg.Wait()
 	close(errChan)
 
@@ -768,60 +790,58 @@ func (s *ProblemService) PostJudgeData(
 	)
 
 	if len(deleteKeys) > 0 {
-		// 这里不应该依赖PostJudge的流程，走到这里必须执行完毕删除逻辑，否则就会产生遗留数据，只能等待下一次更新判题数据时删除
 		routine.SafeGo(
 			"delete judge data object", func() error {
-				sem = make(chan struct{}, maxConcurrency)
-				errChan = make(chan error, 1) // 只保留第一个错误
+				var wg sync.WaitGroup
+				sem := make(chan struct{}, maxConcurrency)
+				errChan := make(chan error, 1)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
+
 				for _, delKey := range deleteKeys {
+					// 如果已出错，则终止派发新任务
 					select {
 					case <-ctx.Done():
 						break
 					default:
 					}
+
 					wg.Add(1)
-					sem <- struct{}{}    // acquire
-					currentKey := delKey // 避免闭包问题
-					routine.SafeGo(
-						"delete judge data object", func() error {
-							defer wg.Done()
-							defer func() { <-sem }() // release
+					sem <- struct{}{}
+					currentKey := delKey // 闭包安全
 
-							slog.Info("delete object start", "key", currentKey)
+					go func(key string) {
+						defer wg.Done()
+						defer func() { <-sem }()
 
-							var finalErr error
-							err := retry.TryRetrySleep(
-								"delete object", 3, time.Second*3, func(i int) bool {
-									_, err := r2Client.DeleteObjectWithContext(
-										ctx, &s3.DeleteObjectInput{
-											Bucket: aws.String("didaoj-judge"),
-											Key:    aws.String(currentKey),
-										},
-									)
-									if err != nil {
-										finalErr = err
-										return true // 重试
-									}
-									return true // 成功也退出
+						slog.Info("delete object start", "key", key)
+
+						var deleteErr error
+						for i := 0; i < 3; i++ {
+							_, err := r2Client.DeleteObjectWithContext(
+								ctx, &s3.DeleteObjectInput{
+									Bucket: aws.String("didaoj-judge"),
+									Key:    aws.String(key),
 								},
 							)
-							if err != nil {
-								slog.Info("delete object error", "key", currentKey)
-								select {
-								case errChan <- metaerror.Wrap(finalErr, "delete object error, key:%s", currentKey):
-								default:
-								}
-								return nil
+							if err == nil {
+								slog.Info("delete object success", "key", key)
+								return
 							}
-							slog.Info("delete object success", "key", currentKey)
-							return nil
-						},
-					)
+							slog.Warn("delete object retry", "attempt", i+1, "key", key, "error", err)
+							deleteErr = err
+							time.Sleep(3 * time.Second)
+						}
+
+						slog.Error("delete object failed", "key", key, "error", deleteErr)
+						select {
+						case errChan <- fmt.Errorf("delete object error, key: %s: %w", key, deleteErr):
+						default:
+						}
+						cancel()
+					}(currentKey)
 				}
 
-				// 等待所有任务完成
 				wg.Wait()
 				close(errChan)
 

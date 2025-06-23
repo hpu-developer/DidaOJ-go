@@ -538,10 +538,10 @@ func (d *JudgeJobDao) GetRankAcProblem(
 					"author_id":  "$author_id",
 					"problem_id": "$problem_id",
 				},
+				"count": bson.M{"$sum": 1},
 			},
 			},
 		},
-		// 再按用户统计通过题数
 		{
 			{
 				Key: "$group", Value: bson.M{
@@ -550,8 +550,14 @@ func (d *JudgeJobDao) GetRankAcProblem(
 			},
 			},
 		},
-		// 按通过题数倒序排列
-		{{Key: "$sort", Value: bson.M{"count": -1, "_id": 1}}},
+		{
+			{
+				Key: "$sort", Value: bson.D{
+				{"count", -1},
+				{"_id", 1},
+			},
+			},
+		},
 		// 分页
 		{{Key: "$skip", Value: (page - 1) * pageSize}},
 		{{Key: "$limit", Value: pageSize}},
@@ -571,13 +577,18 @@ func (d *JudgeJobDao) GetRankAcProblem(
 	var list []*foundationmodel.UserRank
 	for cursor.Next(ctx) {
 		var result struct {
-			ID    int `bson:"_id"`
-			Count int `bson:"count"`
+			AuthorId int `bson:"_id"`
+			Count    int `bson:"count"`
 		}
 		if err := cursor.Decode(&result); err != nil {
 			return nil, 0, err
 		}
-		list = append(list, foundationmodel.NewUserRankBuilder().Id(result.ID).ProblemCount(result.Count).Build())
+		list = append(
+			list, foundationmodel.NewUserRankBuilder().
+				Id(result.AuthorId).
+				ProblemCount(result.Count).
+				Build(),
+		)
 	}
 	if err := cursor.Err(); err != nil {
 		return nil, 0, err
