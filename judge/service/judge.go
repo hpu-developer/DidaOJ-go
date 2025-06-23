@@ -1077,7 +1077,7 @@ func (s *JudgeService) runJudgeTask(
 		specialData := map[string]interface{}{
 			"cmd": []map[string]interface{}{
 				{
-					"args": []string{"spj", "test.in", "test.out", "user.out"},
+					"args": []string{"spj", "test.in", "user.out", "test.out"},
 					"env":  []string{"PATH=/usr/bin:/bin"},
 					"files": []map[string]interface{}{
 						{"content": inContent},
