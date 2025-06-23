@@ -38,7 +38,7 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	_, hasAuth, contest, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
+	_, hasAuth, hasTaskAuth, contest, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -47,7 +47,39 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	judgeJob, err := judgeService.GetJudge(ctx, id)
+	if contest != nil {
+		contestIdStr := ctx.Query("contest_id")
+		if contestIdStr == "" {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+			return
+		}
+		contestId, err := strconv.Atoi(contestIdStr)
+		if err != nil || contestId != contest.Id {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+			return
+		}
+	}
+	fields := []string{
+		"_id",
+		"approve_time",
+		"language",
+		"score",
+		"status",
+		"time",
+		"memory",
+		"author_id",
+		"code",
+		"code_length",
+	}
+	if contest == nil {
+		fields = append(fields, "problem_id")
+	} else {
+		fields = append(fields, "contest_id", "contest_problem_index")
+	}
+	if hasTaskAuth {
+		fields = append(fields, "task")
+	}
+	judgeJob, err := judgeService.GetJudge(ctx, id, fields)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -56,9 +88,7 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	if judgeJob.ContestId > 0 {
-		// 比赛中隐藏具体检测任务
-		judgeJob.Task = nil
+	if contest != nil {
 		if contest.Type == foundationmodel.ContestTypeAcm {
 			// IOI模式之外隐藏分数信息
 			if judgeJob.Score < 100 {
@@ -81,7 +111,7 @@ func (c *JudgeController) GetCode(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	_, hasAuth, _, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
+	_, hasAuth, _, _, err := foundationservice.GetJudgeService().CheckJudgeViewAuth(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

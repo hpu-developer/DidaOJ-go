@@ -28,25 +28,26 @@ func GetJudgeService() *JudgeService {
 
 func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 	int,
-	bool,
+	bool, // 是否具有查看权限
+	bool, // 是否具有查看Task的权限
 	*foundationmodel.ContestViewLock,
 	error,
 ) {
 	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageJudge)
 	if err != nil {
-		return userId, false, nil, err
+		return userId, false, false, nil, err
 	}
 	judgeAuth, err := foundationdao.GetJudgeJobDao().GetJudgeJobViewAuth(ctx, id)
 	if err != nil {
-		return userId, false, nil, err
+		return userId, false, false, nil, err
 	}
 	if judgeAuth == nil {
-		return userId, false, nil, nil
+		return userId, false, false, nil, nil
 	}
 	if !hasAuth {
 		if judgeAuth.Private {
 			if judgeAuth.AuthorId != userId {
-				return userId, false, nil, nil
+				return userId, false, false, nil, nil
 			}
 		}
 	}
@@ -55,24 +56,24 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 	if judgeAuth.ContestId > 0 {
 		contest, err = foundationdao.GetContestDao().GetContestViewLock(ctx, judgeAuth.ContestId)
 		if err != nil {
-			return userId, false, contest, err
+			return userId, false, false, contest, err
 		}
 		nowTime := metatime.GetTimeNow()
-		hasStatusAuth, hasDetailAuth := s.isContestJudgeHasViewAuth(
+		hasStatusAuth, hasDetailAuth, hasTaskAuth := s.isContestJudgeHasViewAuth(
 			contest, userId,
 			nowTime,
 			judgeAuth.AuthorId,
 			&judgeAuth.ApproveTime,
 		)
 		if !hasStatusAuth || !hasDetailAuth {
-			return userId, false, contest, nil
+			return userId, false, hasTaskAuth, contest, nil
 		}
 	}
-	return userId, true, contest, nil
+	return userId, true, true, contest, nil
 }
 
-func (s *JudgeService) GetJudge(ctx context.Context, id int) (*foundationmodel.JudgeJob, error) {
-	judgeJob, err := foundationdao.GetJudgeJobDao().GetJudgeJob(ctx, id)
+func (s *JudgeService) GetJudge(ctx context.Context, id int, fields []string) (*foundationmodel.JudgeJob, error) {
+	judgeJob, err := foundationdao.GetJudgeJobDao().GetJudgeJob(ctx, id, fields)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +209,7 @@ func (s *JudgeService) GetJudgeList(
 					}
 				}
 
-				hasStatusAuth, hasDetailAuth := s.isContestJudgeHasViewAuth(
+				hasStatusAuth, hasDetailAuth, _ := s.isContestJudgeHasViewAuth(
 					contest, userId,
 					nowTime,
 					judgeJob.AuthorId,
@@ -241,9 +242,14 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 ) (
 	hasStatusAuth bool,
 	hasDetailAuth bool,
+	hasTaskAuth bool,
 ) {
+	// 评测状态的权限
 	hasStatusAuth = true
+	// 评测代码的权限
 	hasDetailAuth = true
+	// 评测具体任务的权限
+	hasTaskAuth = true
 
 	isEnd := nowTime.After(contest.EndTime)
 	hasLockDuration := contest.LockRankDuration != nil && *contest.LockRankDuration > 0
@@ -261,6 +267,7 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 					hasStatusAuth = false
 				}
 			}
+			hasTaskAuth = false
 		}
 		if authorId != userId {
 			if isLocked {
@@ -270,6 +277,9 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 					hasDetailAuth = false
 				}
 			}
+		}
+		if !isEnd {
+			hasTaskAuth = false
 		}
 	}
 
