@@ -335,6 +335,10 @@ func (s *ContestService) GetProblemIdByContest(ctx *gin.Context, id int, problem
 	return foundationdao.GetContestDao().GetProblemIdByContest(ctx, id, problemIndex)
 }
 
+func (s *ContestService) GetContestProblemIndexById(ctx context.Context, id int, problemId string) (int, error) {
+	return foundationdao.GetContestDao().GetProblemIndex(ctx, id, problemId)
+}
+
 func (s *ContestService) InsertContest(ctx context.Context, contest *foundationmodel.Contest) error {
 	return foundationdao.GetContestDao().InsertContest(ctx, contest)
 }

@@ -61,6 +61,7 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 	}
 	fields := []string{
 		"_id",
+		"problem_id",
 		"approve_time",
 		"language",
 		"score",
@@ -70,11 +71,6 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		"author_id",
 		"code",
 		"code_length",
-	}
-	if contest == nil {
-		fields = append(fields, "problem_id")
-	} else {
-		fields = append(fields, "contest_id", "contest_problem_index")
 	}
 	if hasTaskAuth {
 		fields = append(fields, "task")
@@ -89,6 +85,16 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		return
 	}
 	if contest != nil {
+		judgeJob.ContestProblemIndex, err = foundationservice.GetContestService().GetContestProblemIndexById(
+			ctx,
+			contest.Id,
+			judgeJob.ProblemId,
+		)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		judgeJob.ProblemId = ""
 		if contest.Type == foundationmodel.ContestTypeAcm {
 			// IOI模式之外隐藏分数信息
 			if judgeJob.Score < 100 {
