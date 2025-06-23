@@ -40,7 +40,7 @@ import (
 )
 
 // 需要保证只有一个goroutine在处理判题数据
-type judgeDataDownloadEntry struct {
+type judgeMutexEntry struct {
 	mu  sync.Mutex
 	ref int32
 }
@@ -49,6 +49,8 @@ type JudgeService struct {
 	requestMutex sync.Mutex
 	runningTasks atomic.Int32
 
+	// 防止因重判等情况多次获取到了同一个判题任务（不过多个判题机则靠key来忽略）
+	judgeJobMutexMap sync.Map
 	// 有些时候同一个问题只能有一个逻辑去处理
 	problemMutexMap sync.Map
 
@@ -230,12 +232,24 @@ func (s *JudgeService) handleStart() error {
 					slog.Info(fmt.Sprintf("JudgeTask_%d end", job.Id))
 					s.runningTasks.Add(-1)
 				}()
+				val, _ := s.judgeJobMutexMap.LoadOrStore(job.Id, &judgeMutexEntry{})
+				e := val.(*judgeMutexEntry)
+				atomic.AddInt32(&e.ref, 1)
+				defer func() {
+					if atomic.AddInt32(&e.ref, -1) == 0 {
+						s.judgeJobMutexMap.Delete(job.Id)
+					}
+				}()
+				e.mu.Lock()
+				defer e.mu.Unlock()
+
 				slog.Info(fmt.Sprintf("JudgeTask_%d start", job.Id))
 				err = s.startJudgeTask(job)
 				if err != nil {
 					markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(
 						ctx,
 						job.Id,
+						config.GetConfig().Judger.Key,
 						foundationjudge.JudgeStatusJudgeFail,
 					)
 					if markErr != nil {
@@ -253,9 +267,13 @@ func (s *JudgeService) handleStart() error {
 func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	ctx := context.Background()
 	jobId := job.Id
-	err := foundationdao.GetJudgeJobDao().StartProcessJudgeJob(ctx, job.Id, config.GetConfig().Judger.Key)
+	ok, err := foundationdao.GetJudgeJobDao().StartProcessJudgeJob(ctx, job.Id, config.GetConfig().Judger.Key)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to start process judge job")
+	}
+	if !ok {
+		// 如果没有成功处理，可以认为是中途已经被别的判题机处理了
+		return nil
 	}
 	problem, err := foundationdao.GetProblemDao().GetProblemViewJudge(ctx, job.ProblemId)
 	if err != nil {
@@ -278,7 +296,10 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if foundationjudge.IsLanguageNeedCompile(job.Language) {
 		execFileIds, extraMessage, compileStatus, err = s.compileCode(job)
 		if extraMessage != "" {
-			markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobCompileMessage(ctx, job.Id, extraMessage)
+			markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobCompileMessage(
+				ctx, job.Id, config.GetConfig().Judger.Key,
+				extraMessage,
+			)
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
@@ -297,14 +318,24 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 			return err
 		}
 		if compileStatus != foundationjudge.JudgeStatusAC {
-			err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, compileStatus)
+			err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(
+				ctx,
+				job.Id,
+				config.GetConfig().Judger.Key,
+				compileStatus,
+			)
 			if err != nil {
 				metapanic.ProcessError(err)
 			}
 			return nil
 		}
 		slog.Info("compile code success", "job", job.Id, "execFileIds", execFileIds)
-		err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(ctx, job.Id, foundationjudge.JudgeStatusRunning)
+		err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(
+			ctx,
+			job.Id,
+			config.GetConfig().Judger.Key,
+			foundationjudge.JudgeStatusRunning,
+		)
 		if err != nil {
 			metapanic.ProcessError(err)
 		}
@@ -314,8 +345,8 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 }
 
 func (s *JudgeService) updateJudgeData(ctx context.Context, problemId string, md5 string) error {
-	val, _ := s.problemMutexMap.LoadOrStore(problemId, &judgeDataDownloadEntry{})
-	e := val.(*judgeDataDownloadEntry)
+	val, _ := s.problemMutexMap.LoadOrStore(problemId, &judgeMutexEntry{})
+	e := val.(*judgeMutexEntry)
 	atomic.AddInt32(&e.ref, 1)
 	defer func() {
 		if atomic.AddInt32(&e.ref, -1) == 0 {
@@ -477,8 +508,8 @@ func (s *JudgeService) compileSpecialJudge(
 		return specialFileId, nil
 	}
 
-	val, _ := s.problemMutexMap.LoadOrStore(problemId, &judgeDataDownloadEntry{})
-	e := val.(*judgeDataDownloadEntry)
+	val, _ := s.problemMutexMap.LoadOrStore(problemId, &judgeMutexEntry{})
+	e := val.(*judgeMutexEntry)
 	atomic.AddInt32(&e.ref, 1)
 	defer func() {
 		if atomic.AddInt32(&e.ref, -1) == 0 {
@@ -686,7 +717,7 @@ func (s *JudgeService) runJudgeJob(
 		leftScore--
 	}
 
-	err = foundationdao.GetJudgeJobDao().MarkJudgeJobTaskTotal(ctx, job.Id, taskCount)
+	err = foundationdao.GetJudgeJobDao().MarkJudgeJobTaskTotal(ctx, job.Id, config.GetConfig().Judger.Key, taskCount)
 	if err != nil {
 		metapanic.ProcessError(err)
 	}
@@ -734,7 +765,7 @@ func (s *JudgeService) runJudgeJob(
 	}
 
 	err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(
-		ctx, job.Id,
+		ctx, job.Id, config.GetConfig().Judger.Key,
 		finalStatus,
 		problemId,
 		job.AuthorId,
@@ -780,7 +811,12 @@ func (s *JudgeService) runJudgeTask(
 	if taskConfig.InFile != "" {
 		inContent, err = metastring.GetStringFromOpenFile(path.Join(judgeDataDir, taskConfig.InFile))
 		if err != nil {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+				ctx,
+				job.Id,
+				config.GetConfig().Judger.Key,
+				task,
+			)
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
@@ -796,7 +832,12 @@ func (s *JudgeService) runJudgeTask(
 		args = []string{"a"}
 		fileId, ok := execFileIds["a"]
 		if !ok {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+				ctx,
+				job.Id,
+				config.GetConfig().Judger.Key,
+				task,
+			)
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
@@ -811,7 +852,12 @@ func (s *JudgeService) runJudgeTask(
 		args = []string{"java", "-Dfile.encoding=UTF-8", "-cp", "Main.jar", "Main"}
 		fileId, ok := execFileIds["Main.jar"]
 		if !ok {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+				ctx,
+				job.Id,
+				config.GetConfig().Judger.Key,
+				task,
+			)
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
@@ -841,7 +887,12 @@ func (s *JudgeService) runJudgeTask(
 		args = []string{"node", "a.js"}
 		fileId, ok := execFileIds["a.js"]
 		if !ok {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+				ctx,
+				job.Id,
+				config.GetConfig().Judger.Key,
+				task,
+			)
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
@@ -876,7 +927,12 @@ func (s *JudgeService) runJudgeTask(
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+			ctx,
+			job.Id,
+			config.GetConfig().Judger.Key,
+			task,
+		)
 		if markErr != nil {
 			metapanic.ProcessError(markErr)
 		}
@@ -908,14 +964,24 @@ func (s *JudgeService) runJudgeTask(
 	}
 	err = json.Unmarshal(respBody, &responseDataList)
 	if err != nil {
-		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+			ctx,
+			job.Id,
+			config.GetConfig().Judger.Key,
+			task,
+		)
 		if markErr != nil {
 			metapanic.ProcessError(markErr)
 		}
 		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err, "failed to decode response")
 	}
 	if len(responseDataList) != 1 {
-		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+			ctx,
+			job.Id,
+			config.GetConfig().Judger.Key,
+			task,
+		)
 		if markErr != nil {
 			metapanic.ProcessError(markErr)
 		}
@@ -950,7 +1016,12 @@ func (s *JudgeService) runJudgeTask(
 			task.Status = foundationjudge.JudgeStatusJudgeFail
 		}
 		finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)
-		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+		markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+			ctx,
+			job.Id,
+			config.GetConfig().Judger.Key,
+			task,
+		)
 		if markErr != nil {
 			metapanic.ProcessError(markErr)
 		}
@@ -1035,7 +1106,12 @@ func (s *JudgeService) runJudgeTask(
 		}
 		specialJsonData, err := json.Marshal(specialData)
 		if err != nil {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+				ctx,
+				job.Id,
+				config.GetConfig().Judger.Key,
+				task,
+			)
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
@@ -1066,14 +1142,24 @@ func (s *JudgeService) runJudgeTask(
 		}
 		err = json.Unmarshal(specialResp, &specialRespDataList)
 		if err != nil {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+				ctx,
+				job.Id,
+				config.GetConfig().Judger.Key,
+				task,
+			)
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
 			return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err, "failed to decode response")
 		}
 		if len(specialRespDataList) != 1 {
-			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
+				ctx,
+				job.Id,
+				config.GetConfig().Judger.Key,
+				task,
+			)
 			if markErr != nil {
 				metapanic.ProcessError(markErr)
 			}
@@ -1111,7 +1197,7 @@ func (s *JudgeService) runJudgeTask(
 	}
 
 	finalStatus = foundationjudge.GetFinalStatus(finalStatus, task.Status)
-	err = foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, task)
+	err = foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(ctx, job.Id, config.GetConfig().Judger.Key, task)
 	if err != nil {
 		return finalStatus, sumTime, sumMemory, finalScore, metaerror.Wrap(err, "failed to add judge job task")
 	}
