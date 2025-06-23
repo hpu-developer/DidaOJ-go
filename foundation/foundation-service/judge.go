@@ -346,6 +346,10 @@ func (s *JudgeService) GetProblemAttemptStatus(
 	)
 }
 
+func (s *JudgeService) GetJudgeJobCountNotFinish(ctx context.Context) (int, error) {
+	return foundationdao.GetJudgeJobDao().GetJudgeJobCountNotFinish(ctx)
+}
+
 func (s *JudgeService) UpdateJudge(ctx context.Context, id int, judgeJob *foundationmodel.JudgeJob) error {
 	return foundationdao.GetJudgeJobDao().UpdateJudgeJob(ctx, id, judgeJob)
 }

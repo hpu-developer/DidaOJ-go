@@ -57,6 +57,12 @@ func (c *SystemController) GetStatus(ctx *gin.Context) {
 		return
 	}
 
+	totalCount, err := foundationservice.GetJudgeService().GetJudgeJobCountNotFinish(ctx)
+	if err != nil {
+		metapanic.ProcessError(metaerror.Wrap(err, "get judge code failed"))
+		return
+	}
+
 	webStatus := foundationmodel.NewWebStatusBuilder().
 		Name("DidaOJ").
 		CpuUsage(cpuUsage).
@@ -67,11 +73,13 @@ func (c *SystemController) GetStatus(ctx *gin.Context) {
 		Build()
 
 	responseData := struct {
-		Web    *foundationmodel.WebStatus `json:"web"`
-		Judger []*foundationmodel.Judger  `json:"judger,omitempty"`
+		Web      *foundationmodel.WebStatus `json:"web"`
+		Judger   []*foundationmodel.Judger  `json:"judger,omitempty"`
+		JudgeJob int                        `json:"judge_job"`
 	}{
-		Web:    webStatus,
-		Judger: judgers,
+		Web:      webStatus,
+		Judger:   judgers,
+		JudgeJob: totalCount,
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
