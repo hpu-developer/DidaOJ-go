@@ -23,6 +23,7 @@ import (
 	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
 	"meta/meta-response"
+	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	metazip "meta/meta-zip"
 	"meta/set"
@@ -383,6 +384,7 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
+
 func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 	id := ctx.Query("id")
 	if id == "" {
@@ -577,6 +579,20 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
+	// 判断文件大小不能超过20MB
+	file, err := ctx.FormFile("zip")
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if file.Size > config.GetConfig().JudgeDataMaxSize {
+		metaresponse.NewResponse(
+			ctx, weberrorcode.ProblemJudgeDataTooLarge20MB, map[string]string{
+				"max_size": metastring.Itoa64(config.GetConfig().JudgeDataMaxSize/1024/1024) + "MB",
+			},
+		)
+		return
+	}
 	problemService := foundationservice.GetProblemService()
 	problem, err := problemService.GetProblemViewJudgeData(ctx, problemId)
 	if err != nil {
@@ -585,11 +601,6 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 	}
 	if problem == nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
-		return
-	}
-	file, err := ctx.FormFile("zip")
-	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError)
 		return
 	}
 	tempDir, err := os.MkdirTemp("", "didaoj-judge-data-*")

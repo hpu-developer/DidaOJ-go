@@ -35,6 +35,8 @@ type Config struct {
 	Email *metaemail.Config `yaml:"email"`
 
 	Template map[string]string `yaml:"template"`
+
+	JudgeDataMaxSize int64 `yaml:"judge-data-max-size"` // 题目评测数据最大大小，单位为字节
 }
 
 type Subsystem struct {

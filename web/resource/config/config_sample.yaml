@@ -32,6 +32,8 @@ cf-r2:
 
 r2-url: ""
 
+testlib-file: ""
+
 email:
   email: ""
   password: ""
