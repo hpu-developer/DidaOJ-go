@@ -5,6 +5,7 @@ import "time"
 type Judger struct {
 	Key        string    `json:"key" bson:"_id"`
 	Name       string    `json:"name" bson:"name"`               // 评测器名称
+	MaxJob     int       `json:"max_job" bson:"max_job"`         // 最大任务数
 	CpuUsage   float64   `json:"cpu_usage" bson:"cpu_usage"`     // CPU 使用率
 	MemUsage   uint64    `json:"mem_usage" bson:"mem_usage"`     // 内存使用量
 	MemTotal   uint64    `json:"mem_total" bson:"mem_total"`     // 内存总量
@@ -29,6 +30,11 @@ func (b *JudgerBuilder) Key(key string) *JudgerBuilder {
 
 func (b *JudgerBuilder) Name(name string) *JudgerBuilder {
 	b.item.Name = name
+	return b
+}
+
+func (b *JudgerBuilder) MaxJob(maxJob int) *JudgerBuilder {
+	b.item.MaxJob = maxJob
 	return b
 }
 

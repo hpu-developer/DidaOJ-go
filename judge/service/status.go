@@ -84,6 +84,7 @@ func (s *StatusService) handleStart() error {
 	judgerData := foundationmodel.NewJudgerBuilder().
 		Key(config.GetConfig().Judger.Key).
 		Name(config.GetConfig().Judger.Name).
+		MaxJob(config.GetConfig().MaxJob).
 		CpuUsage(cpuUsage).
 		MemUsage(memoryUsed).
 		MemTotal(memoryTotal).
