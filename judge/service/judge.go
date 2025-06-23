@@ -1173,8 +1173,12 @@ func (s *JudgeService) runJudgeTask(
 		if task.Content != "" {
 			task.Content = task.Content + "\n"
 		}
-		task.Content = task.Content + specialRespData.Files.Stderr
-		task.WaHint = metastring.GetTextEllipsis(specialRespData.Files.Stdout, 1000)
+		task.Content = task.Content + specialRespData.Files.Stdout
+
+		if task.WaHint != "" {
+			task.WaHint = task.WaHint + "\n"
+		}
+		task.WaHint = task.WaHint + specialRespData.Files.Stderr
 
 		if specialRespData.Status == gojudge.StatusAccepted {
 			task.Score = taskConfig.Score
