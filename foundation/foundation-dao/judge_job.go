@@ -53,6 +53,12 @@ func (d *JudgeJobDao) InitDao(ctx context.Context) error {
 			},
 			Options: options.Index().SetName("idx_status_author_problem"),
 		},
+		{
+			Keys: bson.D{
+				{Key: "contest_id", Value: 1},
+			},
+			Options: options.Index().SetName("idx_contest_id"),
+		},
 	}
 	_, err := collection.Indexes().CreateMany(ctx, indexes)
 	return err
@@ -215,7 +221,7 @@ func (d *JudgeJobDao) GetJudgeJobList(
 	contestId int, problemId string,
 	searchUserId int, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus,
 	page int, pageSize int,
-) ([]*foundationmodel.JudgeJob, int, error) {
+) ([]*foundationmodel.JudgeJob, error) {
 	filter := bson.M{}
 	if contestId > 0 {
 		filter["contest_id"] = contestId
@@ -256,15 +262,10 @@ func (d *JudgeJobDao) GetJudgeJobList(
 		SetSkip(skip).
 		SetLimit(limit).
 		SetSort(bson.M{"_id": -1})
-	// 查询总记录数
-	totalCount, err := d.collection.CountDocuments(ctx, filter)
-	if err != nil {
-		return nil, 0, metaerror.Wrap(err, "failed to count documents, page: %d", page)
-	}
 	// 查询当前页的数据
 	cursor, err := d.collection.Find(ctx, filter, opts)
 	if err != nil {
-		return nil, 0, metaerror.Wrap(err, "failed to find documents, page: %d", page)
+		return nil, metaerror.Wrap(err, "failed to find documents, page: %d", page)
 	}
 	defer func(cursor *mongo.Cursor, ctx context.Context) {
 		err := cursor.Close(ctx)
@@ -274,9 +275,9 @@ func (d *JudgeJobDao) GetJudgeJobList(
 	}(cursor, ctx)
 	var list []*foundationmodel.JudgeJob
 	if err = cursor.All(ctx, &list); err != nil {
-		return nil, 0, metaerror.Wrap(err, "failed to decode documents, page: %d", page)
+		return nil, metaerror.Wrap(err, "failed to decode documents, page: %d", page)
 	}
-	return list, int(totalCount), nil
+	return list, nil
 }
 func (d *JudgeJobDao) GetProblemAttemptStatus(
 	ctx context.Context, problemIds []string, authorId int,
@@ -526,7 +527,6 @@ func (d *JudgeJobDao) GetRankAcProblem(
 ) ([]*foundationmodel.UserRank, int, error) {
 	collection := d.collection
 
-	// 生成 $match 条件
 	matchCond := bson.M{"status": foundationjudge.JudgeStatusAC}
 	if approveStartTime != nil || approveEndTime != nil {
 		timeCond := bson.M{}
@@ -539,7 +539,9 @@ func (d *JudgeJobDao) GetRankAcProblem(
 		matchCond["approve_time"] = timeCond
 	}
 
-	// 主聚合流水线
+	skip := (page - 1) * pageSize
+
+	// 构建 $facet 聚合
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: matchCond}},
 		{
@@ -549,7 +551,6 @@ func (d *JudgeJobDao) GetRankAcProblem(
 						"author_id":  "$author_id",
 						"problem_id": "$problem_id",
 					},
-					"count": bson.M{"$sum": 1},
 				},
 			},
 		},
@@ -569,79 +570,57 @@ func (d *JudgeJobDao) GetRankAcProblem(
 				},
 			},
 		},
-		// 分页
-		{{Key: "$skip", Value: (page - 1) * pageSize}},
-		{{Key: "$limit", Value: pageSize}},
-	}
-	cursor, err := collection.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer func(cursor *mongo.Cursor, ctx context.Context) {
-		err := cursor.Close(ctx)
-		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
-		}
-	}(cursor, ctx)
-
-	// 构建返回值
-	var list []*foundationmodel.UserRank
-	for cursor.Next(ctx) {
-		var result struct {
-			AuthorId int `bson:"_id"`
-			Count    int `bson:"count"`
-		}
-		if err := cursor.Decode(&result); err != nil {
-			return nil, 0, err
-		}
-		list = append(
-			list, foundationmodel.NewUserRankBuilder().
-				Id(result.AuthorId).
-				ProblemCount(result.Count).
-				Build(),
-		)
-	}
-	if err := cursor.Err(); err != nil {
-		return nil, 0, err
-	}
-	totalPipeline := mongo.Pipeline{
-		{{Key: "$match", Value: matchCond}},
 		{
 			{
-				Key: "$group", Value: bson.M{
-					"_id": bson.M{
-						"author_id":  "$author_id",
-						"problem_id": "$problem_id",
+				Key: "$facet", Value: bson.M{
+					"data": bson.A{
+						bson.M{"$skip": skip},
+						bson.M{"$limit": pageSize},
+					},
+					"total": bson.A{
+						bson.M{"$count": "value"},
 					},
 				},
 			},
 		},
-		{
-			{
-				Key: "$group", Value: bson.M{
-					"_id": "$_id.author_id",
-				},
-			},
-		},
-		{{Key: "$count", Value: "total"}},
 	}
-	totalCursor, err := collection.Aggregate(ctx, totalPipeline)
+
+	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
-		return list, 0, nil // 返回分页结果，但不报错
+		return nil, 0, err
 	}
-	defer func(totalCursor *mongo.Cursor, ctx context.Context) {
-		err := totalCursor.Close(ctx)
-		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
-		}
-	}(totalCursor, ctx)
-	var totalResult struct {
-		Total int `bson:"total"`
+	defer cursor.Close(ctx)
+
+	var aggResult []struct {
+		Data []struct {
+			ID    int `bson:"_id"`
+			Count int `bson:"count"`
+		} `bson:"data"`
+		Total []struct {
+			Value int `bson:"value"`
+		} `bson:"total"`
 	}
-	if totalCursor.Next(ctx) {
-		_ = totalCursor.Decode(&totalResult)
+
+	if err := cursor.All(ctx, &aggResult); err != nil {
+		return nil, 0, err
 	}
-	return list, totalResult.Total, nil
+
+	var list []*foundationmodel.UserRank
+	for _, item := range aggResult[0].Data {
+		list = append(
+			list, foundationmodel.NewUserRankBuilder().
+				Id(item.ID).
+				ProblemCount(item.Count).
+				Build(),
+		)
+	}
+
+	total := 0
+	if len(aggResult[0].Total) > 0 {
+		total = aggResult[0].Total[0].Value
+	}
+
+	return list, total, nil
 }
 
 func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]string, error) {

@@ -34,4 +34,5 @@ const (
 	ProblemJudgeDataSubmitFail           metaerrorcode.ErrorCode = 100029
 	JudgeApproveCannotOriginOj           metaerrorcode.ErrorCode = 100030
 	ProblemJudgeDataTooLarge20MB         metaerrorcode.ErrorCode = 100031
+	JudgeListTooManySkip                 metaerrorcode.ErrorCode = 100032
 )

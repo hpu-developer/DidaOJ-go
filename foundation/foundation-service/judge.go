@@ -110,16 +110,16 @@ func (s *JudgeService) GetJudgeList(
 	contestId int, contestProblemIndex int,
 	problemId string,
 	username string, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus, page int, pageSize int,
-) ([]*foundationmodel.JudgeJob, int, error) {
+) ([]*foundationmodel.JudgeJob, error) {
 	var err error
 	searchUserId := -1
 	if username != "" {
 		searchUserId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		if searchUserId <= 0 {
-			return nil, 0, nil
+			return nil, nil
 		}
 	}
 	if contestId > 0 {
@@ -131,16 +131,16 @@ func (s *JudgeService) GetJudgeList(
 				contestProblemIndex,
 			)
 			if err != nil {
-				return nil, 0, err
+				return nil, err
 			}
 			if problemIdPtr == nil {
-				return nil, 0, nil
+				return nil, nil
 			}
 			problemId = *problemIdPtr
 		}
 	}
 
-	judgeJobs, totalCount, err := foundationdao.GetJudgeJobDao().GetJudgeJobList(
+	judgeJobs, err := foundationdao.GetJudgeJobDao().GetJudgeJobList(
 		ctx,
 		contestId,
 		problemId,
@@ -151,7 +151,7 @@ func (s *JudgeService) GetJudgeList(
 		pageSize,
 	)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	if len(judgeJobs) > 0 {
 		var userIds []int
@@ -160,7 +160,7 @@ func (s *JudgeService) GetJudgeList(
 		}
 		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		userMap := make(map[int]*foundationmodel.UserAccountInfo)
 		for _, user := range users {
@@ -176,10 +176,10 @@ func (s *JudgeService) GetJudgeList(
 		if contestId > 0 {
 			contest, err := foundationdao.GetContestDao().GetContestViewLock(ctx, contestId)
 			if err != nil {
-				return nil, 0, err
+				return nil, err
 			}
 			if contest == nil {
-				return nil, 0, nil
+				return nil, nil
 			}
 			nowTime := metatime.GetTimeNow()
 			problemMap := make(map[string]int)
@@ -191,7 +191,7 @@ func (s *JudgeService) GetJudgeList(
 					}
 					index, err := foundationdao.GetContestDao().GetProblemIndex(ctx, contestId, judgeJob.ProblemId)
 					if err != nil {
-						return nil, 0, err
+						return nil, err
 					}
 					judgeJob.ContestProblemIndex = index
 					problemMap[judgeJob.ProblemId] = index
@@ -230,7 +230,7 @@ func (s *JudgeService) GetJudgeList(
 			}
 		}
 	}
-	return judgeJobs, totalCount, nil
+	return judgeJobs, nil
 }
 
 func (s *JudgeService) isContestJudgeHasViewAuth(

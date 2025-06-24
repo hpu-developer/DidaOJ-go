@@ -159,6 +159,14 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	if page < 1 || page > 11 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if page*pageSize > 1000 {
+		metaresponse.NewResponse(ctx, weberrorcode.JudgeListTooManySkip, nil)
+		return
+	}
 	problemId := ctx.Query("problem_id")
 	var contestId, constProblemIndex int
 	contestIdStr := ctx.Query("contest_id")
@@ -202,7 +210,7 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		}
 	}
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
-	list, totalCount, err := judgeService.GetJudgeList(
+	list, err := judgeService.GetJudgeList(
 		ctx, userId,
 		contestId, constProblemIndex,
 		problemId, username, language, status,
@@ -213,13 +221,11 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		HasAuth    bool                        `json:"has_auth"`
-		TotalCount int                         `json:"total_count"`
-		List       []*foundationmodel.JudgeJob `json:"list"`
+		HasAuth bool                        `json:"has_auth"`
+		List    []*foundationmodel.JudgeJob `json:"list"`
 	}{
-		HasAuth:    true,
-		TotalCount: totalCount,
-		List:       list,
+		HasAuth: true,
+		List:    list,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }

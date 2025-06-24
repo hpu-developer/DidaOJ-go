@@ -442,10 +442,10 @@ func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int)
 		{"_id", id},
 		{
 			"$or", bson.A{
-			bson.D{{"owner_id", userId}},
-			bson.D{{"private", bson.M{"$exists": false}}},
-			bson.D{{"members", bson.M{"$in": []int{userId}}}},
-		},
+				bson.D{{"owner_id", userId}},
+				bson.D{{"private", bson.M{"$exists": false}}},
+				bson.D{{"members", bson.M{"$in": []int{userId}}}},
+			},
 		},
 		{"start_time", bson.M{"$lte": metatime.GetTimeNow()}},
 	}
@@ -462,16 +462,16 @@ func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId in
 		{"_id", id},
 		{
 			"$or", bson.A{
-			bson.D{{"owner_id", userId}},
-			bson.D{{"private", bson.M{"$exists": false}}},
-			bson.D{{"members", bson.M{"$in": []int{userId}}}},
-		},
+				bson.D{{"owner_id", userId}},
+				bson.D{{"private", bson.M{"$exists": false}}},
+				bson.D{{"members", bson.M{"$in": []int{userId}}}},
+			},
 		},
 		{
 			"$or", bson.A{
-			bson.D{{"submit_anytime", true}},
-			bson.D{{"end_time", bson.M{"$gte": nowTime}}},
-		},
+				bson.D{{"submit_anytime", true}},
+				bson.D{{"end_time", bson.M{"$gte": nowTime}}},
+			},
 		},
 		{
 			"start_time", bson.M{"$lte": nowTime},
