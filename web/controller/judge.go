@@ -62,15 +62,21 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 	fields := []string{
 		"_id",
 		"problem_id",
+		"author_id",
 		"approve_time",
 		"language",
-		"score",
-		"status",
-		"time",
-		"memory",
-		"author_id",
 		"code",
 		"code_length",
+		"status",
+		"judger",
+		"judge_time",
+		"task_current",
+		"task_total",
+		"score",
+		"time",
+		"memory",
+		"compile_message",
+		"private",
 	}
 	if hasTaskAuth {
 		fields = append(fields, "task")
@@ -155,15 +161,15 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	if pageSize != 50 && pageSize != 100 {
+	if page < 1 || pageSize != 50 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	if page < 1 || page > 11 {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	if page > 10 {
+		metaresponse.NewResponse(ctx, weberrorcode.JudgeListTooManySkip, nil)
 		return
 	}
-	if page*pageSize > 1000 {
+	if page*pageSize > 500 {
 		metaresponse.NewResponse(ctx, weberrorcode.JudgeListTooManySkip, nil)
 		return
 	}

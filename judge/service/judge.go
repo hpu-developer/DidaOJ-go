@@ -392,6 +392,21 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 	judgeDataDir := path.Join(".judge_data", problemId)
 	err := os.RemoveAll(judgeDataDir)
 
+	// 删除旧缓存的spj
+	specialFileId := s.getSpecialFileId(problemId)
+	if specialFileId != "" {
+		goJudgeUrl := config.GetConfig().GoJudge.Url
+		deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", specialFileId)
+		err = foundationjudge.DeleteFile(s.goJudgeClient, "delete special judge file", deleteUrl)
+		if err != nil {
+			slog.Error("delete special judge file failed", "problemId", problemId, "error", err)
+			return metaerror.Wrap(err, "failed to delete special judge file")
+		}
+		slog.Info("delete special judge file success", "problemId", problemId, "fileId", specialFileId)
+		// 清除缓存
+		delete(s.specialFileIds, problemId)
+	}
+
 	// 1. 列出 problemId 目录下的所有对象
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String("didaoj-judge"),

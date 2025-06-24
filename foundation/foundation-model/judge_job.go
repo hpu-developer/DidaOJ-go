@@ -20,11 +20,11 @@ type JudgeJob struct {
 	Code           string                        `json:"code" bson:"code"`                                           // 所评测代码
 	CodeLength     int                           `json:"code_length" bson:"code_length"`                             // 代码长度
 	Status         foundationjudge.JudgeStatus   `json:"status" bson:"status"`                                       // 评测状态
+	Judger         string                        `json:"judger" bson:"judger"`                                       // 评测机
+	JudgerName     *string                       `json:"judger_name,omitempty" bson:"judger_name,omitempty"`         // 评测机名称
 	JudgeTime      *time.Time                    `json:"judge_time" bson:"judge_time"`                               // 评测的开始时间
 	TaskCurrent    int                           `json:"task_current" bson:"task_current"`                           // 评测完成子任务数量
 	TaskTotal      int                           `json:"task_total" bson:"task_total"`                               // 评测子任务总数量
-	Judger         string                        `json:"judger" bson:"judger"`                                       // 评测机
-	JudgerName     *string                       `json:"judger_name,omitempty" bson:"judger_name,omitempty"`         // 评测机名称
 	Score          int                           `json:"score" bson:"score"`                                         // 所得分数
 	Time           int                           `json:"time,omitempty" bson:"time,omitempty"`                       // 所用的时间，纳秒
 	Memory         int                           `json:"memory,omitempty" bson:"memory,omitempty"`                   // 所用的内存，byte
