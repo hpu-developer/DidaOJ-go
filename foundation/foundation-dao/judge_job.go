@@ -549,24 +549,20 @@ func (d *JudgeJobDao) GetRankAcProblem(
 
 	skip := (page - 1) * pageSize
 
-	// 构建 $facet 聚合
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: matchCond}},
 		{
 			{
 				Key: "$group", Value: bson.M{
-					"_id": bson.M{
-						"author_id":  "$author_id",
-						"problem_id": "$problem_id",
-					},
+					"_id":      "$author_id",
+					"problems": bson.M{"$addToSet": "$problem_id"},
 				},
 			},
 		},
 		{
 			{
-				Key: "$group", Value: bson.M{
-					"_id":   "$_id.author_id",
-					"count": bson.M{"$sum": 1},
+				Key: "$project", Value: bson.M{
+					"count": bson.M{"$size": "$problems"},
 				},
 			},
 		},
