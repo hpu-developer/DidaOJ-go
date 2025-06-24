@@ -67,6 +67,12 @@ func (d *JudgeJobDao) InitDao(ctx context.Context) error {
 			},
 			Options: options.Index().SetName("idx_contest_id"),
 		},
+		{
+			Keys: bson.D{
+				{Key: "approve_time", Value: 1},
+			},
+			Options: options.Index().SetName("idx_approve_time"),
+		},
 	}
 	_, err := collection.Indexes().CreateMany(ctx, indexes)
 	return err
@@ -314,46 +320,46 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(
 		{
 			{
 				Key: "$group", Value: bson.M{
-					"_id": "$problem_id",
-					"hasAC": bson.M{
-						"$max": bson.M{
-							"$cond": bson.A{
-								bson.M{"$eq": bson.A{"$status", foundationjudge.JudgeStatusAC}},
-								1, 0,
-							},
-						},
-					},
-					"hasAttempt": bson.M{
-						"$max": bson.M{
-							"$cond": bson.A{
-								bson.M{"$ne": bson.A{"$status", foundationjudge.JudgeStatusAC}},
-								1, 0,
-							},
+				"_id": "$problem_id",
+				"hasAC": bson.M{
+					"$max": bson.M{
+						"$cond": bson.A{
+							bson.M{"$eq": bson.A{"$status", foundationjudge.JudgeStatusAC}},
+							1, 0,
 						},
 					},
 				},
+				"hasAttempt": bson.M{
+					"$max": bson.M{
+						"$cond": bson.A{
+							bson.M{"$ne": bson.A{"$status", foundationjudge.JudgeStatusAC}},
+							1, 0,
+						},
+					},
+				},
+			},
 			},
 		},
 		{
 			{
 				Key: "$project", Value: bson.M{
-					"problem_id": "$_id",
-					"finalStatus": bson.M{
-						"$switch": bson.M{
-							"branches": bson.A{
-								bson.M{
-									"case": bson.M{"$eq": bson.A{"$hasAC", 1}},
-									"then": foundationmodel.ProblemAttemptStatusAccepted,
-								},
-								bson.M{
-									"case": bson.M{"$eq": bson.A{"$hasAttempt", 1}},
-									"then": foundationmodel.ProblemAttemptStatusAttempt,
-								},
+				"problem_id": "$_id",
+				"finalStatus": bson.M{
+					"$switch": bson.M{
+						"branches": bson.A{
+							bson.M{
+								"case": bson.M{"$eq": bson.A{"$hasAC", 1}},
+								"then": foundationmodel.ProblemAttemptStatusAccepted,
 							},
-							"default": foundationmodel.ProblemAttemptStatusNone,
+							bson.M{
+								"case": bson.M{"$eq": bson.A{"$hasAttempt", 1}},
+								"then": foundationmodel.ProblemAttemptStatusAttempt,
+							},
 						},
+						"default": foundationmodel.ProblemAttemptStatusNone,
 					},
 				},
+			},
 			},
 		},
 	}
@@ -392,32 +398,32 @@ func (d *JudgeJobDao) GetProblemContestViewAttempt(
 		{
 			{
 				"$match", bson.D{
-					{"contest_id", contestId},
-					{"problem_id", bson.D{{"$in", problemIds}}},
-				},
+				{"contest_id", contestId},
+				{"problem_id", bson.D{{"$in", problemIds}}},
+			},
 			},
 		},
 		{
 			{
 				"$group", bson.D{
-					{"_id", "$problem_id"}, // 关键修正
-					{"attempt", bson.D{{"$sum", 1}}},
+				{"_id", "$problem_id"}, // 关键修正
+				{"attempt", bson.D{{"$sum", 1}}},
+				{
+					"accept", bson.D{
 					{
-						"accept", bson.D{
-							{
-								"$sum", bson.D{
-									{
-										"$cond", bson.A{
-											bson.D{{"$eq", bson.A{"$status", foundationjudge.JudgeStatusAC}}},
-											1,
-											0,
-										},
-									},
-								},
-							},
+						"$sum", bson.D{
+						{
+							"$cond", bson.A{
+							bson.D{{"$eq", bson.A{"$status", foundationjudge.JudgeStatusAC}}},
+							1,
+							0,
+						},
 						},
 					},
+					},
 				},
+				},
+			},
 			},
 		},
 	}
@@ -480,18 +486,18 @@ func (d *JudgeJobDao) GetProblemTimeViewAttempt(
 		{
 			{
 				"$group", bson.M{
-					"_id":     "$problem_id",
-					"attempt": bson.M{"$sum": 1},
-					"accept": bson.M{
-						"$sum": bson.M{
-							"$cond": bson.A{
-								bson.M{"$eq": bson.A{"$status", foundationjudge.JudgeStatusAC}},
-								1,
-								0,
-							},
+				"_id":     "$problem_id",
+				"attempt": bson.M{"$sum": 1},
+				"accept": bson.M{
+					"$sum": bson.M{
+						"$cond": bson.A{
+							bson.M{"$eq": bson.A{"$status", foundationjudge.JudgeStatusAC}},
+							1,
+							0,
 						},
 					},
 				},
+			},
 			},
 		},
 	}
@@ -554,37 +560,37 @@ func (d *JudgeJobDao) GetRankAcProblem(
 		{
 			{
 				Key: "$group", Value: bson.M{
-					"_id":      "$author_id",
-					"problems": bson.M{"$addToSet": "$problem_id"},
-				},
+				"_id":      "$author_id",
+				"problems": bson.M{"$addToSet": "$problem_id"},
+			},
 			},
 		},
 		{
 			{
 				Key: "$project", Value: bson.M{
-					"count": bson.M{"$size": "$problems"},
-				},
+				"count": bson.M{"$size": "$problems"},
+			},
 			},
 		},
 		{
 			{
 				Key: "$sort", Value: bson.D{
-					{"count", -1},
-					{"_id", 1},
-				},
+				{"count", -1},
+				{"_id", 1},
+			},
 			},
 		},
 		{
 			{
 				Key: "$facet", Value: bson.M{
-					"data": bson.A{
-						bson.M{"$skip": skip},
-						bson.M{"$limit": pageSize},
-					},
-					"total": bson.A{
-						bson.M{"$count": "value"},
-					},
+				"data": bson.A{
+					bson.M{"$skip": skip},
+					bson.M{"$limit": pageSize},
 				},
+				"total": bson.A{
+					bson.M{"$count": "value"},
+				},
+			},
 			},
 		},
 	}
@@ -730,42 +736,42 @@ func (d *JudgeJobDao) GetContestRanks(
 		{
 			{
 				"$group", bson.M{
-					"_id": bson.M{
-						"author_id":  "$author_id",
-						"problem_id": "$problem_id",
-					},
-					"ac_list": bson.M{
-						"$push": bson.M{
-							"_id":          "$_id",
-							"status":       "$status",
-							"approve_time": "$approve_time",
-						},
+				"_id": bson.M{
+					"author_id":  "$author_id",
+					"problem_id": "$problem_id",
+				},
+				"ac_list": bson.M{
+					"$push": bson.M{
+						"_id":          "$_id",
+						"status":       "$status",
+						"approve_time": "$approve_time",
 					},
 				},
+			},
 			},
 		},
 		{
 			{
 				"$addFields", bson.M{
-					"first_ac": bson.M{
-						"$first": bson.M{
-							"$filter": bson.M{
-								"input": "$ac_list",
-								"as":    "s",
-								"cond":  firstAcCond,
-							},
+				"first_ac": bson.M{
+					"$first": bson.M{
+						"$filter": bson.M{
+							"input": "$ac_list",
+							"as":    "s",
+							"cond":  firstAcCond,
 						},
 					},
 				},
+			},
 			},
 		},
 		{
 			{
 				"$addFields", bson.M{
-					"attempt_count": bson.M{
-						"$cond": attemptCountCond,
-					},
+				"attempt_count": bson.M{
+					"$cond": attemptCountCond,
 				},
+			},
 			},
 		},
 	}
@@ -774,18 +780,18 @@ func (d *JudgeJobDao) GetContestRanks(
 			pipeline, bson.D{
 				{
 					"$addFields", bson.M{
-						"lock_count": bson.M{
-							"$size": bson.M{
-								"$filter": bson.M{
-									"input": "$ac_list",
-									"as":    "s",
-									"cond": bson.M{
-										"$gte": bson.A{"$$s.approve_time", lockTime},
-									},
+					"lock_count": bson.M{
+						"$size": bson.M{
+							"$filter": bson.M{
+								"input": "$ac_list",
+								"as":    "s",
+								"cond": bson.M{
+									"$gte": bson.A{"$$s.approve_time", lockTime},
 								},
 							},
 						},
 					},
+				},
 				},
 			},
 		)
@@ -795,12 +801,12 @@ func (d *JudgeJobDao) GetContestRanks(
 		pipeline, bson.D{
 			{
 				"$project", bson.M{
-					"author_id":     "$_id.author_id",
-					"problem_id":    "$_id.problem_id",
-					"first_ac_time": "$first_ac.approve_time",
-					"attempt_count": 1,
-					"lock_count":    1,
-				},
+				"author_id":     "$_id.author_id",
+				"problem_id":    "$_id.problem_id",
+				"first_ac_time": "$first_ac.approve_time",
+				"attempt_count": 1,
+				"lock_count":    1,
+			},
 			},
 		},
 	)
@@ -906,20 +912,20 @@ func (d *JudgeJobDao) GetAcceptedProblemCount(
 			// 每个用户对每道AC题保留一条
 			{
 				"$group", bson.M{
-					"_id": bson.M{
-						"author_id":  "$author_id",
-						"problem_id": "$problem_id",
-					},
+				"_id": bson.M{
+					"author_id":  "$author_id",
+					"problem_id": "$problem_id",
 				},
+			},
 			},
 		},
 		{
 			// 再按用户聚合计数
 			{
 				"$group", bson.M{
-					"_id":    "$_id.author_id",
-					"accept": bson.M{"$sum": 1},
-				},
+				"_id":    "$_id.author_id",
+				"accept": bson.M{"$sum": 1},
+			},
 			},
 		},
 	}
@@ -986,8 +992,8 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 		{
 			{
 				Key: "$group", Value: bson.M{
-					"_id": "$author_id",
-				},
+				"_id": "$author_id",
+			},
 			},
 		},
 		{{Key: "$limit", Value: 1000}},
@@ -1022,31 +1028,31 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 		{
 			{
 				Key: "$match", Value: bson.M{
-					"status":       foundationjudge.JudgeStatusAC,
-					"approve_time": bson.M{"$exists": true},
-					"author_id":    bson.M{"$in": acUserIDs},
-					"problem_id":   bson.M{"$nin": userAcProblems},
-				},
+				"status":       foundationjudge.JudgeStatusAC,
+				"approve_time": bson.M{"$exists": true},
+				"author_id":    bson.M{"$in": acUserIDs},
+				"problem_id":   bson.M{"$nin": userAcProblems},
+			},
 			},
 		},
 		// 第二步：分组
 		{
 			{
 				Key: "$group", Value: bson.M{
-					"_id":   "$problem_id",
-					"count": bson.M{"$sum": 1},
-				},
+				"_id":   "$problem_id",
+				"count": bson.M{"$sum": 1},
+			},
 			},
 		},
 		// 第三步：关联 problem 信息
 		{
 			{
 				Key: "$lookup", Value: bson.M{
-					"from":         "problem",
-					"localField":   "_id",
-					"foreignField": "_id",
-					"as":           "look_problem",
-				},
+				"from":         "problem",
+				"localField":   "_id",
+				"foreignField": "_id",
+				"as":           "look_problem",
+			},
 			},
 		},
 		// 第四步：展开关联的 problem（通常每个 problem_id 只对应一个问题）
@@ -1710,9 +1716,9 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 				{"origin_oj", bson.M{"$exists": false}},
 				{
 					"$or", bson.A{
-						bson.M{"origin_oj": ""},
-						bson.M{"origin_oj": nil},
-					},
+					bson.M{"origin_oj": ""},
+					bson.M{"origin_oj": nil},
+				},
 				},
 			}
 			findOpts := options.Find().
