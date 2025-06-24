@@ -235,6 +235,7 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
+
 func (c *JudgeController) GetStaticsRecently(ctx *gin.Context) {
 	codeKey := "judge_statics_recently"
 	redisClient := metaredis.GetSubsystem().GetClient()

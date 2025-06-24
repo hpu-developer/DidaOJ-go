@@ -47,11 +47,19 @@ func (d *JudgeJobDao) InitDao(ctx context.Context) error {
 		{
 			Keys: bson.D{
 				{Key: "status", Value: 1},
+				{Key: "author_id", Value: 1},
+				{Key: "problem_id", Value: 1},
 				{Key: "approve_time", Value: 1},
+			},
+			// 用于查询某个玩家某个状态的评测记录
+			Options: options.Index().SetName("idx_status_author_problem"),
+		},
+		{
+			Keys: bson.D{
 				{Key: "author_id", Value: 1},
 				{Key: "problem_id", Value: 1},
 			},
-			Options: options.Index().SetName("idx_status_author_problem"),
+			Options: options.Index().SetName("idx_author_problem"),
 		},
 		{
 			Keys: bson.D{
@@ -624,9 +632,15 @@ func (d *JudgeJobDao) GetRankAcProblem(
 }
 
 func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]string, error) {
-	filter := bson.M{
-		"author_id": userId,
-		"status":    foundationjudge.JudgeStatusAC,
+	filter := bson.D{
+		{
+			Key:   "status",
+			Value: foundationjudge.JudgeStatusAC,
+		},
+		{
+			Key:   "author_id",
+			Value: userId,
+		},
 	}
 	values, err := d.collection.Distinct(ctx, "problem_id", filter)
 	if err != nil {
@@ -863,10 +877,19 @@ func (d *JudgeJobDao) GetAcceptedProblemCount(
 	problemIds []string,
 	userIds []int,
 ) (map[int]int, error) {
-	match := bson.M{
-		"author_id":  bson.M{"$in": userIds},
-		"problem_id": bson.M{"$in": problemIds},
-		"status":     foundationjudge.JudgeStatusAC, // 只要AC记录
+	match := bson.D{
+		{
+			Key:   "status",
+			Value: foundationjudge.JudgeStatusAC,
+		},
+		{
+			Key:   "author_id",
+			Value: bson.M{"$in": userIds},
+		},
+		{
+			Key:   "problem_id",
+			Value: bson.M{"$in": problemIds},
+		},
 	}
 	if startTime != nil || endTime != nil {
 		timeCond := bson.M{}
@@ -876,7 +899,7 @@ func (d *JudgeJobDao) GetAcceptedProblemCount(
 		if endTime != nil {
 			timeCond["$lte"] = endTime
 		}
-		match["approve_time"] = timeCond
+		match = append(match, bson.E{Key: "approve_time", Value: timeCond})
 	}
 
 	pipeline := mongo.Pipeline{
