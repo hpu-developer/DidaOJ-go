@@ -447,6 +447,7 @@ func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int)
 			bson.D{{"members", bson.M{"$in": []int{userId}}}},
 		},
 		},
+		{"start_time", bson.M{"$lte": metatime.GetTimeNow()}},
 	}
 	count, err := d.collection.CountDocuments(ctx, filter)
 	if err != nil {
