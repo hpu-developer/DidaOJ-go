@@ -64,8 +64,10 @@ func (d *JudgeJobDao) InitDao(ctx context.Context) error {
 		{
 			Keys: bson.D{
 				{Key: "contest_id", Value: 1},
+				{Key: "author_id", Value: 1},
+				{Key: "problem_id", Value: 1},
 			},
-			Options: options.Index().SetName("idx_contest_id"),
+			Options: options.Index().SetName("idx_contest_author_problem"),
 		},
 		{
 			Keys: bson.D{
