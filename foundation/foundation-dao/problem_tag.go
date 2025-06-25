@@ -49,7 +49,11 @@ func (d *ProblemTagDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
-func (d *ProblemTagDao) UpdateProblemTag(ctx context.Context, key string, problemTag *foundationmodel.ProblemTag) error {
+func (d *ProblemTagDao) UpdateProblemTag(
+	ctx context.Context,
+	key string,
+	problemTag *foundationmodel.ProblemTag,
+) error {
 	filter := bson.D{
 		{"_id", key},
 	}
@@ -78,12 +82,18 @@ func (d *ProblemTagDao) GetProblemTag(ctx context.Context, key string) (*foundat
 	return &problemTag, nil
 }
 
-func (d *ProblemTagDao) GetProblemTagList(ctx context.Context, maxCount int) ([]*foundationmodel.ProblemTag, int, error) {
+func (d *ProblemTagDao) GetProblemTagList(ctx context.Context, maxCount int) (
+	[]*foundationmodel.ProblemTag,
+	int,
+	error,
+) {
 	filter := bson.M{}
 	findOptions := options.Find().
-		SetProjection(bson.M{
-			"update_time": 0,
-		}).
+		SetProjection(
+			bson.M{
+				"update_time": 0,
+			},
+		).
 		SetSort(bson.D{{Key: "update_time", Value: -1}})
 	if maxCount > 0 {
 		findOptions.SetLimit(int64(maxCount))
@@ -139,9 +149,11 @@ func (d *ProblemTagDao) GetProblemTagByIds(ctx context.Context, ids []int) ([]*f
 		},
 	}
 	findOptions := options.Find().
-		SetProjection(bson.M{
-			"update_time": 0,
-		}).
+		SetProjection(
+			bson.M{
+				"update_time": 0,
+			},
+		).
 		SetSort(bson.D{{Key: "update_time", Value: -1}})
 	cursor, err := d.collection.Find(ctx, filter, findOptions)
 	if err != nil {
@@ -198,18 +210,20 @@ func (d *ProblemTagDao) InsertTag(ctx context.Context, tag *foundationmodel.Prob
 		return err
 	}
 	defer sess.EndSession(ctx)
-	_, err = sess.WithTransaction(ctx, func(sc mongo.SessionContext) (interface{}, error) {
-		seq, err := GetCounterDao().GetNextSequence(sc, "problem_tag_id")
-		if err != nil {
-			return nil, err
-		}
-		tag.Id = int(seq)
-		_, err = d.collection.InsertOne(sc, tag)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	})
+	_, err = sess.WithTransaction(
+		ctx, func(sc mongo.SessionContext) (interface{}, error) {
+			seq, err := GetCounterDao().GetNextSequence(sc, "problem_tag_id")
+			if err != nil {
+				return nil, err
+			}
+			tag.Id = int(seq)
+			_, err = d.collection.InsertOne(sc, tag)
+			if err != nil {
+				return nil, err
+			}
+			return nil, nil
+		},
+	)
 	if mongo.IsDuplicateKeyError(err) {
 		err := d.collection.FindOne(ctx, bson.M{"name": tag.Name}).Decode(tag)
 		if err != nil {
