@@ -96,6 +96,7 @@ func CompileCode(
 			"gcc",
 			"-fno-asm",
 			"-fmax-errors=10",
+			"-O2",
 			"-Wall",
 			"--static",
 			"-DONLINE_JUDGE",
@@ -118,7 +119,7 @@ func CompileCode(
 		break
 	case JudgeLanguageCpp:
 		args = []string{
-			"g++", "-fno-asm", "-fmax-errors=10", "-Wall", "--static",
+			"g++", "-fno-asm", "-fmax-errors=10", "-O2", "-Wall", "--static",
 			"-DONLINE_JUDGE", "-Wno-sign-compare",
 			"-o", "a", "a.cc",
 		}
