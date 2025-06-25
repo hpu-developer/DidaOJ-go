@@ -58,8 +58,17 @@ func (d *JudgeJobDao) InitDao(ctx context.Context) error {
 			Keys: bson.D{
 				{Key: "author_id", Value: 1},
 				{Key: "problem_id", Value: 1},
+				{Key: "contest_id", Value: 1},
 			},
-			Options: options.Index().SetName("idx_author_problem"),
+			Options: options.Index().SetName("idx_author_problem_contest"),
+		},
+		{
+			Keys: bson.D{
+				{Key: "contest_id", Value: 1},
+				{Key: "problem_id", Value: 1},
+				{Key: "author_id", Value: 1},
+			},
+			Options: options.Index().SetName("idx_contest_problem_author"),
 		},
 		{
 			Keys: bson.D{
@@ -239,16 +248,16 @@ func (d *JudgeJobDao) GetJudgeJobList(
 	page int, pageSize int,
 ) ([]*foundationmodel.JudgeJob, error) {
 	filter := bson.M{}
-	if contestId > 0 {
-		filter["contest_id"] = contestId
-	} else {
-		filter["contest_id"] = bson.M{"$exists": false}
-	}
 	if problemId != "" {
 		filter["problem_id"] = problemId
 	}
 	if searchUserId > 0 {
 		filter["author_id"] = searchUserId
+	}
+	if contestId > 0 {
+		filter["contest_id"] = contestId
+	} else {
+		filter["contest_id"] = bson.M{"$exists": false}
 	}
 	if foundationjudge.IsValidJudgeLanguage(int(language)) {
 		filter["language"] = language
@@ -295,17 +304,29 @@ func (d *JudgeJobDao) GetJudgeJobList(
 	}
 	return list, nil
 }
+
 func (d *JudgeJobDao) GetProblemAttemptStatus(
 	ctx context.Context, problemIds []string, authorId int,
 	contestId int, startTime *time.Time, endTime *time.Time,
 ) (map[string]foundationmodel.ProblemAttemptStatus, error) {
-	match := bson.M{
-		"author_id":  authorId,
-		"problem_id": bson.M{"$in": problemIds},
-	}
+	match := bson.D{}
 	if contestId > 0 {
-		match["contest_id"] = contestId
+		match = append(
+			match, bson.E{
+				Key:   "contest_id",
+				Value: contestId,
+			},
+		)
 	}
+	match = append(
+		match, bson.E{
+			Key:   "author_id",
+			Value: authorId,
+		}, bson.E{
+			Key:   "problem_id",
+			Value: bson.M{"$in": problemIds},
+		},
+	)
 	timeFilter := bson.M{}
 	if startTime != nil {
 		timeFilter["$gte"] = *startTime
@@ -314,7 +335,12 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(
 		timeFilter["$lte"] = *endTime
 	}
 	if len(timeFilter) > 0 {
-		match["approve_time"] = timeFilter
+		match = append(
+			match, bson.E{
+				Key:   "approve_time",
+				Value: timeFilter,
+			},
+		)
 	}
 
 	pipeline := mongo.Pipeline{
@@ -468,8 +494,8 @@ func (d *JudgeJobDao) GetProblemTimeViewAttempt(
 	members []int,
 ) ([]*foundationmodel.ProblemViewAttempt, error) {
 	match := bson.M{
-		"problem_id": bson.M{"$in": problemIds},
 		"author_id":  bson.M{"$in": members},
+		"problem_id": bson.M{"$in": problemIds},
 	}
 
 	timeCond := bson.M{}
@@ -601,7 +627,12 @@ func (d *JudgeJobDao) GetRankAcProblem(
 	if err != nil {
 		return nil, 0, err
 	}
-	defer cursor.Close(ctx)
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(cursor, ctx)
 
 	var aggResult []struct {
 		Data []struct {
