@@ -372,21 +372,19 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	if requestData.Title == "" {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	ok, errorCode := requestData.CheckRequest()
+	if !ok {
+		metaresponse.NewResponse(ctx, errorCode, nil)
 		return
 	}
 	startTime := requestData.StartTime
 	endTime := requestData.EndTime
-	if endTime.Before(startTime) {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
+
 	nowTime := metatime.GetTimeNow()
 
 	contestService := foundationservice.GetContestService()
 	// 控制创建时的标题唯一，一定程度上防止误重复创建
-	ok, err := contestService.HasContestTitle(ctx, userId, requestData.Title)
+	ok, err = contestService.HasContestTitle(ctx, userId, requestData.Title)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -516,16 +514,13 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	if requestData.Title == "" {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	ok, errorCode := requestData.CheckRequest()
+	if !ok {
+		metaresponse.NewResponse(ctx, errorCode, nil)
 		return
 	}
 	startTime := requestData.StartTime
 	endTime := requestData.EndTime
-	if endTime.Before(startTime) {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
 	nowTime := metatime.GetTimeNow()
 
 	_, hasAuth, err := foundationservice.GetContestService().CheckEditAuth(ctx, requestData.Id)

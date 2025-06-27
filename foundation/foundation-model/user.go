@@ -33,6 +33,8 @@ type User struct {
 	Gender   UserGender `json:"gender" bson:"gender"`                           // 性别，0未知，1男，2女
 	RealName string     `json:"real_name,omitempty" bson:"real_name,omitempty"` // 真实姓名
 
+	AttemptInfo UserAttemptInfo `json:"attempt_info,omitempty" bson:"attempt_info,omitempty"` // 尝试信息，本质是对judge_job统计结果的缓存
+
 	// 账号关联
 	VjudgeId   string `json:"vjudge_id,omitempty" bson:"vjudge_id,omitempty"` // vjudge.net Id
 	Github     string `json:"github,omitempty" bson:"github,omitempty"`       // GitHub Id

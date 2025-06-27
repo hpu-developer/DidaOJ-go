@@ -1,6 +1,10 @@
 package request
 
-import "time"
+import (
+	foundationerrorcode "foundation/error-code"
+	metaerrorcode "meta/error-code"
+	"time"
+)
 
 type ContestEdit struct {
 	Id           int       `json:"id"`                        // 比赛Id
@@ -19,4 +23,19 @@ type ContestEdit struct {
 	AlwaysLock       bool  `json:"always_lock"`                  // 比赛结束后是否锁定排名，如果锁定则需要手动关闭（关闭时此值设为false）
 
 	SubmitAnytime bool `json:"submit_anytime,omitempty"`
+}
+
+func (r *ContestEdit) CheckRequest() (bool, int) {
+	if r.Title == "" {
+		return false, int(foundationerrorcode.ParamError)
+	}
+	// 判断结束时间是否在开始时间之前
+	if r.EndTime.Before(r.StartTime) {
+		return false, int(foundationerrorcode.ParamError)
+	}
+	// 判断时长是否超过了1个月
+	if r.EndTime.Sub(r.StartTime) > time.Hour*24*30 {
+		return false, int(foundationerrorcode.ParamError)
+	}
+	return true, int(metaerrorcode.Success)
 }

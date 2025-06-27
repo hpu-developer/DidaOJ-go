@@ -3,6 +3,7 @@ package foundationservice
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao"
@@ -23,6 +24,7 @@ import (
 	metamd5 "meta/meta-md5"
 	metapanic "meta/meta-panic"
 	metapath "meta/meta-path"
+	metaredis "meta/meta-redis"
 	metaslice "meta/meta-slice"
 	metastring "meta/meta-string"
 	metazip "meta/meta-zip"
@@ -252,7 +254,18 @@ func (s *ProblemService) GetProblemRecommend(
 	hasAuth bool,
 	problemId string,
 ) ([]*foundationmodel.Problem, error) {
-	var err error
+	redisKey := fmt.Sprintf("problem_recommend_%d", userId)
+	if problemId != "" {
+		redisKey += "_" + problemId
+	}
+	redisClient := metaredis.GetSubsystem().GetClient()
+	cached, err := redisClient.Get(ctx, redisKey).Result()
+	if err == nil && cached != "" {
+		var statics []*foundationmodel.Problem
+		if err := json.Unmarshal([]byte(cached), &statics); err == nil {
+			return statics, nil
+		}
+	}
 	var problemIds []string
 	if problemId == "" {
 		problemIds, err = foundationdao.GetJudgeJobDao().GetProblemRecommendByUser(ctx, userId, hasAuth)
@@ -263,6 +276,10 @@ func (s *ProblemService) GetProblemRecommend(
 		return nil, err
 	}
 	if len(problemIds) == 0 {
+		err := redisClient.Set(ctx, redisKey, "[]", time.Hour).Err()
+		if err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	sort.Slice(
@@ -280,7 +297,19 @@ func (s *ProblemService) GetProblemRecommend(
 		return nil, err
 	}
 	if len(problemList) == 0 {
+		err := redisClient.Set(ctx, redisKey, "[]", time.Hour).Err()
+		if err != nil {
+			return nil, err
+		}
 		return nil, nil
+	}
+	jsonString, err := json.Marshal(problemList)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "marshal problem list error")
+	}
+	err = redisClient.Set(ctx, redisKey, jsonString, time.Hour).Err()
+	if err != nil {
+		return nil, err
 	}
 	return problemList, nil
 }
