@@ -25,16 +25,23 @@ func GetMigrateProblemSqlService() *MigrateProblemSqlService {
 
 func (s *MigrateProblemSqlService) Start(ctx context.Context) error {
 
-	//tagList, _, err := foundationdaomongo.GetProblemTagDao().GetProblemTagList(ctx, -1)
-	//if err != nil {
-	//	return err
-	//}
+	tagList, _, err := foundationdaomongo.GetProblemTagDao().GetProblemTagList(ctx, -1)
+	if err != nil {
+		return err
+	}
+	slog.Info("tagList", "tagList", len(tagList))
+
+	for _, tag := range tagList {
+		err := foundationdao.GetTagDao().InsertTag(ctx, tag.Name)
+		if err != nil {
+			return err
+		}
+	}
+
 	problemList, err := foundationdaomongo.GetProblemDao().GetProblemListAll(ctx)
 	if err != nil {
 		return err
 	}
-	//
-	//slog.Info("tagList", "tagList", tagList)
 	slog.Info("problemList", "problemList", len(problemList))
 
 	for _, problem := range problemList {
@@ -95,6 +102,17 @@ func (s *MigrateProblemSqlService) Start(ctx context.Context) error {
 				return err
 			}
 		}
+
+		err := foundationdao.GetProblemTagDao().UpdateProblemTags(ctx, newProblem.Id, problem.Tags)
+		if err != nil {
+			return err
+		}
+
+		err = foundationdao.GetProblemMemberAuthDao().UpdateProblemMemberAuths(ctx, newProblem.Id, problem.AuthMembers)
+		if err != nil {
+			return err
+		}
+
 	}
 
 	return nil
