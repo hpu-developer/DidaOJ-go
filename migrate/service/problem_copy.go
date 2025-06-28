@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	metaerror "meta/meta-error"
 	"meta/singleton"
 )
@@ -94,19 +94,21 @@ func (s *MigrateProblemCopyService) Start() error {
 			description += "\n\n## 提示\n" + p.Hint
 		}
 
-		problemDocs = append(problemDocs, foundationmodel.NewProblemBuilder().
-			Id(newProblemId).
-			Sort(len(newProblemId)).
-			Title(p.Title).
-			Description(description).
-			Source(p.Source).
-			TimeLimit(p.TimeLimit*1000).
-			MemoryLimit(p.MemoryLimit*1024).
-			Accept(0).
-			Attempt(0).
-			InsertTime(p.InsertTime).
-			UpdateTime(metatime.GetTimeNow()).
-			Build())
+		problemDocs = append(
+			problemDocs, foundationmodel.NewProblemBuilder().
+				Id(newProblemId).
+				Sort(len(newProblemId)).
+				Title(p.Title).
+				Description(description).
+				Source(&p.Source).
+				TimeLimit(p.TimeLimit*1000).
+				MemoryLimit(p.MemoryLimit*1024).
+				Accept(0).
+				Attempt(0).
+				InsertTime(p.InsertTime).
+				UpdateTime(metatime.GetTimeNow()).
+				Build(),
+		)
 	}
 
 	//// 插入 MongoDB

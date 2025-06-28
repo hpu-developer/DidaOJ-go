@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	metaerror "meta/meta-error"
 	"meta/singleton"
 )

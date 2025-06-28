@@ -2,7 +2,7 @@ package controller
 
 import (
 	foundationerrorcode "foundation/error-code"
-	foundationmodel "foundation/foundation-model"
+	foundationmodel "foundation/foundation-model-mongo"
 	foundationservice "foundation/foundation-service"
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"

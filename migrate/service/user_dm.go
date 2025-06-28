@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"

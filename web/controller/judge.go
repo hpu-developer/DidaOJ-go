@@ -6,7 +6,7 @@ import (
 	foundationauth "foundation/foundation-auth"
 	foundationcontest "foundation/foundation-contest"
 	foundationjudge "foundation/foundation-judge"
-	foundationmodel "foundation/foundation-model"
+	foundationmodel "foundation/foundation-model-mongo"
 	foundationservice "foundation/foundation-service"
 	"github.com/gin-gonic/gin"
 	"log/slog"

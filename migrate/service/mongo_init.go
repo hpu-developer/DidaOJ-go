@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	foundationdao "foundation/foundation-dao"
+	foundationdao "foundation/foundation-dao-mongo"
 	"meta/singleton"
 )
 

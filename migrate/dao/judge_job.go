@@ -3,7 +3,7 @@ package foundationdao
 import (
 	"context"
 	"fmt"
-	foundationmodel "foundation/foundation-model"
+	foundationmodel "foundation/foundation-model-mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	metaerror "meta/meta-error"

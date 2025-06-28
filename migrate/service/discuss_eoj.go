@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	"log/slog"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"

@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	metaerror "meta/meta-error"
 	"meta/singleton"
 )
@@ -185,23 +185,25 @@ func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error 
 			description += "\n\n## 提示\n" + p.Hint
 		}
 
-		problemDocs = append(problemDocs, foundationmodel.NewProblemBuilder().
-			Id(newProblemId).
-			Sort(len(newProblemId)).
-			Title(p.Title).
-			Description(description).
-			Source(p.Source).
-			CreatorNickname(p.Creator).
-			Private(p.Privilege != 0).
-			TimeLimit(p.TimeLimit*1000).
-			MemoryLimit(p.MemoryLimit*1024).
-			JudgeType(foundationjudge.JudgeType(p.JudgeType)).
-			Tags(problemTagMap[p.ProblemID]).
-			Accept(0).
-			Attempt(0).
-			InsertTime(p.InsertTime).
-			UpdateTime(p.UpdateTime).
-			Build())
+		problemDocs = append(
+			problemDocs, foundationmodel.NewProblemBuilder().
+				Id(newProblemId).
+				Sort(len(newProblemId)).
+				Title(p.Title).
+				Description(description).
+				Source(&p.Source).
+				CreatorNickname(p.Creator).
+				Private(p.Privilege != 0).
+				TimeLimit(p.TimeLimit*1000).
+				MemoryLimit(p.MemoryLimit*1024).
+				JudgeType(foundationjudge.JudgeType(p.JudgeType)).
+				Tags(problemTagMap[p.ProblemID]).
+				Accept(0).
+				Attempt(0).
+				InsertTime(p.InsertTime).
+				UpdateTime(p.UpdateTime).
+				Build(),
+		)
 	}
 
 	// 插入 MongoDB
@@ -279,24 +281,26 @@ func (s *MigrateProblemService) processVhojProblem(ctx context.Context) error {
 			description += "## Hint\n" + vhojDescription.Hint
 		}
 
-		problemDocs = append(problemDocs, foundationmodel.NewProblemBuilder().
-			Id(newProblemId).
-			OriginOj(p.OriginOj).
-			OriginId(p.OriginProb).
-			OriginUrl(p.Url).
-			Sort(len(newProblemId)).
-			Title(p.Title).
-			Description(description).
-			Source(p.Source).
-			CreatorNickname(vhojDescription.Author).
-			TimeLimit(p.TimeLimit).
-			MemoryLimit(p.MemoryLimit).
-			JudgeType(foundationjudge.JudgeTypeNormal).
-			Accept(0).
-			Attempt(0).
-			InsertTime(p.TriggerTime).
-			UpdateTime(vhojDescription.UpdateTime).
-			Build())
+		problemDocs = append(
+			problemDocs, foundationmodel.NewProblemBuilder().
+				Id(newProblemId).
+				OriginOj(p.OriginOj).
+				OriginId(p.OriginProb).
+				OriginUrl(p.Url).
+				Sort(len(newProblemId)).
+				Title(p.Title).
+				Description(description).
+				Source(&p.Source).
+				CreatorNickname(vhojDescription.Author).
+				TimeLimit(p.TimeLimit).
+				MemoryLimit(p.MemoryLimit).
+				JudgeType(foundationjudge.JudgeTypeNormal).
+				Accept(0).
+				Attempt(0).
+				InsertTime(p.TriggerTime).
+				UpdateTime(vhojDescription.UpdateTime).
+				Build(),
+		)
 	}
 
 	// 插入 MongoDB

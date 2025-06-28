@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	foundationmodel "foundation/foundation-model"
+	foundationmodel "foundation/foundation-model-mongo"
 	metaerror "meta/meta-error"
 	"meta/singleton"
 )

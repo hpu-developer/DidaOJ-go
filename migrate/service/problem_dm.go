@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	foundationservice "foundation/foundation-service"
 	"log/slog"
 	metaerror "meta/meta-error"
@@ -103,7 +103,7 @@ func (s *MigrateProblemDmojService) Start() error {
 		problem := foundationmodel.NewProblemBuilder().
 			Title(problemModel.Title).
 			Description(description).
-			Source(problemModel.Source).
+			Source(&problemModel.Source).
 			TimeLimit(problemModel.TimeLimit).
 			MemoryLimit(problemModel.MemoryLimit * 1024).
 			InsertTime(problemModel.GmtCreate).

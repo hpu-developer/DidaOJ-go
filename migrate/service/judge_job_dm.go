@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	foundationdao "foundation/foundation-dao"
+	foundationdao "foundation/foundation-dao-mongo"
 	foundationjudge "foundation/foundation-judge"
-	foundationmodel "foundation/foundation-model"
+	foundationmodel "foundation/foundation-model-mongo"
 	"log/slog"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"

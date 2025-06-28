@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
@@ -85,9 +85,11 @@ func (s *MigrateDiscussService) Start() error {
 
 	slog.Info("migrate Discusses updates", "count", len(discusses))
 
-	sort.Slice(discusses, func(i, j int) bool {
-		return discusses[i].InsertTime.Before(discusses[j].InsertTime)
-	})
+	sort.Slice(
+		discusses, func(i, j int) bool {
+			return discusses[i].InsertTime.Before(discusses[j].InsertTime)
+		},
+	)
 	oldJolDiscussIdToNewDiscussId := make(map[int]int)
 	for _, discuss := range discusses {
 		var oldId int
@@ -127,9 +129,11 @@ func (s *MigrateDiscussService) Start() error {
 	}
 	slog.Info("migrate DiscussReplies updates", "count", len(jolComments))
 
-	sort.Slice(jolComments, func(i, j int) bool {
-		return jolComments[i].InsertTime.Before(jolComments[j].InsertTime)
-	})
+	sort.Slice(
+		jolComments, func(i, j int) bool {
+			return jolComments[i].InsertTime.Before(jolComments[j].InsertTime)
+		},
+	)
 
 	for _, reply := range jolComments {
 		err = foundationdao.GetDiscussCommentDao().InsertDiscussComment(ctx, reply)
@@ -141,7 +145,11 @@ func (s *MigrateDiscussService) Start() error {
 	return nil
 }
 
-func (s *MigrateDiscussService) processJolDiscuss(ctx context.Context) ([]*foundationmodel.Discuss, map[int][]JolReply, error) {
+func (s *MigrateDiscussService) processJolDiscuss(ctx context.Context) (
+	[]*foundationmodel.Discuss,
+	map[int][]JolReply,
+	error,
+) {
 	slog.Info("migrate Discuss processJolDiscuss")
 
 	db := metamysql.GetSubsystem().GetClient("jol")

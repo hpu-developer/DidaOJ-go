@@ -10,8 +10,8 @@ import (
 	"fmt"
 	foundationauth "foundation/foundation-auth"
 	foundationconfig "foundation/foundation-config"
-	"foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	"foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	"github.com/gin-gonic/gin"
 	"io"
 	metaerror "meta/meta-error"
@@ -33,15 +33,15 @@ func GetUserService() *UserService {
 }
 
 func (s *UserService) GetUser(ctx context.Context, userId int) (*foundationmodel.User, error) {
-	return foundationdao.GetUserDao().GetUser(ctx, userId)
+	return foundationdaomongo.GetUserDao().GetUser(ctx, userId)
 }
 
 func (s *UserService) GetInfo(ctx *gin.Context, username string) (*foundationmodel.UserInfo, error) {
-	return foundationdao.GetUserDao().GetInfo(ctx, username)
+	return foundationdaomongo.GetUserDao().GetInfo(ctx, username)
 }
 
 func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*response.UserLogin, error) {
-	resultUser, err := foundationdao.GetUserDao().GetUserLogin(ctx, userId)
+	resultUser, err := foundationdaomongo.GetUserDao().GetUserLogin(ctx, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -63,31 +63,31 @@ func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*re
 }
 
 func (s *UserService) GetEmailByUsername(ctx context.Context, username string) (*string, error) {
-	return foundationdao.GetUserDao().GetEmailByUsername(ctx, username)
+	return foundationdaomongo.GetUserDao().GetEmailByUsername(ctx, username)
 }
 
 func (s *UserService) GetUserAccountInfo(ctx context.Context, userId int) (*foundationmodel.UserAccountInfo, error) {
-	return foundationdao.GetUserDao().GetUserAccountInfo(ctx, userId)
+	return foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, userId)
 }
 
 func (s *UserService) GetUserAccountInfos(ctx context.Context, userIds []int) (
 	[]*foundationmodel.UserAccountInfo, error,
 ) {
-	return foundationdao.GetUserDao().GetUserAccountInfos(ctx, userIds)
+	return foundationdaomongo.GetUserDao().GetUserAccountInfos(ctx, userIds)
 }
 
 func (s *UserService) GetUserAccountInfoByUsernames(ctx context.Context, usernames []string) (
 	[]*foundationmodel.UserAccountInfo, error,
 ) {
-	return foundationdao.GetUserDao().GetUserAccountInfoByUsernames(ctx, usernames)
+	return foundationdaomongo.GetUserDao().GetUserAccountInfoByUsernames(ctx, usernames)
 }
 
 func (s *UserService) GetUserIds(ctx *gin.Context, usernames []string) ([]int, error) {
-	return foundationdao.GetUserDao().GetUserIds(ctx, usernames)
+	return foundationdaomongo.GetUserDao().GetUserIds(ctx, usernames)
 }
 
 func (s *UserService) InsertUser(ctx context.Context, user *foundationmodel.User) error {
-	return foundationdao.GetUserDao().InsertUser(ctx, user)
+	return foundationdaomongo.GetUserDao().InsertUser(ctx, user)
 }
 
 func (s *UserService) GeneratePasswordEncode(password string) (string, error) {
@@ -108,11 +108,11 @@ func (s *UserService) GeneratePasswordEncode(password string) (string, error) {
 }
 
 func (s *UserService) UpdatePassword(ctx *gin.Context, username string, passwordEncode string) error {
-	return foundationdao.GetUserDao().UpdatePassword(ctx, username, passwordEncode)
+	return foundationdaomongo.GetUserDao().UpdatePassword(ctx, username, passwordEncode)
 }
 
 func (s *UserService) Login(ctx *gin.Context, username string, password string) (*response.UserLogin, error) {
-	resultUser, err := foundationdao.GetUserDao().GetUserLoginByUsername(ctx, username)
+	resultUser, err := foundationdaomongo.GetUserDao().GetUserLoginByUsername(ctx, username)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func (s *UserService) CheckUserAuthByUserId(ctx context.Context, userId int, aut
 	bool,
 	error,
 ) {
-	userRoles, err := foundationdao.GetUserDao().GetUserRoles(ctx, userId)
+	userRoles, err := foundationdaomongo.GetUserDao().GetUserRoles(ctx, userId)
 	if err != nil {
 		return false, err
 	}
@@ -202,7 +202,7 @@ func (s *UserService) CheckUserAuthsByUserId(ctx context.Context, userId int, au
 	bool,
 	error,
 ) {
-	userRoles, err := foundationdao.GetUserDao().GetUserRoles(ctx, userId)
+	userRoles, err := foundationdaomongo.GetUserDao().GetUserRoles(ctx, userId)
 	if err != nil {
 		return false, err
 	}
@@ -211,9 +211,9 @@ func (s *UserService) CheckUserAuthsByUserId(ctx context.Context, userId int, au
 }
 
 func (s *UserService) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
-	return foundationdao.GetUserDao().GetRankAcAll(ctx, page, pageSize)
+	return foundationdaomongo.GetUserDao().GetRankAcAll(ctx, page, pageSize)
 }
 
 func (s *UserService) FilterValidUserIds(ctx *gin.Context, userIds []int) ([]int, error) {
-	return foundationdao.GetUserDao().FilterValidUserIds(ctx, userIds)
+	return foundationdaomongo.GetUserDao().FilterValidUserIds(ctx, userIds)
 }

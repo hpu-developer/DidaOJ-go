@@ -5,7 +5,7 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
-	foundationmodel "foundation/foundation-model"
+	foundationmodel "foundation/foundation-model-mongo"
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
 	"github.com/aws/aws-sdk-go/aws"

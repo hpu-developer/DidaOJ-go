@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"time"
 
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 )
 
 type MigrateJudgeJobService struct{}
@@ -122,9 +122,11 @@ func (s *MigrateJudgeJobService) Start() error {
 
 	slog.Info("migrate judge job updates", "count", len(judgeJobs))
 
-	sort.Slice(judgeJobs, func(i, j int) bool {
-		return judgeJobs[i].ApproveTime.Before(judgeJobs[j].ApproveTime)
-	})
+	sort.Slice(
+		judgeJobs, func(i, j int) bool {
+			return judgeJobs[i].ApproveTime.Before(judgeJobs[j].ApproveTime)
+		},
+	)
 
 	for _, judgeJob := range judgeJobs {
 		err = foundationdao.GetJudgeJobDao().InsertJudgeJob(ctx, judgeJob)

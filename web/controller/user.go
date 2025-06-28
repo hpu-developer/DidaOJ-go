@@ -5,7 +5,7 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
-	foundationmodel "foundation/foundation-model"
+	foundationmodel "foundation/foundation-model-mongo"
 	foundationservice "foundation/foundation-service"
 	foundationuser "foundation/foundation-user"
 	"github.com/gin-gonic/gin"

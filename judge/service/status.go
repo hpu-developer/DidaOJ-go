@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	"judge/config"
 	"log/slog"
 	cfr2 "meta/cf-r2"

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	foundationrender "foundation/foundation-render"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
@@ -151,7 +151,7 @@ func (s *CrawlHduService) PostCrawlProblem(ctx context.Context, id string) (*str
 		TimeLimit(timeLimit).
 		MemoryLimit(memoryLimit).
 		CreatorNickname(author).
-		Source(source).
+		Source(&source).
 		OriginOj("HDU").
 		OriginId(id).
 		OriginUrl(originUrl).

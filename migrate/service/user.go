@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	foundationdao "foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
@@ -126,9 +126,11 @@ func (s *MigrateUserService) Start() error {
 
 	slog.Info("migrate users updates", "count", len(users))
 
-	sort.Slice(users, func(i, j int) bool {
-		return users[i].RegTime.Before(users[j].RegTime)
-	})
+	sort.Slice(
+		users, func(i, j int) bool {
+			return users[i].RegTime.Before(users[j].RegTime)
+		},
+	)
 
 	for _, user := range users {
 		err = foundationdao.GetUserDao().InsertUser(ctx, user)

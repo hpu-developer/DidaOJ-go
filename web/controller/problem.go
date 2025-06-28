@@ -6,7 +6,7 @@ import (
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationjudge "foundation/foundation-judge"
-	foundationmodel "foundation/foundation-model"
+	foundationmodel "foundation/foundation-model-mongo"
 	foundationoj "foundation/foundation-oj"
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
@@ -105,7 +105,7 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 	if isContest {
 		// 比赛时隐藏一些信息
 		problem.Id = ""
-		problem.Source = ""
+		problem.Source = nil
 		problem.Accept = 0
 		problem.Attempt = 0
 		problem.OriginOj = nil

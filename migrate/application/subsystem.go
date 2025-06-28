@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	foundationdao "foundation/foundation-dao"
 	"log/slog"
 	"meta/engine"
 	"meta/subsystem"
@@ -38,7 +37,7 @@ func (s *Subsystem) startSubSystem() error {
 	var err error
 	ctx := context.Background()
 
-	err = foundationdao.GetJudgeJobDao().InitDao(ctx)
+	err = service.GetMigrateProblemSqlService().Start(ctx)
 	if err != nil {
 		return nil
 	}

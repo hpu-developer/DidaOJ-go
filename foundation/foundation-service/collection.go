@@ -3,8 +3,8 @@ package foundationservice
 import (
 	"context"
 	foundationauth "foundation/foundation-auth"
-	"foundation/foundation-dao"
-	foundationmodel "foundation/foundation-model"
+	"foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model-mongo"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
 	"slices"
@@ -37,7 +37,7 @@ func (s *CollectionService) CheckEditAuth(ctx *gin.Context, collectionId int) (
 		return userId, false, nil
 	}
 	if !hasAuth {
-		ownerId, err := foundationdao.GetCollectionDao().GetCollectionOwnerId(ctx, collectionId)
+		ownerId, err := foundationdaomongo.GetCollectionDao().GetCollectionOwnerId(ctx, collectionId)
 		if err != nil {
 			return userId, false, err
 		}
@@ -61,7 +61,7 @@ func (s *CollectionService) CheckJoinAuth(ctx *gin.Context, collectionId int) (
 		return userId, false, nil
 	}
 	if !hasAuth {
-		hasAuth, err = foundationdao.GetCollectionDao().CheckJoinAuth(ctx, collectionId, userId)
+		hasAuth, err = foundationdaomongo.GetCollectionDao().CheckJoinAuth(ctx, collectionId, userId)
 		if err != nil {
 			return userId, false, err
 		}
@@ -70,7 +70,7 @@ func (s *CollectionService) CheckJoinAuth(ctx *gin.Context, collectionId int) (
 }
 
 func (s *CollectionService) HasCollectionTitle(ctx *gin.Context, id int, title string) (bool, error) {
-	return foundationdao.GetCollectionDao().HasCollectionTitle(ctx, id, title)
+	return foundationdaomongo.GetCollectionDao().HasCollectionTitle(ctx, id, title)
 }
 
 func (s *CollectionService) GetCollection(ctx context.Context, id int, userId int) (
@@ -80,14 +80,14 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int, userId in
 	map[string]foundationmodel.ProblemAttemptStatus,
 	error,
 ) {
-	collection, err := foundationdao.GetCollectionDao().GetCollection(ctx, id)
+	collection, err := foundationdaomongo.GetCollectionDao().GetCollection(ctx, id)
 	if err != nil {
 		return nil, nil, false, nil, err
 	}
 	if collection == nil {
 		return nil, nil, false, nil, nil
 	}
-	ownerUser, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, collection.OwnerId)
+	ownerUser, err := foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, collection.OwnerId)
 	if err != nil {
 		return nil, nil, false, nil, err
 	}
@@ -108,7 +108,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int, userId in
 		for _, problem := range collection.Problems {
 			problemIds = append(problemIds, problem)
 		}
-		problems, err := foundationdao.GetProblemDao().GetProblemListTitle(ctx, problemIds)
+		problems, err := foundationdaomongo.GetProblemDao().GetProblemListTitle(ctx, problemIds)
 		if err != nil {
 			return nil, nil, false, nil, err
 		}
@@ -118,7 +118,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int, userId in
 			}
 		}
 		if userId > 0 {
-			problemStatus, err = foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
+			problemStatus, err = foundationdaomongo.GetJudgeJobDao().GetProblemAttemptStatus(
 				ctx,
 				problemIds,
 				userId,
@@ -133,7 +133,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int, userId in
 
 		var judgeAccepts []*foundationmodel.ProblemViewAttempt
 		if len(collection.Members) > 0 {
-			judgeAccepts, err = foundationdao.GetJudgeJobDao().GetProblemTimeViewAttempt(
+			judgeAccepts, err = foundationdaomongo.GetJudgeJobDao().GetProblemTimeViewAttempt(
 				ctx,
 				collection.StartTime,
 				collection.EndTime,
@@ -164,14 +164,14 @@ func (s *CollectionService) GetCollectionEdit(ctx context.Context, id int) (
 	*foundationmodel.Collection,
 	error,
 ) {
-	collection, err := foundationdao.GetCollectionDao().GetCollectionEdit(ctx, id)
+	collection, err := foundationdaomongo.GetCollectionDao().GetCollectionEdit(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if collection == nil {
 		return nil, nil
 	}
-	ownerUser, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, collection.OwnerId)
+	ownerUser, err := foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, collection.OwnerId)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (s *CollectionService) GetCollectionList(
 	page int,
 	pageSize int,
 ) ([]*foundationmodel.Collection, int, error) {
-	collections, totalCount, err := foundationdao.GetCollectionDao().GetCollectionList(ctx, page, pageSize)
+	collections, totalCount, err := foundationdaomongo.GetCollectionDao().GetCollectionList(ctx, page, pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -194,7 +194,7 @@ func (s *CollectionService) GetCollectionList(
 		for _, collection := range collections {
 			userIds = append(userIds, collection.OwnerId)
 		}
-		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
+		users, err := foundationdaomongo.GetUserDao().GetUsersAccountInfo(ctx, userIds)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -213,7 +213,7 @@ func (s *CollectionService) GetCollectionList(
 }
 
 func (s *CollectionService) InsertCollection(ctx context.Context, collection *foundationmodel.Collection) error {
-	return foundationdao.GetCollectionDao().InsertCollection(ctx, collection)
+	return foundationdaomongo.GetCollectionDao().InsertCollection(ctx, collection)
 }
 
 func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
@@ -223,13 +223,13 @@ func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
 	[]*foundationmodel.CollectionRank,
 	error,
 ) {
-	collectionView, err := foundationdao.GetCollectionDao().GetCollectionRankView(ctx, id)
+	collectionView, err := foundationdaomongo.GetCollectionDao().GetCollectionRankView(ctx, id)
 	if err != nil {
 		return nil, nil, 0, nil, err
 	}
 	var collectionRanks []*foundationmodel.CollectionRank
 	if len(collectionView.Members) > 0 {
-		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, collectionView.Members)
+		users, err := foundationdaomongo.GetUserDao().GetUsersAccountInfo(ctx, collectionView.Members)
 		if err != nil {
 			return nil, nil, 0, nil, err
 		}
@@ -249,7 +249,7 @@ func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
 			}
 		}
 		if len(collectionView.Problems) > 0 {
-			userAcMap, err := foundationdao.GetJudgeJobDao().GetAcceptedProblemCount(
+			userAcMap, err := foundationdaomongo.GetJudgeJobDao().GetAcceptedProblemCount(
 				ctx,
 				collectionView.StartTime,
 				collectionView.EndTime,
@@ -270,11 +270,11 @@ func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
 }
 
 func (s *CollectionService) PostJoin(ctx *gin.Context, collectionId int, userId int) error {
-	return foundationdao.GetCollectionDao().PostJoin(ctx, collectionId, userId)
+	return foundationdaomongo.GetCollectionDao().PostJoin(ctx, collectionId, userId)
 }
 
 func (s *CollectionService) PostQuit(ctx *gin.Context, collectionId int, userId int) error {
-	return foundationdao.GetCollectionDao().PostQuit(ctx, collectionId, userId)
+	return foundationdaomongo.GetCollectionDao().PostQuit(ctx, collectionId, userId)
 }
 
 func (s *CollectionService) UpdateCollection(
@@ -282,5 +282,5 @@ func (s *CollectionService) UpdateCollection(
 	id int,
 	collection *foundationmodel.Collection,
 ) error {
-	return foundationdao.GetCollectionDao().UpdateCollection(ctx, id, collection)
+	return foundationdaomongo.GetCollectionDao().UpdateCollection(ctx, id, collection)
 }
