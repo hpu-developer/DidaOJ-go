@@ -2,6 +2,7 @@ package foundationdao
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	foundationmodel "foundation/foundation-model"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,8 +31,26 @@ func GetProblemDao() *ProblemDao {
 	)
 }
 
-func (d *ProblemDao) GetClient() *gorm.DB {
-	return metamysql.GetSubsystem().GetClient("didaoj")
+func (d *ProblemDao) GetProblemIdByKey(key string) (int, error) {
+	if key == "" {
+		return 0, metaerror.New("key is empty")
+	}
+	var id int
+	err := d.db.
+		Model(&foundationmodel.Problem{}).
+		Select("id").
+		Where("`key` = ?", key).
+		Scan(&id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, metaerror.New("problem not found")
+		}
+		return 0, metaerror.Wrap(err, "find problem id by key failed")
+	}
+	if id == 0 {
+		return 0, metaerror.New("problem not found")
+	}
+	return id, nil
 }
 
 func (d *ProblemDao) GetProblemList(
@@ -52,8 +71,8 @@ func (d *ProblemDao) GetProblemList(
 			db = db.Where(
 				"private IS NULL OR inserter = ? OR id IN (?) OR id IN (?)",
 				userId,
-				d.GetClient().Model(&foundationmodel.ProblemMember{}).Select("id").Where("user_id = ?", userId),
-				d.GetClient().Model(&foundationmodel.ProblemMemberAuth{}).Select("id").Where("user_id = ?", userId),
+				d.db.Model(&foundationmodel.ProblemMember{}).Select("id").Where("user_id = ?", userId),
+				d.db.Model(&foundationmodel.ProblemMemberAuth{}).Select("id").Where("user_id = ?", userId),
 			)
 		} else {
 			db = db.Where("private IS NULL")
@@ -104,7 +123,7 @@ func (d *ProblemDao) InsertProblemLocal(
 	if problem == nil {
 		return metaerror.New("problem is nil")
 	}
-	db := d.GetClient().WithContext(ctx)
+	db := d.db.WithContext(ctx)
 	err := db.Transaction(
 		func(tx *gorm.DB) error {
 			if err := tx.Create(problem).Error; err != nil {
@@ -144,7 +163,7 @@ func (d *ProblemDao) InsertProblemRemote(
 	if problemRemote.OriginOj == "" || problemRemote.OriginId == "" {
 		return metaerror.New("problemRemote originOj or originId is nil")
 	}
-	db := d.GetClient().WithContext(ctx)
+	db := d.db.WithContext(ctx)
 	err := db.Transaction(
 		func(tx *gorm.DB) error {
 			if err := tx.Create(problem).Error; err != nil {

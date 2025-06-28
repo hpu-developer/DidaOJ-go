@@ -160,9 +160,9 @@ func (s *MigrateUserService) processJolUser(ctx context.Context) ([]*foundationm
 			Password(u.Password).
 			Email(u.Email).
 			CheckinCount(u.Exper).
-			Slogan(u.Sign).
-			Organization(u.School).
-			VjudgeId(u.VjudgeId).
+			Slogan(&u.Sign).
+			Organization(&u.School).
+			VjudgeId(&u.VjudgeId).
 			RegTime(u.RegTime).
 			Accept(0).
 			Attempt(0).
@@ -195,8 +195,8 @@ func (s *MigrateUserService) processCodeojUser(ctx context.Context) ([]*foundati
 			Nickname(u.Nickname).
 			Password(u.Password).
 			Email(u.Email).
-			Slogan(u.Sign).
-			Organization(u.Organization).
+			Slogan(&u.Sign).
+			Organization(&u.Organization).
 			RegTime(u.RegTime).
 			Build()
 
@@ -230,10 +230,10 @@ func (s *MigrateUserService) processVhojUser(ctx context.Context) ([]*foundation
 			Nickname(u.Nickname).
 			Password(u.Password).
 			Email(u.Email).
-			Slogan(u.Blog).
-			Organization(u.School).
+			Slogan(&u.Blog).
+			Organization(&u.School).
 			RegTime(u.CreateTime).
-			QQ(u.QQ).
+			QQ(&u.QQ).
 			Build()
 
 		if user.Username == "BoilTask" {

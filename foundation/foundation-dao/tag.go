@@ -28,10 +28,6 @@ func GetTagDao() *TagDao {
 	)
 }
 
-func (d *TagDao) GetClient() *gorm.DB {
-	return metamysql.GetSubsystem().GetClient("didaoj")
-}
-
 func (d *TagDao) InsertTag(
 	ctx context.Context,
 	name string,
@@ -39,7 +35,7 @@ func (d *TagDao) InsertTag(
 	if name == "" {
 		return metaerror.New("problem is nil")
 	}
-	db := d.GetClient().WithContext(ctx).Model(&foundationmodel.Tag{})
+	db := d.db.WithContext(ctx).Model(&foundationmodel.Tag{})
 	if err := db.Create(
 		&foundationmodel.Tag{
 			Name: name,

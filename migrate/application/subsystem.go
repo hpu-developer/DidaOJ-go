@@ -37,7 +37,7 @@ func (s *Subsystem) startSubSystem() error {
 	var err error
 	ctx := context.Background()
 
-	err = service.GetMigrateProblemSqlService().Start(ctx)
+	err = service.GetMigrateProblemDailySqlService().Start(ctx)
 	if err != nil {
 		return nil
 	}

@@ -1,16 +1,9 @@
 package foundationmodelmongo
 
 import (
+	foundationenum "foundation/foundation-enum"
 	"strings"
 	"time"
-)
-
-type UserGender int
-
-const (
-	UserGenderUnknown UserGender = 0
-	UserGenderMale    UserGender = 1
-	UserGenderFemale  UserGender = 2
 )
 
 type User struct {
@@ -20,25 +13,26 @@ type User struct {
 	Nickname      string    `json:"nickname,omitempty" bson:"nickname"`                       // 显示的昵称
 	Password      string    `json:"password" bson:"password"`                                 // 密码
 	Email         string    `json:"email,omitempty" bson:"email,omitempty"`                   // 邮箱
-	Number        string    `json:"number,omitempty" bson:"number,omitempty"`                 // 身份标识符
-	QQ            string    `json:"qq,omitempty" bson:"qq,omitempty"`                         // QQ
-	Slogan        string    `json:"slogan,omitempty" bson:"slogan,omitempty"`                 // 签名
-	Organization  string    `json:"organization,omitempty" bson:"organization,omitempty"`     // 组织
+	Number        *string   `json:"number,omitempty" bson:"number,omitempty"`                 // 身份标识符
+	QQ            *string   `json:"qq,omitempty" bson:"qq,omitempty"`                         // QQ
+	Slogan        *string   `json:"slogan,omitempty" bson:"slogan,omitempty"`                 // 签名
+	Organization  *string   `json:"organization,omitempty" bson:"organization,omitempty"`     // 组织
 	RegTime       time.Time `json:"reg_time" bson:"reg_time"`                                 // 注册时间
-	Accept        int       `json:"accept" bson:"accept"`                                     // AC次数
-	Attempt       int       `json:"attempt" bson:"attempt"`                                   // 尝试次数
-	CheckinCount  int       `json:"checkin_count" bson:"checkin_count"`                       // 签到次数
-	Roles         []string  `json:"roles,omitempty" bson:"roles,omitempty"`                   // 角色
+	ModifyTime    time.Time `json:"modify_time" bson:"modify_time"`
+	Accept        int       `json:"accept" bson:"accept"`                   // AC次数
+	Attempt       int       `json:"attempt" bson:"attempt"`                 // 尝试次数
+	CheckinCount  int       `json:"checkin_count" bson:"checkin_count"`     // 签到次数
+	Roles         []string  `json:"roles,omitempty" bson:"roles,omitempty"` // 角色
 
-	Gender   UserGender `json:"gender" bson:"gender"`                           // 性别，0未知，1男，2女
-	RealName string     `json:"real_name,omitempty" bson:"real_name,omitempty"` // 真实姓名
+	Gender   foundationenum.UserGender `json:"gender" bson:"gender"`                           // 性别，0未知，1男，2女
+	RealName *string                   `json:"real_name,omitempty" bson:"real_name,omitempty"` // 真实姓名
 
 	AttemptInfo UserAttemptInfo `json:"attempt_info,omitempty" bson:"attempt_info,omitempty"` // 尝试信息，本质是对judge_job统计结果的缓存
 
 	// 账号关联
-	VjudgeId   string `json:"vjudge_id,omitempty" bson:"vjudge_id,omitempty"` // vjudge.net Id
-	Github     string `json:"github,omitempty" bson:"github,omitempty"`       // GitHub Id
-	Codeforces string `json:"codeforces,omitempty" bson:"codeforces,omitempty"`
+	VjudgeId   *string `json:"vjudge_id,omitempty" bson:"vjudge_id,omitempty"` // vjudge.net Id
+	Github     *string `json:"github,omitempty" bson:"github,omitempty"`       // GitHub Id
+	Codeforces *string `json:"codeforces,omitempty" bson:"codeforces,omitempty"`
 }
 
 type UserAccountInfo struct {
@@ -96,37 +90,37 @@ func (b *UserBuilder) Email(email string) *UserBuilder {
 	return b
 }
 
-func (b *UserBuilder) Slogan(slogan string) *UserBuilder {
+func (b *UserBuilder) Slogan(slogan *string) *UserBuilder {
 	b.item.Slogan = slogan
 	return b
 }
 
-func (b *UserBuilder) Organization(organization string) *UserBuilder {
+func (b *UserBuilder) Organization(organization *string) *UserBuilder {
 	b.item.Organization = organization
 	return b
 }
 
-func (b *UserBuilder) Number(number string) *UserBuilder {
+func (b *UserBuilder) Number(number *string) *UserBuilder {
 	b.item.Number = number
 	return b
 }
 
-func (b *UserBuilder) QQ(qq string) *UserBuilder {
+func (b *UserBuilder) QQ(qq *string) *UserBuilder {
 	b.item.QQ = qq
 	return b
 }
 
-func (b *UserBuilder) RealName(realName string) *UserBuilder {
+func (b *UserBuilder) RealName(realName *string) *UserBuilder {
 	b.item.RealName = realName
 	return b
 }
 
-func (b *UserBuilder) Gender(gender UserGender) *UserBuilder {
+func (b *UserBuilder) Gender(gender foundationenum.UserGender) *UserBuilder {
 	b.item.Gender = gender
 	return b
 }
 
-func (b *UserBuilder) Github(github string) *UserBuilder {
+func (b *UserBuilder) Github(github *string) *UserBuilder {
 	b.item.Github = github
 	return b
 }
@@ -146,12 +140,12 @@ func (b *UserBuilder) Attempt(attempt int) *UserBuilder {
 	return b
 }
 
-func (b *UserBuilder) VjudgeId(vjudgeId string) *UserBuilder {
+func (b *UserBuilder) VjudgeId(vjudgeId *string) *UserBuilder {
 	b.item.VjudgeId = vjudgeId
 	return b
 }
 
-func (b *UserBuilder) Codeforces(codeforces string) *UserBuilder {
+func (b *UserBuilder) Codeforces(codeforces *string) *UserBuilder {
 	b.item.Codeforces = codeforces
 	return b
 }

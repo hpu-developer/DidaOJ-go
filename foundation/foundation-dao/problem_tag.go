@@ -27,16 +27,12 @@ func GetProblemTagDao() *ProblemTagDao {
 	)
 }
 
-func (d *ProblemTagDao) GetClient() *gorm.DB {
-	return metamysql.GetSubsystem().GetClient("didaoj")
-}
-
 func (d *ProblemTagDao) UpdateProblemTags(
 	ctx context.Context,
 	problemId int,
 	tags []int,
 ) error {
-	db := d.GetClient().WithContext(ctx)
+	db := d.db.WithContext(ctx)
 	err := db.Transaction(
 		func(tx *gorm.DB) error {
 			// 删除旧的标签

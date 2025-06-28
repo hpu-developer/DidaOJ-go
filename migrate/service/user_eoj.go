@@ -59,12 +59,12 @@ func (s *MigrateUserEojService) Start() error {
 		user := foundationmodel.NewUserBuilder().
 			Username(userModel.Username).
 			Nickname(userModel.Name).
-			Number(userModel.StudentId).
+			Number(&userModel.StudentId).
 			Password(userModel.Password).
 			Email(userModel.Email).
 			CheckinCount(0).
-			Slogan(userModel.Motto).
-			Organization(userModel.School).
+			Slogan(&userModel.Motto).
+			Organization(&userModel.School).
 			RegTime(userModel.DateJoined).
 			Accept(0).
 			Attempt(0).
@@ -79,16 +79,16 @@ func (s *MigrateUserEojService) Start() error {
 			if user.Nickname != "" {
 				userMongo.Nickname = user.Nickname
 			}
-			if user.Number != "" {
+			if user.Number != nil {
 				userMongo.Number = user.Number
 			}
 			if user.Email != "" {
 				userMongo.Email = user.Email
 			}
-			if user.Slogan != "" {
+			if user.Slogan != nil {
 				userMongo.Slogan = user.Slogan
 			}
-			if user.Organization != "" {
+			if user.Organization != nil {
 				userMongo.Organization = user.Organization
 			}
 			err := foundationdao.GetUserDao().UpdateUser(ctx, userMongo.Id, userMongo)

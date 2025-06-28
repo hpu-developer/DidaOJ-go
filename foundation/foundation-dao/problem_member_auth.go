@@ -27,16 +27,12 @@ func GetProblemMemberAuthDao() *ProblemMemberAuthDao {
 	)
 }
 
-func (d *ProblemMemberAuthDao) GetClient() *gorm.DB {
-	return metamysql.GetSubsystem().GetClient("didaoj")
-}
-
 func (d *ProblemMemberAuthDao) UpdateProblemMemberAuths(
 	ctx context.Context,
 	problemId int,
 	userIds []int,
 ) error {
-	db := d.GetClient().WithContext(ctx)
+	db := d.db
 	err := db.Transaction(
 		func(tx *gorm.DB) error {
 			// 删除旧的标签

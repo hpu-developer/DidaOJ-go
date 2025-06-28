@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	foundationdao "foundation/foundation-dao-mongo"
+	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model-mongo"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
@@ -29,7 +30,7 @@ type DmojUser struct {
 	CfUsername  string    `gorm:"column:cf_username"`
 	Email       string    `gorm:"column:email"`
 	Signature   string    `gorm:"column:signature"`
-	GmtCreated  time.Time `gorm:"column:gmt_created"`
+	GmtCreated  time.Time `gorm:"column:gmt_create"`
 	GmtModified time.Time `gorm:"column:gmt_modified"`
 }
 
@@ -47,8 +48,7 @@ func GetMigrateUserDmojService() *MigrateUserDmojService {
 	)
 }
 
-func (s *MigrateUserDmojService) Start() error {
-	ctx := context.Background()
+func (s *MigrateUserDmojService) Start(ctx context.Context) error {
 
 	// 初始化 GORM 客户端
 	dmojDb := metamysql.GetSubsystem().GetClient("dmoj")
@@ -61,11 +61,11 @@ func (s *MigrateUserDmojService) Start() error {
 	}
 
 	for _, userModel := range userModels {
-		gender := foundationmodel.UserGenderUnknown
+		gender := foundationenum.UserGenderUnknown
 		if userModel.Gender == "male" {
-			gender = foundationmodel.UserGenderMale
+			gender = foundationenum.UserGenderMale
 		} else if userModel.Gender == "female" {
-			gender = foundationmodel.UserGenderFemale
+			gender = foundationenum.UserGenderFemale
 		}
 		if userModel.Nickname == "" {
 			userModel.Nickname = userModel.Username
@@ -74,19 +74,21 @@ func (s *MigrateUserDmojService) Start() error {
 		user := foundationmodel.NewUserBuilder().
 			Username(userModel.Username).
 			Nickname(userModel.Nickname).
-			Number(userModel.Number).
+			Number(&userModel.Number).
 			Password(userModel.Password).
 			Email(userModel.Email).
-			Slogan(userModel.Signature).
-			Organization(userModel.School).
+			Slogan(&userModel.Signature).
+			Organization(&userModel.School).
 			RegTime(userModel.GmtCreated).
-			RealName(userModel.Realname).
+			RealName(&userModel.Realname).
 			Gender(gender).
-			Github(userModel.Github).
-			Codeforces(userModel.CfUsername).
+			Github(&userModel.Github).
+			Codeforces(&userModel.CfUsername).
 			Accept(0).
 			Attempt(0).
 			Build()
+
+		user.ModifyTime = userModel.GmtModified
 
 		userMongo, err := foundationdao.GetUserDao().GetUserByUsername(ctx, user.Username)
 		if err != nil {
@@ -97,26 +99,32 @@ func (s *MigrateUserDmojService) Start() error {
 			if user.Nickname != "" {
 				userMongo.Nickname = user.Nickname
 			}
-			if user.Number != "" {
+			if user.Number != nil {
 				userMongo.Number = user.Number
 			}
 			if user.Email != "" {
 				userMongo.Email = user.Email
 			}
-			if user.Slogan != "" {
+			if user.Slogan != nil {
 				userMongo.Slogan = user.Slogan
 			}
-			if user.Organization != "" {
+			if user.Organization != nil {
 				userMongo.Organization = user.Organization
 			}
-			if user.RealName != "" {
+			if user.RealName != nil {
 				userMongo.RealName = user.RealName
 			}
-			if user.Github != "" {
+			if user.Github != nil {
 				userMongo.Github = user.Github
 			}
-			if user.Codeforces != "" {
+			if user.Codeforces != nil {
 				userMongo.Codeforces = user.Codeforces
+			}
+			if userMongo.RegTime == (time.Time{}) {
+				userMongo.RegTime = user.RegTime
+			}
+			if userMongo.ModifyTime == (time.Time{}) {
+				userMongo.ModifyTime = user.ModifyTime
 			}
 			userMongo.Gender = user.Gender
 			err := foundationdao.GetUserDao().UpdateUser(ctx, userMongo.Id, userMongo)

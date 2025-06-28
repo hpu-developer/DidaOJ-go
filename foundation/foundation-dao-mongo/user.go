@@ -51,6 +51,29 @@ func (d *UserDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
+func (d *UserDao) GetUserListAll(ctx context.Context) ([]*foundationmodel.User, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "_id", Value: 1}})
+	cursor, err := d.collection.Find(ctx, bson.D{}, opts)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find all users error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(err, "close cursor error")
+		}
+	}(cursor, ctx)
+	var users []*foundationmodel.User
+	for cursor.Next(ctx) {
+		var user foundationmodel.User
+		if err := cursor.Decode(&user); err != nil {
+			return nil, metaerror.Wrap(err, "decode user error")
+		}
+		users = append(users, &user)
+	}
+	return users, nil
+}
+
 func (d *UserDao) InsertUser(ctx context.Context, user *foundationmodel.User) error {
 	mongoSubsystem := metamongo.GetSubsystem()
 	client := mongoSubsystem.GetClient()
