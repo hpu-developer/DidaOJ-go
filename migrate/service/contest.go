@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	foundationenum "foundation/foundation-enum"
 	"log/slog"
 	metamysql "meta/meta-mysql"
 	"sort"
@@ -171,7 +172,7 @@ func (s *MigrateContestService) processJolContest(ctx context.Context) ([]*found
 			StartTime(p.StartTime).
 			EndTime(p.EndTime).
 			Password(p.Password).
-			Type(foundationmodel.ContestType(p.Kind)).
+			Type(foundationenum.ContestType(p.Kind)).
 			OwnerId(userId).
 			Build()
 

@@ -7,7 +7,7 @@ import (
 
 type Contest struct {
 	Id               int                               `json:"id" gorm:"primaryKey;autoIncrement"`
-	Title            string                            `json:"title" gorm:"type:varchar(30);not null"`
+	Title            string                            `json:"title" gorm:"type:varchar(75);not null"`
 	Description      *string                           `json:"description,omitempty" gorm:"type:text"`
 	Notification     *string                           `json:"notification,omitempty" gorm:"type:varchar(100)"`
 	StartTime        time.Time                         `json:"start_time,omitempty" gorm:"type:datetime"`
@@ -17,7 +17,7 @@ type Contest struct {
 	Modifier         int                               `json:"modifier,omitempty"`
 	ModifyTime       time.Time                         `json:"modify_time,omitempty" gorm:"type:datetime"`
 	Private          bool                              `json:"private,omitempty" gorm:"type:tinyint(1)"`
-	Password         *string                           `json:"password,omitempty" gorm:"type:varchar(30)"`
+	Password         *string                           `json:"password,omitempty" gorm:"type:varchar(35)"`
 	SubmitAnytime    bool                              `json:"submit_anytime,omitempty" gorm:"type:tinyint(1)"`
 	Type             foundationenum.ContestType        `json:"type,omitempty" gorm:"type:tinyint"`
 	ScoreType        foundationenum.ContestScoreType   `json:"score_type,omitempty" gorm:"type:tinyint"`

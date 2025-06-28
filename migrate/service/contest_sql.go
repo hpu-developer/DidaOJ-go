@@ -7,6 +7,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	"log/slog"
 	"meta/singleton"
+	"time"
 )
 
 type MigrateContestSqlService struct {
@@ -57,6 +58,9 @@ func (s *MigrateContestSqlService) Start(ctx context.Context) error {
 
 		if problemDaily.Notification != "" {
 			newContest.Notification = &problemDaily.Notification
+		}
+		if newContest.ModifyTime == (time.Time{}) {
+			newContest.ModifyTime = newContest.InsertTime
 		}
 
 		var contestProblems []*foundationmodel.ContestProblem

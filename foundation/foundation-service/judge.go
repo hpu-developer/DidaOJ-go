@@ -4,6 +4,7 @@ import (
 	"context"
 	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao-mongo"
+	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model-mongo"
 	"github.com/gin-gonic/gin"
@@ -202,7 +203,7 @@ func (s *JudgeService) GetJudgeList(
 
 			// 隐藏部分信息
 			for _, judgeJob := range judgeJobs {
-				if contest.Type == foundationmodel.ContestTypeAcm {
+				if contest.Type == foundationenum.ContestTypeAcm {
 					// IOI模式之外隐藏分数信息
 					if judgeJob.Score < 100 {
 						judgeJob.Score = 0
@@ -260,7 +261,7 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 	// 不需要对管理员隐藏信息
 	if contest.OwnerId != userId && !slices.Contains(contest.AuthMembers, userId) {
 		if isLocked {
-			if contest.Type == foundationmodel.ContestTypeOi {
+			if contest.Type == foundationenum.ContestTypeOi {
 				hasStatusAuth = false
 			} else {
 				if authorId != userId {
