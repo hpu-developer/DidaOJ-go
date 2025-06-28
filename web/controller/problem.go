@@ -5,11 +5,13 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
+	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
 	foundationoj "foundation/foundation-oj"
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
+	foundationview "foundation/foundation-view"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
@@ -26,7 +28,6 @@ import (
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	metazip "meta/meta-zip"
-	"meta/set"
 	"net/http"
 	"os"
 	"path"
@@ -53,10 +54,12 @@ type ProblemController struct {
 }
 
 func (c *ProblemController) Get(ctx *gin.Context) {
+	var err error
 	problemService := foundationservice.GetProblemService()
-	id := ctx.Query("id")
+	idStr := ctx.Query("id")
 	isContest := false
-	if id == "" {
+	id := 0
+	if idStr == "" {
 		contestIdStr := ctx.Query("contest_id")
 		if contestIdStr == "" {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
@@ -77,22 +80,27 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 			return
 		}
-		idPtr, err := problemService.GetProblemIdByContest(ctx, contestId, problemIndex)
+		id, err = problemService.GetProblemIdByContest(ctx, contestId, problemIndex)
 		if err != nil {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 			return
 		}
-		if idPtr == nil {
-			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		isContest = true
+	} else {
+		id, err = strconv.Atoi(idStr)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 			return
 		}
-		id = *idPtr
-		isContest = true
+	}
+	if id <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
 	}
 
 	userId, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
 
-	problem, err := problemService.GetProblemView(ctx, id, userId, ok)
+	problem, err := problemService.GetProblemView(ctx, idStr, userId, ok)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -101,10 +109,11 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	var tags []*foundationmodel.ProblemTag
+	var tags []*foundationmodel.Tag
 	if isContest {
 		// 比赛时隐藏一些信息
-		problem.Id = ""
+		problem.Id = 0
+		problem.Key = ""
 		problem.Source = nil
 		problem.Accept = 0
 		problem.Attempt = 0
@@ -112,17 +121,15 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 		problem.OriginId = nil
 		problem.OriginUrl = nil
 	} else {
-		if problem.Tags != nil {
-			tags, err = problemService.GetProblemTagByIds(ctx, problem.Tags)
-			if err != nil {
-				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-				return
-			}
+		tags, err = problemService.GetProblemTags(ctx, id)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
 		}
 	}
 	responseData := struct {
-		Problem *foundationmodel.Problem      `json:"problem"`
-		Tags    []*foundationmodel.ProblemTag `json:"tags,omitempty"`
+		Problem *foundationview.Problem `json:"problem"`
+		Tags    []*foundationmodel.Tag  `json:"tags,omitempty"`
 	}{
 		Problem: problem,
 		Tags:    tags,
@@ -158,9 +165,9 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	}
 	title := ctx.Query("title")
 	tag := ctx.Query("tag")
-	var list []*foundationmodel.Problem
+	var list []*foundationview.ProblemViewList
 	var totalCount int
-	var problemStatus map[string]foundationenum.ProblemAttemptStatus
+	var problemStatus map[int]foundationenum.ProblemAttemptStatus
 	userId, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
 	if err != nil {
 		metapanic.ProcessError(err)
@@ -188,10 +195,10 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time                 time.Time                                      `json:"time"`
-		TotalCount           int                                            `json:"total_count"`
-		List                 []*foundationmodel.Problem                     `json:"list"`
-		ProblemAttemptStatus map[string]foundationenum.ProblemAttemptStatus `json:"problem_attempt_status,omitempty"`
+		Time                 time.Time                                   `json:"time"`
+		TotalCount           int                                         `json:"total_count"`
+		List                 []*foundationview.ProblemViewList           `json:"list"`
+		ProblemAttemptStatus map[int]foundationenum.ProblemAttemptStatus `json:"problem_attempt_status,omitempty"`
 	}{
 		Time:                 metatime.GetTimeNow(),
 		TotalCount:           totalCount,
@@ -208,7 +215,7 @@ func (c *ProblemController) GetAttemptStatus(ctx *gin.Context) {
 		return
 	}
 	ids := strings.Split(idsStr, ",")
-	validProblemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, ids)
+	validProblemIds, err := foundationservice.GetProblemService().GetProblemIdsByKey(ctx, ids)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
@@ -252,38 +259,32 @@ func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 		return
 	}
 	problemService := foundationservice.GetProblemService()
-	problemId := ctx.Query("problem_id")
+	problemIdStr := ctx.Query("problem_id")
+	problemId := 0
+	if problemIdStr != "" {
+		problemId, err = strconv.Atoi(problemIdStr)
+		if err != nil || problemId <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+	}
 	list, err := problemService.GetProblemRecommend(ctx, userId, hasAuth, problemId)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
-	var tags []*foundationmodel.ProblemTag
-	if len(list) > 0 {
-		tagIdSet := set.New[int]()
-		for _, problem := range list {
-			if problem.Tags != nil {
-				for _, tagId := range problem.Tags {
-					tagIdSet.Add(tagId)
-				}
-			}
-		}
-		var tagIds []int
-		tagIdSet.Foreach(
-			func(tagId *int) bool {
-				tagIds = append(tagIds, *tagId)
-				return true
-			},
-		)
-		tags, err = foundationservice.GetProblemService().GetProblemTagByIds(ctx, tagIds)
-		if err != nil {
-			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-			return
-		}
+	var problemIds []int
+	for _, problem := range list {
+		problemIds = append(problemIds, problem.Id)
+	}
+	tags, err := problemService.GetProblemsTags(ctx, problemIds)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
 	}
 	responseData := struct {
-		List []*foundationmodel.Problem    `json:"list"`
-		Tags []*foundationmodel.ProblemTag `json:"tags,omitempty"`
+		List []*foundationview.ProblemViewList `json:"list"`
+		Tags []*foundationmodel.Tag            `json:"tags,omitempty"`
 	}{
 		List: list,
 		Tags: tags,
@@ -305,9 +306,9 @@ func (c *ProblemController) GetTagList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                     `json:"time"`
-		TotalCount int                           `json:"total_count"`
-		List       []*foundationmodel.ProblemTag `json:"list"`
+		Time       time.Time              `json:"time"`
+		TotalCount int                    `json:"total_count"`
+		List       []*foundationmodel.Tag `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
@@ -349,7 +350,7 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 		return
 	}
 	problemId := problem.Id
-	prefixKey := filepath.ToSlash(problemId + "/")
+	prefixKey := filepath.ToSlash(strconv.Itoa(problemId) + "/")
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String("didaoj-judge"),
 		Prefix: aws.String(prefixKey),
@@ -376,8 +377,8 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 	}
 
 	responseData := struct {
-		Problem *foundationmodel.Problem `json:"problem"`
-		Judges  []*ProblemJudgeData      `json:"judges"`
+		Problem *foundationview.ProblemJudgeData `json:"problem"`
+		Judges  []*ProblemJudgeData              `json:"judges"`
 	}{
 		Problem: problem,
 		Judges:  judges,
@@ -511,13 +512,18 @@ func (c *ProblemController) PostParse(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	problemTitles, err := foundationservice.GetProblemService().GetProblemTitles(ctx, userId, hasAuth, problemList)
+	problemIds, err := foundationservice.GetProblemService().GetProblemIdsByKey(ctx, problemList)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	problemTitles, err := foundationservice.GetProblemService().GetProblemTitles(ctx, userId, hasAuth, problemIds)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	responseData := struct {
-		Problems []*foundationmodel.ProblemViewTitle `json:"problems"`
+		Problems []*foundationview.ProblemViewTitle `json:"problems"`
 	}{
 		Problems: problemTitles,
 	}
@@ -526,8 +532,8 @@ func (c *ProblemController) PostParse(ctx *gin.Context) {
 
 func (c *ProblemController) PostCrawl(ctx *gin.Context) {
 	var requestData struct {
-		OJ string `json:"oj",binding:"required"`
-		Id string `json:"id",binding:"required"`
+		OJ string `json:"oj" binding:"required"`
+		Id string `json:"id" binding:"required"`
 	}
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
@@ -699,16 +705,19 @@ func (c *ProblemController) PostCreate(ctx *gin.Context) {
 		Source(requestData.Source).
 		TimeLimit(requestData.TimeLimit).
 		MemoryLimit(requestData.MemoryLimit).
+		Inserter(userId).
 		InsertTime(nowTime).
-		UpdateTime(nowTime).
-		CreatorId(userId).
+		Modifier(userId).
+		ModifyTime(nowTime).
 		Private(requestData.Private).
 		Build()
-	problemId, err := foundationservice.GetProblemService().InsertProblem(ctx, problem, requestData.Tags)
+	err = foundationservice.GetProblemService().InsertProblemLocal(ctx, problem, nil, requestData.Tags)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
+
+	problemId := problem.Id
 
 	var description string
 	var needUpdateUrls []*foundationr2.R2ImageUrl
@@ -716,14 +725,14 @@ func (c *ProblemController) PostCreate(ctx *gin.Context) {
 		requestData.Description,
 		nil,
 		metahttp.UrlJoin("problem"),
-		metahttp.UrlJoin("problem", *problemId),
+		metahttp.UrlJoin("problem", strconv.Itoa(problemId)),
 	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	if len(needUpdateUrls) > 0 {
-		err := foundationservice.GetProblemService().UpdateProblemDescription(ctx, *problemId, description)
+		err := foundationservice.GetProblemService().UpdateProblemDescription(ctx, problemId, description)
 		if err != nil {
 			return
 		}
@@ -750,7 +759,7 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 
 	problemId := requestData.Id
 
-	_, ok, err := foundationservice.GetProblemService().CheckEditAuth(ctx, problemId)
+	userId, ok, err := foundationservice.GetProblemService().CheckEditAuth(ctx, problemId)
 	if err != nil {
 		metapanic.ProcessError(err)
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -796,7 +805,8 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 		TimeLimit(requestData.TimeLimit).
 		MemoryLimit(requestData.MemoryLimit).
 		Private(requestData.Private).
-		UpdateTime(nowTime).
+		Modifier(userId).
+		ModifyTime(nowTime).
 		Build()
 
 	err = foundationservice.GetProblemService().UpdateProblem(ctx, problemId, problem, requestData.Tags)

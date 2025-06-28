@@ -7,10 +7,10 @@ import (
 	"fmt"
 	foundationauth "foundation/foundation-auth"
 	foundationdao "foundation/foundation-dao"
-	foundationdaomongo "foundation/foundation-dao-mongo"
 	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	foundationview "foundation/foundation-view"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
@@ -36,8 +36,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -70,14 +70,11 @@ func (s *ProblemService) CheckEditAuth(ctx *gin.Context, id string) (
 		return userId, false, nil
 	}
 	if !hasAuth {
-		problem, err := foundationdaomongo.GetProblemDao().GetProblemEditAuth(ctx, id)
+		hasAuth, err = foundationdao.GetProblemDao().CheckProblemEditAuth(ctx, id, userId)
 		if err != nil {
 			return userId, false, err
 		}
-		if problem == nil {
-			return userId, false, nil
-		}
-		if problem.CreatorId != userId && !slices.Contains(problem.AuthMembers, userId) {
+		if !hasAuth {
 			return userId, false, nil
 		}
 	}
@@ -97,17 +94,11 @@ func (s *ProblemService) CheckSubmitAuth(ctx *gin.Context, id string) (
 		return userId, false, nil
 	}
 	if !hasAuth {
-		problem, err := foundationdaomongo.GetProblemDao().GetProblemViewAuth(ctx, id)
+		hasAuth, err = foundationdao.GetProblemDao().CheckProblemSubmitAuth(ctx, id, userId)
 		if err != nil {
 			return userId, false, err
 		}
-		if problem == nil {
-			return userId, false, nil
-		}
-		if problem.Private &&
-			problem.CreatorId != userId &&
-			!slices.Contains(problem.Members, userId) &&
-			!slices.Contains(problem.AuthMembers, userId) {
+		if !hasAuth {
 			return userId, false, nil
 		}
 	}
@@ -119,85 +110,92 @@ func (s *ProblemService) GetProblemView(
 	id string,
 	userId int,
 	hasAuth bool,
-) (*foundationmodel.Problem, error) {
-	problem, err := foundationdaomongo.GetProblemDao().GetProblemView(ctx, id, userId, hasAuth)
+) (*foundationview.Problem, error) {
+	return foundationdao.GetProblemDao().GetProblemView(ctx, id, userId, hasAuth)
+}
+
+func (s *ProblemService) GetProblemTags(ctx context.Context, id int) ([]*foundationmodel.Tag, error) {
+	return s.GetProblemsTags(ctx, []int{id})
+}
+
+func (s *ProblemService) GetProblemsTags(ctx context.Context, ids []int) ([]*foundationmodel.Tag, error) {
+	tagIds, err := foundationdao.GetProblemTagDao().GetProblemTags(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	if problem == nil {
+	tags, err := foundationdao.GetTagDao().GetTags(ctx, tagIds)
+	if err != nil {
+		return nil, err
+	}
+	tagLen := len(tags)
+	if tagLen == 0 {
 		return nil, nil
 	}
-	if problem.CreatorId > 0 {
-		user, err := foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, problem.CreatorId)
-		if err != nil {
-			return nil, err
-		}
-		if user == nil {
-			return nil, nil
-		}
-		problem.CreatorUsername = &user.Username
-		problem.CreatorNickname = &user.Nickname
+	if tagLen == 1 {
+		return tags, nil
 	}
-	return problem, nil
+	tagMap := make(map[int]*foundationmodel.Tag)
+	for _, tag := range tags {
+		tagMap[tag.Id] = tag
+	}
+	var resultTags []*foundationmodel.Tag
+	for _, tagId := range ids {
+		if tag, ok := tagMap[tagId]; ok {
+			resultTags = append(resultTags, tag)
+		}
+	}
+	return resultTags, nil
 }
 
-func (s *ProblemService) GetProblemIdByContest(ctx *gin.Context, contestId int, problemIndex int) (*string, error) {
-	return foundationdaomongo.GetContestDao().GetProblemIdByContest(ctx, contestId, problemIndex)
+func (s *ProblemService) GetProblemIdByContest(ctx *gin.Context, contestId int, problemIndex int) (int, error) {
+	return foundationdao.GetContestProblemDao().GetProblemIdByContest(ctx, contestId, problemIndex)
 }
 
 func (s *ProblemService) GetProblemDescription(
 	ctx context.Context,
 	id string,
 ) (*string, error) {
-	return foundationdaomongo.GetProblemDao().GetProblemDescription(ctx, id)
+	return foundationdao.GetProblemDao().GetProblemDescription(ctx, id)
 }
 
-func (s *ProblemService) GetProblemViewJudgeData(ctx context.Context, id string) (*foundationmodel.Problem, error) {
-	problem, err := foundationdao.GetProblemDao().GetProblemViewJudgeData(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if problem == nil {
-		return nil, nil
-	}
-	if problem.CreatorId > 0 {
-		user, err := foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, problem.CreatorId)
-		if err != nil {
-			return nil, err
-		}
-		if user == nil {
-			return nil, nil
-		}
-		problem.CreatorUsername = &user.Username
-		problem.CreatorNickname = &user.Nickname
-	}
-	return problem, nil
+func (s *ProblemService) GetProblemViewJudgeData(ctx context.Context, id string) (
+	*foundationview.ProblemJudgeData,
+	error,
+) {
+	return foundationdao.GetProblemDao().GetProblemViewJudgeData(ctx, id)
 }
 
 func (s *ProblemService) GetProblemViewApproveJudge(ctx context.Context, id string) (
-	*foundationmodel.ProblemViewApproveJudge,
+	*foundationview.ProblemViewApproveJudge,
 	error,
 ) {
-	return foundationdaomongo.GetProblemDao().GetProblemViewApproveJudge(ctx, id)
+	return foundationdao.GetProblemDao().GetProblemViewApproveJudge(ctx, id)
 }
 
-func (s *ProblemService) HasProblem(ctx context.Context, id string) (bool, error) {
-	return foundationdaomongo.GetProblemDao().HasProblem(ctx, id)
+func (s *ProblemService) HasProblem(ctx context.Context, id int) (bool, error) {
+	return foundationdao.GetProblemDao().HasProblem(ctx, id)
 }
 
 func (s *ProblemService) HasProblemTitle(ctx *gin.Context, title string) (bool, error) {
-	return foundationdaomongo.GetProblemDao().HasProblemTitle(ctx, title)
+	return foundationdao.GetProblemDao().HasProblemTitle(ctx, title)
+}
+
+func (s *ProblemService) GetProblemIdByKey(ctx context.Context, problemKey string) (int, error) {
+	return foundationdao.GetProblemDao().GetProblemIdByKey(ctx, problemKey)
+}
+func (s *ProblemService) GetProblemIdsByKey(ctx context.Context, problemKeys []string) ([]int, error) {
+	return foundationdao.GetProblemDao().GetProblemIdsByKey(ctx, problemKeys)
 }
 
 func (s *ProblemService) GetProblemList(
 	ctx context.Context,
 	oj string, title string, tag string,
 	page int, pageSize int,
-) ([]*foundationmodel.Problem, int, error) {
+) ([]*foundationview.ProblemViewList, int, error) {
 	var tags []int
 	if tag != "" {
 		var err error
-		tags, err = foundationdaomongo.GetProblemTagDao().SearchTags(ctx, tag)
+		tags, err = foundationdao.GetTagDao().SearchTagIds(ctx, tag)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -205,7 +203,7 @@ func (s *ProblemService) GetProblemList(
 			return nil, 0, nil
 		}
 	}
-	return foundationdaomongo.GetProblemDao().GetProblemList(
+	return foundationdao.GetProblemDao().GetProblemList(
 		ctx, oj, title, tags, false,
 		-1, false,
 		page, pageSize,
@@ -216,11 +214,11 @@ func (s *ProblemService) GetProblemListWithUser(
 	ctx context.Context, userId int, hasAuth bool,
 	oj string, title string, tag string, private bool,
 	page int, pageSize int,
-) ([]*foundationmodel.Problem, int, map[string]foundationenum.ProblemAttemptStatus, error) {
+) ([]*foundationview.ProblemViewList, int, map[int]foundationenum.ProblemAttemptStatus, error) {
 	var tags []int
 	if tag != "" {
 		var err error
-		tags, err = foundationdaomongo.GetProblemTagDao().SearchTags(ctx, tag)
+		tags, err = foundationdao.GetTagDao().SearchTagIds(ctx, tag)
 		if err != nil {
 			return nil, 0, nil, err
 		}
@@ -261,31 +259,26 @@ func (s *ProblemService) GetProblemRecommend(
 	ctx context.Context,
 	userId int,
 	hasAuth bool,
-	problemId string,
-) ([]*foundationmodel.Problem, error) {
+	problemId int,
+) ([]*foundationview.ProblemViewList, error) {
 	redisKey := fmt.Sprintf("problem_recommend_%d", userId)
-	if problemId != "" {
-		redisKey += "_" + problemId
+	if problemId > 0 {
+		redisKey += "_" + strconv.Itoa(problemId)
 	}
 	redisClient := metaredis.GetSubsystem().GetClient()
 	cached, err := redisClient.Get(ctx, redisKey).Result()
 	if err == nil && cached != "" {
-		var statics []*foundationmodel.Problem
+		var statics []*foundationview.ProblemViewList
 		if err := json.Unmarshal([]byte(cached), &statics); err == nil {
 			return statics, nil
 		}
 	}
-	var problemIds []string
-	if problemId == "" {
-		problemIds, err = foundationdaomongo.GetJudgeJobDao().GetProblemRecommendByUser(ctx, userId, hasAuth)
-	} else {
-		problemIds, err = foundationdaomongo.GetJudgeJobDao().GetProblemRecommendByProblem(
-			ctx,
-			userId,
-			hasAuth,
-			problemId,
-		)
-	}
+	problemIds, err := foundationdao.GetJudgeJobDao().GetProblemRecommendByProblem(
+		ctx,
+		userId,
+		hasAuth,
+		problemId,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -296,17 +289,7 @@ func (s *ProblemService) GetProblemRecommend(
 		}
 		return nil, nil
 	}
-	sort.Slice(
-		problemIds, func(a, b int) bool {
-			lengthA := len(problemIds[a])
-			lengthB := len(problemIds[b])
-			if lengthA != lengthB {
-				return lengthA < lengthB
-			}
-			return strings.Compare(problemIds[a], problemIds[b]) < 0
-		},
-	)
-	problemList, err := foundationdaomongo.GetProblemDao().GetProblems(ctx, problemIds)
+	problemList, err := foundationdao.GetProblemDao().SelectProblemViewList(ctx, problemIds)
 	if err != nil {
 		return nil, err
 	}
@@ -329,34 +312,27 @@ func (s *ProblemService) GetProblemRecommend(
 }
 
 func (s *ProblemService) GetProblemTagList(ctx context.Context, maxCount int) (
-	[]*foundationmodel.ProblemTag,
+	[]*foundationmodel.Tag,
 	int,
 	error,
 ) {
-	return foundationdaomongo.GetProblemTagDao().GetProblemTagList(ctx, maxCount)
+	return foundationdao.GetProblemTagDao().GetProblemTagList(ctx, maxCount)
 }
 
-func (s *ProblemService) GetProblemTagByIds(ctx context.Context, ids []int) ([]*foundationmodel.ProblemTag, error) {
-	return foundationdaomongo.GetProblemTagDao().GetProblemTagByIds(ctx, ids)
-}
-
-func (s *ProblemService) GetProblemTitles(ctx *gin.Context, userId int, hasAuth bool, problems []string) (
-	[]*foundationmodel.ProblemViewTitle,
+func (s *ProblemService) GetProblemTitles(ctx *gin.Context, userId int, hasAuth bool, problems []int) (
+	[]*foundationview.ProblemViewTitle,
 	error,
 ) {
-	return foundationdaomongo.GetProblemDao().GetProblemTitles(ctx, userId, hasAuth, problems)
+	return foundationdao.GetProblemDao().GetProblemTitles(ctx, userId, hasAuth, problems)
 }
 
-func (s *ProblemService) FilterValidProblemIds(ctx *gin.Context, ids []string) ([]string, error) {
-	return foundationdaomongo.GetProblemDao().FilterValidProblemIds(ctx, ids)
-}
-
-func (s *ProblemService) InsertProblem(
+func (s *ProblemService) InsertProblemLocal(
 	ctx context.Context,
 	problem *foundationmodel.Problem,
+	problemLocal *foundationmodel.ProblemLocal,
 	tags []string,
-) (*string, error) {
-	return foundationdaomongo.GetProblemDao().PostCreate(ctx, problem, tags)
+) error {
+	return foundationdao.GetProblemDao().InsertProblemLocal(ctx, problem, problemLocal, tags)
 }
 
 func (s *ProblemService) UpdateProblem(
@@ -365,7 +341,7 @@ func (s *ProblemService) UpdateProblem(
 	problem *foundationmodel.Problem,
 	tags []string,
 ) error {
-	return foundationdaomongo.GetProblemDao().UpdateProblem(ctx, problemId, problem, tags)
+	return foundationdao.GetProblemDao().UpdateProblem(ctx, problemId, problem, tags)
 }
 
 func (s *ProblemService) PostJudgeData(
@@ -900,27 +876,12 @@ func (s *ProblemService) PostJudgeData(
 	return nil
 }
 
-func (s *ProblemService) PostDailyCreate(
-	ctx *gin.Context,
-	problemDaily *foundationmodel.ProblemDaily,
-) error {
-	return foundationdaomongo.GetProblemDailyDao().PostDailyCreate(ctx, problemDaily)
-}
-
-func (s *ProblemService) PostDailyEdit(
-	ctx *gin.Context,
-	id string,
-	problemDaily *foundationmodel.ProblemDaily,
-) error {
-	return foundationdaomongo.GetProblemDailyDao().UpdateProblemDaily(ctx, id, problemDaily)
-}
-
 func (s *ProblemService) UpdateProblemDescription(
 	ctx context.Context,
-	id string,
+	id int,
 	description string,
 ) error {
-	return foundationdaomongo.GetProblemDao().UpdateProblemDescription(ctx, id, description)
+	return foundationdao.GetProblemDao().UpdateProblemDescription(ctx, id, description)
 }
 
 func (s *ProblemService) UpdateProblemJudgeInfo(
@@ -929,179 +890,5 @@ func (s *ProblemService) UpdateProblemJudgeInfo(
 	judgeType foundationjudge.JudgeType,
 	md5 string,
 ) error {
-	return foundationdaomongo.GetProblemDao().UpdateProblemJudgeInfo(ctx, id, judgeType, md5)
-}
-
-func (s *ProblemService) HasProblemDaily(ctx *gin.Context, dailyId string) (bool, error) {
-	return foundationdaomongo.GetProblemDailyDao().HasProblemDaily(ctx, dailyId)
-}
-
-func (s *ProblemService) HasProblemDailyProblem(ctx *gin.Context, problemId string) (bool, error) {
-	return foundationdaomongo.GetProblemDailyDao().HasProblemDailyProblem(ctx, problemId)
-}
-
-func (s *ProblemService) GetProblemIdByDaily(ctx *gin.Context, dailyId string, hasAuth bool) (*string, error) {
-	return foundationdaomongo.GetProblemDailyDao().GetProblemIdByDaily(ctx, dailyId, hasAuth)
-}
-
-func (s *ProblemService) GetProblemDaily(ctx *gin.Context, dailyId string, hasAuth bool) (
-	*foundationmodel.ProblemDaily,
-	error,
-) {
-	return foundationdaomongo.GetProblemDailyDao().GetProblemDaily(ctx, dailyId, hasAuth)
-}
-
-func (s *ProblemService) GetProblemDailyEdit(ctx *gin.Context, dailyId string) (*foundationmodel.ProblemDaily, error) {
-	daily, err := foundationdaomongo.GetProblemDailyDao().GetProblemDailyEdit(ctx, dailyId)
-	if err != nil {
-		return nil, err
-	}
-	if daily == nil {
-		return nil, nil
-	}
-	if daily.CreatorId > 0 {
-		user, err := foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, daily.CreatorId)
-		if err != nil {
-			return nil, err
-		}
-		if user == nil {
-			return nil, nil
-		}
-		daily.CreatorUsername = &user.Username
-		daily.CreatorNickname = &user.Nickname
-	}
-	if daily.UpdaterId > 0 {
-		if daily.UpdaterId == daily.CreatorId {
-			daily.UpdaterUsername = daily.CreatorUsername
-			daily.UpdaterNickname = daily.CreatorNickname
-		} else {
-			user, err := foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, daily.UpdaterId)
-			if err != nil {
-				return nil, err
-			}
-			if user == nil {
-				return nil, nil
-			}
-			daily.UpdaterUsername = &user.Username
-			daily.UpdaterNickname = &user.Nickname
-		}
-	}
-	return daily, nil
-}
-
-func (s *ProblemService) GetDailyList(
-	ctx *gin.Context,
-	userId int,
-	hasAuth bool,
-	startDate *string,
-	endDate *string,
-	problemId string,
-	page int,
-	pageSize int,
-) (
-	[]*foundationmodel.ProblemDaily,
-	int,
-	[]*foundationmodel.ProblemTag,
-	map[string]foundationenum.ProblemAttemptStatus,
-	error,
-) {
-	dailyList, totalCount, err := foundationdaomongo.GetProblemDailyDao().GetDailyList(
-		ctx,
-		hasAuth,
-		startDate,
-		endDate,
-		problemId,
-		page,
-		pageSize,
-	)
-	if err != nil {
-		return nil, 0, nil, nil, err
-	}
-	if len(dailyList) == 0 {
-		return nil, 0, nil, nil, nil
-	}
-	var problemIds []string
-	for _, daily := range dailyList {
-		problemIds = append(problemIds, daily.ProblemId)
-	}
-	problemList, err := foundationdaomongo.GetProblemDao().GetProblems(ctx, problemIds)
-	if err != nil {
-		return nil, 0, nil, nil, err
-	}
-	var tagIds []int
-	for _, problem := range problemList {
-		tagIds = append(tagIds, problem.Tags...)
-	}
-	var tags []*foundationmodel.ProblemTag
-	if len(tagIds) > 0 {
-		tags, err = foundationdaomongo.GetProblemTagDao().GetProblemTagByIds(ctx, tagIds)
-		if err != nil {
-			return nil, 0, nil, nil, err
-		}
-	}
-	var problemStatus map[string]foundationenum.ProblemAttemptStatus
-	if userId > 0 {
-		problemStatus, err = foundationdaomongo.GetJudgeJobDao().GetProblemAttemptStatus(
-			ctx,
-			problemIds,
-			userId,
-			-1,
-			nil,
-			nil,
-		)
-		if err != nil {
-			return nil, 0, nil, nil, err
-		}
-	}
-	problemMap := make(map[string]*foundationmodel.Problem)
-	for _, problem := range problemList {
-		problemMap[problem.Id] = problem
-	}
-	for _, daily := range dailyList {
-		problem, ok := problemMap[daily.ProblemId]
-		if ok {
-			daily.Title = &problem.Title
-			daily.Tags = problem.Tags
-			daily.Accept = problem.Accept
-			daily.Attempt = problem.Attempt
-		}
-	}
-	return dailyList, totalCount, tags, problemStatus, nil
-}
-
-func (s *ProblemService) GetDailyRecently(ctx *gin.Context, userId int) (
-	[]*foundationmodel.ProblemDaily,
-	map[string]foundationenum.ProblemAttemptStatus,
-	error,
-) {
-	daily, err := foundationdaomongo.GetProblemDailyDao().GetDailyRecently(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	if daily == nil {
-		return nil, nil, nil
-	}
-	for _, d := range daily {
-		title, err := foundationdaomongo.GetProblemDao().GetProblemTitle(ctx, &d.ProblemId)
-		if err == nil {
-			d.Title = title
-		} else {
-			titlePtr := "未知题目"
-			d.Title = &titlePtr
-		}
-	}
-	var problemAttemptStatus map[string]foundationenum.ProblemAttemptStatus
-	if userId > 0 {
-		problemIds := make([]string, len(daily))
-		for i, d := range daily {
-			problemIds[i] = d.ProblemId
-		}
-		problemAttemptStatus, err = foundationdaomongo.GetJudgeJobDao().GetProblemAttemptStatus(
-			ctx, problemIds, userId, -1, nil, nil,
-		)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	return daily, problemAttemptStatus, nil
+	return foundationdao.GetProblemDao().UpdateProblemJudgeInfo(ctx, id, judgeType, md5)
 }

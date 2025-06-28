@@ -30,8 +30,8 @@ func (b *ProblemDailyBuilder) Key(key string) *ProblemDailyBuilder {
 	return b
 }
 
-func (b *ProblemDailyBuilder) ProblemId(problemID int) *ProblemDailyBuilder {
-	b.item.ProblemId = problemID
+func (b *ProblemDailyBuilder) ProblemId(problemId int) *ProblemDailyBuilder {
+	b.item.ProblemId = problemId
 	return b
 }
 

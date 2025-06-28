@@ -6,7 +6,8 @@ import (
 	"foundation/foundation-dao-mongo"
 	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
+	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
 	metatime "meta/meta-time"
 	"meta/singleton"
@@ -53,7 +54,7 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 		}
 	}
 	// 如果在比赛中，则以比赛中的权限为准进行一次拦截，即使具有管理源码的权限也无效
-	var contest *foundationmodel.ContestViewLock
+	var contest *foundationview.ContestViewLock
 	if judgeAuth.ContestId > 0 {
 		contest, err = foundationdaomongo.GetContestDao().GetContestViewLock(ctx, judgeAuth.ContestId)
 		if err != nil {
@@ -344,10 +345,10 @@ func (s *JudgeService) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 }
 
 func (s *JudgeService) GetProblemAttemptStatus(
-	ctx context.Context, problemIds []string, authorId int,
+	ctx context.Context, problemIds []int, authorId int,
 	contestId int, startTime *time.Time, endTime *time.Time,
 ) (map[string]foundationenum.ProblemAttemptStatus, error) {
-	return foundationdaomongo.GetJudgeJobDao().GetProblemAttemptStatus(
+	return foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
 		ctx,
 		problemIds,
 		authorId,
