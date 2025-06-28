@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model-mongo"
 	"github.com/gin-gonic/gin"
@@ -331,7 +332,7 @@ func (d *JudgeJobDao) GetJudgeJobList(
 func (d *JudgeJobDao) GetProblemAttemptStatus(
 	ctx context.Context, problemIds []string, authorId int,
 	contestId int, startTime *time.Time, endTime *time.Time,
-) (map[string]foundationmodel.ProblemAttemptStatus, error) {
+) (map[string]foundationenum.ProblemAttemptStatus, error) {
 	match := bson.D{}
 	if contestId > 0 {
 		match = append(
@@ -400,14 +401,14 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(
 							"branches": bson.A{
 								bson.M{
 									"case": bson.M{"$eq": bson.A{"$hasAC", 1}},
-									"then": foundationmodel.ProblemAttemptStatusAccepted,
+									"then": foundationenum.ProblemAttemptStatusAccepted,
 								},
 								bson.M{
 									"case": bson.M{"$eq": bson.A{"$hasAttempt", 1}},
-									"then": foundationmodel.ProblemAttemptStatusAttempt,
+									"then": foundationenum.ProblemAttemptStatusAttempt,
 								},
 							},
-							"default": foundationmodel.ProblemAttemptStatusNone,
+							"default": foundationenum.ProblemAttemptStatusNone,
 						},
 					},
 				},
@@ -426,14 +427,14 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(
 	}(cursor, ctx)
 
 	type Result struct {
-		ProblemId   string                               `bson:"problem_id"`
-		FinalStatus foundationmodel.ProblemAttemptStatus `bson:"finalStatus"`
+		ProblemId   string                              `bson:"problem_id"`
+		FinalStatus foundationenum.ProblemAttemptStatus `bson:"finalStatus"`
 	}
 	var results []Result
 	if err := cursor.All(ctx, &results); err != nil {
 		return nil, metaerror.Wrap(err, "failed to decode aggregation result")
 	}
-	statusMap := make(map[string]foundationmodel.ProblemAttemptStatus, len(problemIds))
+	statusMap := make(map[string]foundationenum.ProblemAttemptStatus, len(problemIds))
 	for _, r := range results {
 		statusMap[r.ProblemId] = r.FinalStatus
 	}

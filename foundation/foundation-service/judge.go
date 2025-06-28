@@ -346,7 +346,7 @@ func (s *JudgeService) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 func (s *JudgeService) GetProblemAttemptStatus(
 	ctx context.Context, problemIds []string, authorId int,
 	contestId int, startTime *time.Time, endTime *time.Time,
-) (map[string]foundationmodel.ProblemAttemptStatus, error) {
+) (map[string]foundationenum.ProblemAttemptStatus, error) {
 	return foundationdaomongo.GetJudgeJobDao().GetProblemAttemptStatus(
 		ctx,
 		problemIds,

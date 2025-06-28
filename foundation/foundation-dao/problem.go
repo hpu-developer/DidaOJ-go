@@ -186,3 +186,39 @@ func (d *ProblemDao) InsertProblemRemote(
 	}
 	return nil
 }
+func (d *ProblemDao) GetProblemView(
+	ctx context.Context, id string, userId int, hasAuth bool,
+) (*foundationmodel.Problem, error) {
+	db := d.db.WithContext(ctx).Model(&foundationmodel.Problem{}).Where("id = ?", id)
+
+	if !hasAuth {
+		if userId > 0 {
+			db = db.Where(
+				`
+				private IS NULL OR
+				creator_id = ? OR
+				EXISTS (
+					SELECT 1 FROM problem_member WHERE problem_member.problem_id = problems.id AND problem_member.user_id = ?
+				) OR
+				EXISTS (
+					SELECT 1 FROM problem_auth_member WHERE problem_auth_member.problem_id = problems.id AND problem_auth_member.user_id = ?
+				)
+			`, userId, userId, userId,
+			)
+		} else {
+			db = db.Where("private IS NULL")
+		}
+	}
+	var problem foundationmodel.Problem
+	if err := db.First(&problem).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem error")
+	}
+	return &problem, nil
+}
+
+func (d *ProblemDao) GetProblemViewJudgeData(ctx context.Context, id string) (interface{}, interface{}) {
+
+}

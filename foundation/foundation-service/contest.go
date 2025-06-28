@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao-mongo"
+	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model-mongo"
 	"github.com/gin-gonic/gin"
 	"io"
@@ -104,7 +105,7 @@ func (s *ContestService) GetContestDescription(ctx *gin.Context, id int) (*strin
 func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time) (
 	*foundationmodel.Contest,
 	bool, bool,
-	map[int]foundationmodel.ProblemAttemptStatus,
+	map[int]foundationenum.ProblemAttemptStatus,
 	error,
 ) {
 	contest, err := foundationdaomongo.GetContestDao().GetContest(ctx, id)
@@ -136,7 +137,7 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 		}
 	}
 
-	var attemptStatusesMap map[int]foundationmodel.ProblemAttemptStatus
+	var attemptStatusesMap map[int]foundationenum.ProblemAttemptStatus
 
 	if len(contest.Problems) > 0 {
 		contestProblems := map[string]*foundationmodel.ContestProblem{}
@@ -178,7 +179,7 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 			if err != nil {
 				return nil, false, false, nil, err
 			}
-			attemptStatusesMap = make(map[int]foundationmodel.ProblemAttemptStatus)
+			attemptStatusesMap = make(map[int]foundationenum.ProblemAttemptStatus)
 			problemIdMap := make(map[string]int)
 			for _, problem := range contest.Problems {
 				problemIdMap[problem.ProblemId] = problem.Index
@@ -244,7 +245,7 @@ func (s *ContestService) GetContestProblems(ctx *gin.Context, id int) (
 
 func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, id int, userId int) (
 	[]int,
-	map[int]foundationmodel.ProblemAttemptStatus,
+	map[int]foundationenum.ProblemAttemptStatus,
 	error,
 ) {
 	problems, err := foundationdaomongo.GetContestDao().GetProblems(ctx, id)
@@ -254,7 +255,7 @@ func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, i
 	if len(problems) == 0 {
 		return nil, nil, nil
 	}
-	var attemptStatusesMap map[int]foundationmodel.ProblemAttemptStatus
+	var attemptStatusesMap map[int]foundationenum.ProblemAttemptStatus
 	if userId > 0 {
 		var problemIds []string
 		for _, problem := range problems {
@@ -278,7 +279,7 @@ func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, i
 		for problemId, attemptStatus := range attemptStatuses {
 			if index, ok := problemIdMap[problemId]; ok {
 				if attemptStatusesMap == nil {
-					attemptStatusesMap = make(map[int]foundationmodel.ProblemAttemptStatus)
+					attemptStatusesMap = make(map[int]foundationenum.ProblemAttemptStatus)
 				}
 				attemptStatusesMap[index] = attemptStatus
 			}

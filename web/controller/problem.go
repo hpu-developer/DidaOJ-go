@@ -160,7 +160,7 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 	tag := ctx.Query("tag")
 	var list []*foundationmodel.Problem
 	var totalCount int
-	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
+	var problemStatus map[string]foundationenum.ProblemAttemptStatus
 	userId, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
 	if err != nil {
 		metapanic.ProcessError(err)
@@ -188,10 +188,10 @@ func (c *ProblemController) GetList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time                 time.Time                                       `json:"time"`
-		TotalCount           int                                             `json:"total_count"`
-		List                 []*foundationmodel.Problem                      `json:"list"`
-		ProblemAttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"problem_attempt_status,omitempty"`
+		Time                 time.Time                                      `json:"time"`
+		TotalCount           int                                            `json:"total_count"`
+		List                 []*foundationmodel.Problem                     `json:"list"`
+		ProblemAttemptStatus map[string]foundationenum.ProblemAttemptStatus `json:"problem_attempt_status,omitempty"`
 	}{
 		Time:                 metatime.GetTimeNow(),
 		TotalCount:           totalCount,

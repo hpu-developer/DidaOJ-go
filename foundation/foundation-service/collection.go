@@ -4,6 +4,7 @@ import (
 	"context"
 	foundationauth "foundation/foundation-auth"
 	"foundation/foundation-dao-mongo"
+	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model-mongo"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
@@ -77,7 +78,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int, userId in
 	*foundationmodel.Collection,
 	[]*foundationmodel.CollectionProblem,
 	bool,
-	map[string]foundationmodel.ProblemAttemptStatus,
+	map[string]foundationenum.ProblemAttemptStatus,
 	error,
 ) {
 	collection, err := foundationdaomongo.GetCollectionDao().GetCollection(ctx, id)
@@ -96,7 +97,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int, userId in
 
 	joined := false
 	var collectionProblemList []*foundationmodel.CollectionProblem
-	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
+	var problemStatus map[string]foundationenum.ProblemAttemptStatus
 	if len(collection.Problems) > 0 {
 		collectionProblems := map[string]*foundationmodel.CollectionProblem{}
 		for _, problem := range collection.Problems {

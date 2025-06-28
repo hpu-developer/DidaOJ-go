@@ -5,6 +5,7 @@ import (
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationcontest "foundation/foundation-contest"
+	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model-mongo"
 	foundationservice "foundation/foundation-service"
@@ -101,7 +102,7 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 			return
 		}
 		judgeJob.ProblemId = ""
-		if contest.Type == foundationmodel.ContestTypeAcm {
+		if contest.Type == foundationenum.ContestTypeAcm {
 			// IOI模式之外隐藏分数信息
 			if judgeJob.Score < 100 {
 				judgeJob.Score = 0

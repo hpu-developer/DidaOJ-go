@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	foundationauth "foundation/foundation-auth"
-	"foundation/foundation-dao-mongo"
+	foundationdao "foundation/foundation-dao"
+	foundationdaomongo "foundation/foundation-dao-mongo"
+	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
@@ -151,7 +153,7 @@ func (s *ProblemService) GetProblemDescription(
 }
 
 func (s *ProblemService) GetProblemViewJudgeData(ctx context.Context, id string) (*foundationmodel.Problem, error) {
-	problem, err := foundationdaomongo.GetProblemDao().GetProblemViewJudgeData(ctx, id)
+	problem, err := foundationdao.GetProblemDao().GetProblemViewJudgeData(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +216,7 @@ func (s *ProblemService) GetProblemListWithUser(
 	ctx context.Context, userId int, hasAuth bool,
 	oj string, title string, tag string, private bool,
 	page int, pageSize int,
-) ([]*foundationmodel.Problem, int, map[string]foundationmodel.ProblemAttemptStatus, error) {
+) ([]*foundationmodel.Problem, int, map[string]foundationenum.ProblemAttemptStatus, error) {
 	var tags []int
 	if tag != "" {
 		var err error
@@ -226,7 +228,7 @@ func (s *ProblemService) GetProblemListWithUser(
 			return nil, 0, nil, nil
 		}
 	}
-	problemList, totalCount, err := foundationdaomongo.GetProblemDao().GetProblemList(
+	problemList, totalCount, err := foundationdao.GetProblemDao().GetProblemList(
 		ctx, oj, title, tags, private,
 		userId, hasAuth,
 		page, pageSize,
@@ -237,11 +239,11 @@ func (s *ProblemService) GetProblemListWithUser(
 	if len(problemList) <= 0 {
 		return nil, 0, nil, nil
 	}
-	var problemIds []string
+	var problemIds []int
 	for _, problem := range problemList {
 		problemIds = append(problemIds, problem.Id)
 	}
-	problemStatus, err := foundationdaomongo.GetJudgeJobDao().GetProblemAttemptStatus(
+	problemStatus, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
 		ctx,
 		problemIds,
 		userId,
@@ -1000,7 +1002,7 @@ func (s *ProblemService) GetDailyList(
 	[]*foundationmodel.ProblemDaily,
 	int,
 	[]*foundationmodel.ProblemTag,
-	map[string]foundationmodel.ProblemAttemptStatus,
+	map[string]foundationenum.ProblemAttemptStatus,
 	error,
 ) {
 	dailyList, totalCount, err := foundationdaomongo.GetProblemDailyDao().GetDailyList(
@@ -1037,7 +1039,7 @@ func (s *ProblemService) GetDailyList(
 			return nil, 0, nil, nil, err
 		}
 	}
-	var problemStatus map[string]foundationmodel.ProblemAttemptStatus
+	var problemStatus map[string]foundationenum.ProblemAttemptStatus
 	if userId > 0 {
 		problemStatus, err = foundationdaomongo.GetJudgeJobDao().GetProblemAttemptStatus(
 			ctx,
@@ -1069,7 +1071,7 @@ func (s *ProblemService) GetDailyList(
 
 func (s *ProblemService) GetDailyRecently(ctx *gin.Context, userId int) (
 	[]*foundationmodel.ProblemDaily,
-	map[string]foundationmodel.ProblemAttemptStatus,
+	map[string]foundationenum.ProblemAttemptStatus,
 	error,
 ) {
 	daily, err := foundationdaomongo.GetProblemDailyDao().GetDailyRecently(ctx)
@@ -1088,7 +1090,7 @@ func (s *ProblemService) GetDailyRecently(ctx *gin.Context, userId int) (
 			d.Title = &titlePtr
 		}
 	}
-	var problemAttemptStatus map[string]foundationmodel.ProblemAttemptStatus
+	var problemAttemptStatus map[string]foundationenum.ProblemAttemptStatus
 	if userId > 0 {
 		problemIds := make([]string, len(daily))
 		for i, d := range daily {

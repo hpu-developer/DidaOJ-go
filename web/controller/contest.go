@@ -57,11 +57,11 @@ func (c *ContestController) Get(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Now           time.Time                                    `json:"now"`
-		HasAuth       bool                                         `json:"has_auth"`
-		NeedPassword  bool                                         `json:"need_password,omitempty"` // 是否需要密码
-		Contest       *foundationmodel.Contest                     `json:"contest"`
-		AttemptStatus map[int]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"`
+		Now           time.Time                                   `json:"now"`
+		HasAuth       bool                                        `json:"has_auth"`
+		NeedPassword  bool                                        `json:"need_password,omitempty"` // 是否需要密码
+		Contest       *foundationmodel.Contest                    `json:"contest"`
+		AttemptStatus map[int]foundationenum.ProblemAttemptStatus `json:"attempt_status,omitempty"`
 	}{
 		Now:           nowTime,
 		HasAuth:       hasAuth,

@@ -216,11 +216,11 @@ func (c *ProblemController) GetDailyList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time          time.Time                                       `json:"time"`
-		TotalCount    int                                             `json:"total_count"`
-		List          []*foundationmodel.ProblemDaily                 `json:"list"`
-		Tags          []*foundationmodel.ProblemTag                   `json:"tags,omitempty"`
-		AttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"`
+		Time          time.Time                                      `json:"time"`
+		TotalCount    int                                            `json:"total_count"`
+		List          []*foundationmodel.ProblemDaily                `json:"list"`
+		Tags          []*foundationmodel.ProblemTag                  `json:"tags,omitempty"`
+		AttemptStatus map[string]foundationenum.ProblemAttemptStatus `json:"attempt_status,omitempty"`
 	}{
 		Time:          metatime.GetTimeNow(),
 		TotalCount:    totalCount,
@@ -242,9 +242,9 @@ func (c *ProblemController) GetDailyRecently(ctx *gin.Context) {
 	}
 
 	responseData := struct {
-		Time          time.Time                                       `json:"time"`
-		List          []*foundationmodel.ProblemDaily                 `json:"list"`
-		AttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"`
+		Time          time.Time                                      `json:"time"`
+		List          []*foundationmodel.ProblemDaily                `json:"list"`
+		AttemptStatus map[string]foundationenum.ProblemAttemptStatus `json:"attempt_status,omitempty"`
 	}{
 		Time:          metatime.GetTimeNow(),
 		List:          list,

@@ -46,10 +46,10 @@ func (c *CollectionController) Get(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Collection    *foundationmodel.Collection                     `json:"collection"`
-		Problems      []*foundationmodel.CollectionProblem            `json:"problems"`                 // 题目列表
-		Joined        bool                                            `json:"joined"`                   // 是否已加入
-		AttemptStatus map[string]foundationmodel.ProblemAttemptStatus `json:"attempt_status,omitempty"` // 尝试状态，如果已加入则返回
+		Collection    *foundationmodel.Collection                    `json:"collection"`
+		Problems      []*foundationmodel.CollectionProblem           `json:"problems"`                 // 题目列表
+		Joined        bool                                           `json:"joined"`                   // 是否已加入
+		AttemptStatus map[string]foundationenum.ProblemAttemptStatus `json:"attempt_status,omitempty"` // 尝试状态，如果已加入则返回
 	}{
 		Collection:    collection,
 		Problems:      problems,
