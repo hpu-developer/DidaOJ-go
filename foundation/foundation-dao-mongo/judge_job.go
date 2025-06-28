@@ -89,6 +89,29 @@ func (d *JudgeJobDao) InitDao(ctx context.Context) error {
 	return err
 }
 
+func (d *JudgeJobDao) GetListAll(ctx context.Context) ([]*foundationmodel.JudgeJob, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "_id", Value: 1}})
+	cursor, err := d.collection.Find(ctx, bson.D{}, opts)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find all JudgeJob error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close cursor error"))
+		}
+	}(cursor, ctx)
+	var contests []*foundationmodel.JudgeJob
+	for cursor.Next(ctx) {
+		var contest foundationmodel.JudgeJob
+		if err := cursor.Decode(&contest); err != nil {
+			return nil, metaerror.Wrap(err, "decode JudgeJob error")
+		}
+		contests = append(contests, &contest)
+	}
+	return contests, nil
+}
+
 func (d *JudgeJobDao) InsertJudgeJob(ctx context.Context, judgeJob *foundationmodel.JudgeJob) error {
 	mongoSubsystem := metamongo.GetSubsystem()
 	client := mongoSubsystem.GetClient()

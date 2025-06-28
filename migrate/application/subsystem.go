@@ -37,7 +37,7 @@ func (s *Subsystem) startSubSystem() error {
 	var err error
 	ctx := context.Background()
 
-	err = service.GetMigrateDiscussCommentSqlService().Start(ctx)
+	err = service.GetMigrateJudgeSqlService().Start(ctx)
 	if err != nil {
 		return nil
 	}
