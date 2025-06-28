@@ -18,7 +18,7 @@ import (
 )
 
 type ContestDao struct {
-	collection *mongo.Collection
+	contest *mongo.Collection
 }
 
 var singletonContestDao = singleton.Singleton[ContestDao]{}
@@ -32,7 +32,7 @@ func GetContestDao() *ContestDao {
 			}
 			client := mongoSubsystem.GetClient()
 			var ContestDao ContestDao
-			ContestDao.collection = client.
+			ContestDao.contest = client.
 				Database("didaoj").
 				Collection("contest")
 			return &ContestDao
@@ -42,7 +42,7 @@ func GetContestDao() *ContestDao {
 
 func (d *ContestDao) InitDao(ctx context.Context) error {
 
-	_, err := d.collection.Indexes().CreateMany(
+	_, err := d.contest.Indexes().CreateMany(
 		ctx, []mongo.IndexModel{
 			{
 				Keys: bson.D{
@@ -59,7 +59,7 @@ func (d *ContestDao) InitDao(ctx context.Context) error {
 		},
 	)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to create indexes for contest collection")
+		return metaerror.Wrap(err, "failed to create indexes for contest contest")
 	}
 	return nil
 }
@@ -69,7 +69,7 @@ func (d *ContestDao) HasContestTitle(ctx context.Context, ownerId int, title str
 		"title":    title,
 		"owner_id": bson.M{"$ne": ownerId},
 	}
-	count, err := d.collection.CountDocuments(ctx, filter)
+	count, err := d.contest.CountDocuments(ctx, filter)
 	if err != nil {
 		return false, metaerror.Wrap(err, "failed to count documents")
 	}
@@ -90,13 +90,36 @@ func (d *ContestDao) GetContestDescription(ctx context.Context, id int) (*string
 	var contest struct {
 		Description string `bson:"description"`
 	}
-	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+	if err := d.contest.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
 		return nil, metaerror.Wrap(err, "find contest description error")
 	}
 	return &contest.Description, nil
+}
+
+func (d *ContestDao) GetListAll(ctx context.Context) ([]*foundationmodel.Contest, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "_id", Value: 1}})
+	cursor, err := d.contest.Find(ctx, bson.D{}, opts)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find all contests error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close cursor error"))
+		}
+	}(cursor, ctx)
+	var contests []*foundationmodel.Contest
+	for cursor.Next(ctx) {
+		var contest foundationmodel.Contest
+		if err := cursor.Decode(&contest); err != nil {
+			return nil, metaerror.Wrap(err, "decode contest error")
+		}
+		contests = append(contests, &contest)
+	}
+	return contests, nil
 }
 
 func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.Contest, error) {
@@ -127,7 +150,7 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationmodel.C
 			},
 		)
 	var contest foundationmodel.Contest
-	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+	if err := d.contest.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
@@ -165,7 +188,7 @@ func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationmod
 			},
 		)
 	var contest foundationmodel.Contest
-	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+	if err := d.contest.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
@@ -186,7 +209,7 @@ func (d *ContestDao) GetContestTitle(ctx context.Context, id int) (*string, erro
 			},
 		)
 	var contest foundationmodel.Contest
-	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+	if err := d.contest.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
@@ -213,7 +236,7 @@ func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundatio
 			},
 		)
 	var contest foundationmodel.ContestViewLock
-	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+	if err := d.contest.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
@@ -239,7 +262,7 @@ func (d *ContestDao) GetContestViewRank(ctx context.Context, id int) (*foundatio
 			},
 		)
 	var contest foundationmodel.ContestViewRank
-	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+	if err := d.contest.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
@@ -260,7 +283,7 @@ func (d *ContestDao) GetProblems(ctx context.Context, id int) ([]*foundationmode
 	var result struct {
 		Problems []*foundationmodel.ContestProblem `bson:"problems"`
 	}
-	err := d.collection.FindOne(ctx, filter, opts).Decode(&result)
+	err := d.contest.FindOne(ctx, filter, opts).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
@@ -288,7 +311,7 @@ func (d *ContestDao) GetProblemIndex(ctx context.Context, id int, problemId stri
 			Index int `bson:"index"`
 		} `bson:"problems"`
 	}
-	err := d.collection.FindOne(ctx, filter, opts).Decode(&result)
+	err := d.contest.FindOne(ctx, filter, opts).Decode(&result)
 	if err != nil {
 		return 0, err
 	}
@@ -316,7 +339,7 @@ func (d *ContestDao) GetProblemIdByContest(ctx context.Context, id int, problemI
 			ProblemId string `bson:"problem_id"`
 		} `bson:"problems"`
 	}
-	err := d.collection.FindOne(ctx, filter, opts).Decode(&result)
+	err := d.contest.FindOne(ctx, filter, opts).Decode(&result)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +364,7 @@ func (d *ContestDao) GetContestOwnerId(ctx context.Context, id int) (int, error)
 		Id      int `bson:"_id"`
 		OwnerId int `bson:"owner_id"`
 	}
-	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+	if err := d.contest.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return 0, nil
 		}
@@ -364,7 +387,7 @@ func (d *ContestDao) GetContestStartTime(ctx context.Context, id int) (*time.Tim
 	var contest struct {
 		StartTime time.Time `bson:"start_time"`
 	}
-	if err := d.collection.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
+	if err := d.contest.FindOne(ctx, filter, opts).Decode(&contest); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
@@ -415,12 +438,12 @@ func (d *ContestDao) GetContestList(
 			},
 		)
 	// 查询总记录数
-	totalCount, err := d.collection.CountDocuments(ctx, filter)
+	totalCount, err := d.contest.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, metaerror.Wrap(err, "failed to count documents, page: %d", page)
 	}
 	// 查询当前页的数据
-	cursor, err := d.collection.Find(ctx, filter, opts)
+	cursor, err := d.contest.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, metaerror.Wrap(err, "failed to find documents, page: %d", page)
 	}
@@ -449,7 +472,7 @@ func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int)
 		},
 		{"start_time", bson.M{"$lte": metatime.GetTimeNow()}},
 	}
-	count, err := d.collection.CountDocuments(ctx, filter)
+	count, err := d.contest.CountDocuments(ctx, filter)
 	if err != nil {
 		return false, err
 	}
@@ -477,7 +500,7 @@ func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId in
 			"start_time", bson.M{"$lte": nowTime},
 		},
 	}
-	count, err := d.collection.CountDocuments(ctx, filter)
+	count, err := d.contest.CountDocuments(ctx, filter)
 	if err != nil {
 		return false, err
 	}
@@ -493,7 +516,7 @@ func (d *ContestDao) UpdateDescription(ctx context.Context, id int, description 
 			"description": description,
 		},
 	}
-	_, err := d.collection.UpdateOne(ctx, filter, update)
+	_, err := d.contest.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update contest description, id: %d", id)
 	}
@@ -538,7 +561,7 @@ func (d *ContestDao) UpdateContest(ctx context.Context, contestId int, contest *
 		"$set":   setData,
 		"$unset": unsetData,
 	}
-	_, err := d.collection.UpdateOne(ctx, filter, update)
+	_, err := d.contest.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to update contest, id: %d", contestId)
 	}
@@ -561,7 +584,7 @@ func (d *ContestDao) UpdateContests(ctx context.Context, tags []*foundationmodel
 		models = append(models, updateModel)
 	}
 	bulkOptions := options.BulkWrite().SetOrdered(false) // 设置是否按顺序执行
-	_, err := d.collection.BulkWrite(ctx, models, bulkOptions)
+	_, err := d.contest.BulkWrite(ctx, models, bulkOptions)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to perform bulk update")
 	}
@@ -586,7 +609,7 @@ func (d *ContestDao) InsertContest(ctx context.Context, contest *foundationmodel
 			// 更新 Contest 的 ID
 			contest.Id = seq
 			// 插入新的 Contest
-			_, err = d.collection.InsertOne(sc, contest)
+			_, err = d.contest.InsertOne(sc, contest)
 			if err != nil {
 				return nil, err
 			}
@@ -609,7 +632,7 @@ func (d *ContestDao) PostPassword(ctx context.Context, userId int, contestId int
 			"members": userId,
 		},
 	}
-	res, err := d.collection.UpdateOne(ctx, filter, update)
+	res, err := d.contest.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return false, metaerror.Wrap(err, "failed to post contest password, contestId: %d", contestId)
 	}

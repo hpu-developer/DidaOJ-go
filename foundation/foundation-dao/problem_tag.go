@@ -11,8 +11,7 @@ import (
 )
 
 type ProblemTagDao struct {
-	collection *mongo.Collection
-	db         *gorm.DB
+	db *gorm.DB
 }
 
 var singletonProblemTagDao = singleton.Singleton[ProblemTagDao]{}

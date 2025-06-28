@@ -12,8 +12,7 @@ import (
 )
 
 type TagDao struct {
-	collection *mongo.Collection
-	db         *gorm.DB
+	db *gorm.DB
 }
 
 var singletonTagDao = singleton.Singleton[TagDao]{}

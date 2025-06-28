@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	foundationmodel "foundation/foundation-model"
-	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
@@ -15,8 +14,7 @@ import (
 )
 
 type ProblemDao struct {
-	collection *mongo.Collection
-	db         *gorm.DB
+	db *gorm.DB
 }
 
 var singletonProblemDao = singleton.Singleton[ProblemDao]{}

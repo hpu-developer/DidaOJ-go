@@ -70,6 +70,29 @@ func (d *CollectionDao) CheckJoinAuth(ctx *gin.Context, collectionId int, userId
 	return count > 0, nil
 }
 
+func (d *CollectionDao) GetListAll(ctx context.Context) ([]*foundationmodel.Collection, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "_id", Value: 1}})
+	cursor, err := d.collection.Find(ctx, bson.D{}, opts)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find all collections error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close cursor error"))
+		}
+	}(cursor, ctx)
+	var collections []*foundationmodel.Collection
+	for cursor.Next(ctx) {
+		var collection foundationmodel.Collection
+		if err := cursor.Decode(&collection); err != nil {
+			return nil, metaerror.Wrap(err, "decode collection error")
+		}
+		collections = append(collections, &collection)
+	}
+	return collections, nil
+}
+
 func (d *CollectionDao) GetCollection(ctx context.Context, id int) (*foundationmodel.Collection, error) {
 	filter := bson.M{
 		"_id": id,

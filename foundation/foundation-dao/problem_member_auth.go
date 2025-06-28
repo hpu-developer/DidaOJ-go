@@ -11,8 +11,7 @@ import (
 )
 
 type ProblemMemberAuthDao struct {
-	collection *mongo.Collection
-	db         *gorm.DB
+	db *gorm.DB
 }
 
 var singletonProblemMemberAuthDao = singleton.Singleton[ProblemMemberAuthDao]{}

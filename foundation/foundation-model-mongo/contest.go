@@ -1,32 +1,9 @@
 package foundationmodelmongo
 
 import (
+	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	"time"
-)
-
-type ContestType int
-
-var (
-	ContestTypeAcm ContestType = 0 // ACM模式比赛
-	ContestTypeOi  ContestType = 1 // OI模式比赛，最终排名以最后一次提交为准
-	ContestTypeIoi ContestType = 2 // IOI模式比赛，以最高分提交为准
-)
-
-type ContestScoreType int
-
-var (
-	ContestScoreTypeNone     ContestScoreType = 0 // 不启用分数排名，一般用于ACM模式，ACM启用则仅用于展示
-	ContestScoreTypeAccepted ContestScoreType = 1 // 题目Accepted才认为得分
-	ContestScoreTypePartial  ContestScoreType = 2 // 题目部分得分也按比例得分
-)
-
-type ContestDiscussType int
-
-var (
-	ContestDiscussTypeNormal  ContestDiscussType = 0 // 正常讨论
-	ContestDiscussTypeSelf    ContestDiscussType = 1 // 仅能参与自己发表的讨论（管理员不受限制）
-	ContestDiscussTypeDisable ContestDiscussType = 2 // 不接受讨论
 )
 
 type VirtualReplay struct {
@@ -72,9 +49,9 @@ type Contest struct {
 	Volunteers []int `json:"volunteers,omitempty" bson:"volunteers,omitempty"` // 志愿者列表，可以对本比赛的进度查看，方便发气球等工作
 
 	// 排名相关
-	Type          ContestType      `json:"type" bson:"type"`                                         // 比赛类型
-	ScoreType     ContestScoreType `json:"score_type" bson:"score_type"`                             // 分数类型
-	VirtualReplay *VirtualReplay   `json:"virtual_replay,omitempty" bson:"virtual_replay,omitempty"` // 虚拟赛信息
+	Type          foundationenum.ContestType      `json:"type" bson:"type"`                                         // 比赛类型
+	ScoreType     foundationenum.ContestScoreType `json:"score_type" bson:"score_type"`                             // 分数类型
+	VirtualReplay *VirtualReplay                  `json:"virtual_replay,omitempty" bson:"virtual_replay,omitempty"` // 虚拟赛信息
 
 	VMembers []int `json:"v_members,omitempty" bson:"v_members,omitempty"` // 忽略排名的成员列表
 
@@ -84,7 +61,7 @@ type Contest struct {
 	// 题目相关
 	Problems []*ContestProblem `json:"problems,omitempty" bson:"problems,omitempty"` // 题目Id列表
 
-	DiscussType ContestDiscussType `json:"discuss_type,omitempty" bson:"discuss_type,omitempty"` // 讨论类型，0表示不启用讨论，1表示启用讨论
+	DiscussType foundationenum.ContestDiscussType `json:"discuss_type,omitempty" bson:"discuss_type,omitempty"` // 讨论类型，0表示不启用讨论，1表示启用讨论
 
 	// Migrate相关
 	MigrateJolId  int `json:"-" bson:"-"` // Jol中的Id
@@ -100,7 +77,7 @@ type ContestViewLock struct {
 	StartTime time.Time `json:"start_time,omitempty" bson:"start_time,omitempty"`
 	EndTime   time.Time `json:"end_time,omitempty" bson:"end_time,omitempty"` // 结束时间
 
-	Type ContestType `json:"type" bson:"type"` // 比赛类型
+	Type foundationenum.ContestType `json:"type" bson:"type"` // 比赛类型
 
 	AlwaysLock       bool           `json:"always_lock" bson:"always_lock"`                                   // 比赛结束后是否锁定排名，如果锁定则需要手动关闭（关闭时此值设为false）
 	LockRankDuration *time.Duration `json:"lock_rank_duration,omitempty" bson:"lock_rank_duration,omitempty"` // 比赛结束前锁定排名的时长，空则不锁榜，锁榜期间榜单仅展示尝试次数，ACM模式下只可以查看自己的提交结果，OI模式下无法查看所有的提交结果
@@ -194,12 +171,12 @@ func (b *ContestBuilder) Members(members []int) *ContestBuilder {
 	return b
 }
 
-func (b *ContestBuilder) Type(typ ContestType) *ContestBuilder {
+func (b *ContestBuilder) Type(typ foundationenum.ContestType) *ContestBuilder {
 	b.item.Type = typ
 	return b
 }
 
-func (b *ContestBuilder) ScoreType(scoreType ContestScoreType) *ContestBuilder {
+func (b *ContestBuilder) ScoreType(scoreType foundationenum.ContestScoreType) *ContestBuilder {
 	b.item.ScoreType = scoreType
 	return b
 }

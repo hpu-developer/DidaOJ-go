@@ -3,7 +3,6 @@ package foundationdao
 import (
 	"context"
 	foundationmodel "foundation/foundation-model"
-	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
@@ -11,8 +10,7 @@ import (
 )
 
 type ProblemDailyDao struct {
-	collection *mongo.Collection
-	db         *gorm.DB
+	db *gorm.DB
 }
 
 var singletonProblemDailyDao = singleton.Singleton[ProblemDailyDao]{}
