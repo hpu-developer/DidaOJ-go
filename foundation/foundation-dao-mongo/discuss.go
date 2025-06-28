@@ -42,6 +42,29 @@ func (d *DiscussDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
+func (d *DiscussDao) GetListAll(ctx context.Context) ([]*foundationmodel.Discuss, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "_id", Value: 1}})
+	cursor, err := d.collection.Find(ctx, bson.D{}, opts)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find all contests error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close cursor error"))
+		}
+	}(cursor, ctx)
+	var contests []*foundationmodel.Discuss
+	for cursor.Next(ctx) {
+		var contest foundationmodel.Discuss
+		if err := cursor.Decode(&contest); err != nil {
+			return nil, metaerror.Wrap(err, "decode contest error")
+		}
+		contests = append(contests, &contest)
+	}
+	return contests, nil
+}
+
 func (d *DiscussDao) GetAuthorId(ctx context.Context, id int) (int, error) {
 	filter := bson.M{
 		"_id": id,

@@ -42,6 +42,29 @@ func (d *DiscussCommentDao) InitDao(ctx context.Context) error {
 	return nil
 }
 
+func (d *DiscussCommentDao) GetListAll(ctx context.Context) ([]*foundationmodel.DiscussComment, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "_id", Value: 1}})
+	cursor, err := d.collection.Find(ctx, bson.D{}, opts)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find all DiscussComments error")
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "close cursor error"))
+		}
+	}(cursor, ctx)
+	var contests []*foundationmodel.DiscussComment
+	for cursor.Next(ctx) {
+		var contest foundationmodel.DiscussComment
+		if err := cursor.Decode(&contest); err != nil {
+			return nil, metaerror.Wrap(err, "decode DiscussComment error")
+		}
+		contests = append(contests, &contest)
+	}
+	return contests, nil
+}
+
 func (d *DiscussCommentDao) GetCommentEditView(ctx *gin.Context, id int) (
 	*foundationmodel.DiscussCommentViewEdit,
 	error,
