@@ -9,7 +9,7 @@ import (
 type ContestDetail struct {
 	foundationmodel.Contest
 
-	Problems []*ContestProblemDetail `json:"problems"` // 比赛题目列表
+	Problems []*ContestProblemDetail `json:"problems" gorm:"-"` // 比赛题目列表
 
 	InserterUsername string `json:"inserter_username"`
 	InserterNickname string `json:"inserter_nickname"`

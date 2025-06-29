@@ -42,30 +42,34 @@ func (d *ProblemTagDao) GetProblemTags(ctx context.Context, problemIds []int) ([
 
 func (d *ProblemTagDao) GetProblemTagMap(ctx context.Context, problemIds []int) (map[int][]int, error) {
 	type ProblemTagsResult struct {
-		ProblemId int    `json:"problem_id"`
-		TagIdsRaw string `json:"tag_ids"` // JSON 字符串，如 "[1,2,3]"
+		ProblemId int             `json:"id" gorm:"column:id"`
+		TagIdsRaw json.RawMessage `json:"tag_ids" gorm:"column:tag_ids"`
 	}
 	var results []ProblemTagsResult
 	err := d.db.WithContext(ctx).
 		Raw(
-			`
-			SELECT problem_id, JSON_ARRAYAGG(tag_id ORDER BY `+"`index`"+`) AS tag_ids
-			FROM problem_tag
-			WHERE problem_id IN ?
-			GROUP BY problem_id
-		`, problemIds,
+			"SELECT id, JSON_ARRAYAGG(tag_id) AS tag_ids "+
+				"FROM (SELECT id, tag_id FROM problem_tag WHERE id IN (?) ORDER BY id, `index`) AS sorted_tags "+
+				"GROUP BY id",
+			problemIds,
 		).
 		Scan(&results).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to aggregate tag_ids")
 	}
+	if len(results) == 0 {
+		return nil, nil
+	}
 	tagMap := make(map[int][]int)
 	for _, r := range results {
-		var tagIDs []int
-		if err := json.Unmarshal([]byte(r.TagIdsRaw), &tagIDs); err != nil {
-			return nil, metaerror.Wrap(err, "failed to unmarshal tag_ids JSON")
+		if r.TagIdsRaw == nil {
+			continue
 		}
-		tagMap[r.ProblemId] = tagIDs
+		var tagIds []int
+		if err := json.Unmarshal(r.TagIdsRaw, &tagIds); err != nil {
+			return nil, metaerror.Wrap(err, "failed to unmarshal tag_ids, problem_id: %d", r.ProblemId)
+		}
+		tagMap[r.ProblemId] = tagIds
 	}
 	return tagMap, nil
 }

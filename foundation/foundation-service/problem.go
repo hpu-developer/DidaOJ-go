@@ -196,22 +196,39 @@ func (s *ProblemService) GetProblemList(
 	oj string, title string, tag string,
 	page int, pageSize int,
 ) ([]*foundationview.ProblemViewList, int, error) {
-	var tags []int
+	var searchTags []int
 	if tag != "" {
 		var err error
-		tags, err = foundationdao.GetTagDao().SearchTagIds(ctx, tag)
+		searchTags, err = foundationdao.GetTagDao().SearchTagIds(ctx, tag)
 		if err != nil {
 			return nil, 0, err
 		}
-		if len(tags) == 0 {
+		if len(searchTags) == 0 {
 			return nil, 0, nil
 		}
 	}
-	return foundationdao.GetProblemDao().GetProblemList(
-		ctx, oj, title, tags, false,
+	list, totalCount, err := foundationdao.GetProblemDao().GetProblemList(
+		ctx, oj, title, searchTags, false,
 		-1, false,
 		page, pageSize,
 	)
+	if err != nil {
+		return nil, 0, err
+	}
+	var problemIds []int
+	for _, problem := range list {
+		problemIds = append(problemIds, problem.Id)
+	}
+	problemMap, err := foundationdao.GetProblemTagDao().GetProblemTagMap(ctx, problemIds)
+	if err != nil {
+		return nil, 0, err
+	}
+	for _, problem := range list {
+		if tags, ok := problemMap[problem.Id]; ok {
+			problem.Tags = tags
+		}
+	}
+	return list, totalCount, err
 }
 
 func (s *ProblemService) GetProblemListWithUser(
@@ -255,6 +272,15 @@ func (s *ProblemService) GetProblemListWithUser(
 	)
 	if err != nil {
 		return nil, 0, nil, err
+	}
+	problemMap, err := foundationdao.GetProblemTagDao().GetProblemTagMap(ctx, problemIds)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	for _, problem := range problemList {
+		if tags, ok := problemMap[problem.Id]; ok {
+			problem.Tags = tags
+		}
 	}
 	return problemList, totalCount, problemStatus, nil
 }

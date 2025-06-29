@@ -59,7 +59,7 @@ type ProblemViewList struct {
 	Accept  int    `json:"accept"`
 	Attempt int    `json:"attempt"`
 
-	Tags []int `json:"tags"` // 题目标签列表
+	Tags []int `json:"tags,omitempty" gorm:"-"` // 题目标签列表
 }
 
 type ProblemViewTitle struct {

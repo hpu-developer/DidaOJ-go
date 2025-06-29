@@ -7,7 +7,7 @@ type ProblemDaily struct {
 
 	ProblemKey     string `json:"problem_key"`
 	ProblemTitle   string `json:"problem_title"`
-	ProblemTags    []int  `json:"problem_tags,omitempty"`
+	ProblemTags    []int  `json:"problem_tags,omitempty" gorm:"-"`
 	ProblemAccept  int    `json:"problem_accept"`
 	ProblemAttempt int    `json:"problem_attempt"`
 }
@@ -20,7 +20,7 @@ type ProblemDailyList struct {
 	ProblemId  int    `json:"problem_id"`
 	ProblemKey string `json:"problem_key"`
 
-	Tags []int `json:"tags,omitempty"`
+	Tags []int `json:"tags,omitempty" gorm:"-"`
 }
 
 type ProblemDailyEdit struct {
