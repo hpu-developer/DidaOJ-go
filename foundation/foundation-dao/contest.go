@@ -2,12 +2,16 @@ package foundationdao
 
 import (
 	"context"
+	"errors"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	foundationview "foundation/foundation-view"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
+	"time"
 )
 
 type ContestDao struct {
@@ -24,6 +28,143 @@ func GetContestDao() *ContestDao {
 			return dao
 		},
 	)
+}
+
+func (d *ContestDao) CheckContestEditAuth(ctx context.Context, id int, userId int) (bool, error) {
+	var exists bool
+	err := d.db.WithContext(ctx).
+		Raw(
+			`
+		SELECT EXISTS (
+			SELECT 1 FROM contest c
+			WHERE c.id = ? AND (c.inserter = ? OR EXISTS (
+				SELECT 1 FROM contest_member_auth a WHERE a.id = c.id AND a.user_id = ?
+			))
+		) AS exist
+	`, id, userId, userId,
+		).Scan(&exists).Error
+	return exists, err
+}
+
+func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundationview.ContestViewLock, error) {
+	var contest foundationview.ContestViewLock
+	err := d.db.WithContext(ctx).
+		Table("contests").
+		Select("id, inserter, start_time, end_time, type, always_lock, lock_rank_duration").
+		Where("id = ?", id).
+		Take(&contest).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &contest, nil
+}
+
+func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationview.ContestDetail, error) {
+	var result foundationview.ContestDetail
+	err := d.db.WithContext(ctx).
+		Table("contest AS c").
+		Select(
+			`
+			c.id, c.title, c.description, c.notification, c.start_time, c.end_time,
+			c.inserter, c.modifier, c.insert_time, c.modify_time, c.password, c.private,
+			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
+			u2.username AS modifier_username, u2.nickname AS modifier_nickname
+		`,
+		).
+		Joins("LEFT JOIN user AS u1 ON c.inserter = u1.id").
+		Joins("LEFT JOIN user AS u2 ON c.modifier = u2.id").
+		Where("c.id = ?", id).
+		Scan(&result).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &result, nil
+}
+
+func (d *ContestDao) GetContestViewRank(ctx context.Context, id int) (*foundationview.ContestRankDetail, error) {
+	var contest foundationview.ContestRankDetail
+	if err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Contest{}).
+		Select("id, title, start_time, end_time, lock_rank_duration, always_lock").
+		Where("id = ?", id).
+		First(&contest).Error; err != nil {
+		return nil, err
+	}
+	if err := d.db.WithContext(ctx).
+		Table("contest_member_ignore").
+		Where("id = ?", id).
+		Pluck("user_id", &contest.MembersIgnore).Error; err != nil {
+		return nil, err
+	}
+	return &contest, nil
+}
+
+func (d *ContestDao) GetProblemAttemptInfo(
+	ctx context.Context,
+	contestId int,
+	problemIds []int,
+	startTime *time.Time,
+	endTime *time.Time,
+) ([]*foundationview.ProblemAttemptInfo, error) {
+	db := d.db.WithContext(ctx).
+		Model(&foundationmodel.JudgeJob{}).
+		Select(
+			"problem_id AS id",
+			"COUNT(*) AS attempt",
+			"SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS accept", foundationjudge.JudgeStatusAC,
+		).
+		Where("problem_id IN ?", problemIds).
+		Where("contest_id = ?", contestId)
+	if startTime != nil {
+		db = db.Where("insert_time >= ?", *startTime)
+	}
+	if endTime != nil {
+		db = db.Where("insert_time <= ?", *endTime)
+	}
+	var results []*foundationview.ProblemAttemptInfo
+	if err := db.Group("problem_id").Scan(&results).Error; err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (d *ContestDao) GetContestList(
+	ctx context.Context,
+	title string,
+	userId int,
+	page int,
+	pageSize int,
+) ([]*foundationview.ContestList, int, error) {
+	var list []*foundationview.ContestList
+	var total int64
+
+	db := d.db.WithContext(ctx).Model(&foundationmodel.Contest{})
+	if title != "" {
+		db = db.Where("title LIKE ?", "%"+title+"%")
+	}
+	if userId > 0 {
+		db = db.Where("inserter = ?", userId)
+	}
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, metaerror.Wrap(err, "failed to count contests")
+	}
+	err := db.
+		Select("id", "title", "start_time", "end_time", "inserter", "private").
+		Order("start_time DESC, id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&list).Error
+	if err != nil {
+		return nil, 0, metaerror.Wrap(err, "failed to find contests")
+	}
+	return list, int(total), nil
 }
 
 func (d *ContestDao) UpdateContest(

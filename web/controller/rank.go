@@ -4,6 +4,7 @@ import (
 	foundationerrorcode "foundation/error-code"
 	foundationmodel "foundation/foundation-model-mongo"
 	foundationservice "foundation/foundation-service"
+	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	metaerrorcode "meta/error-code"
@@ -75,9 +76,9 @@ func (c *RankController) GetAcProblem(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                   `json:"time"`
-		TotalCount int                         `json:"total_count"`
-		List       []*foundationmodel.UserRank `json:"list"`
+		Time       time.Time                  `json:"time"`
+		TotalCount int                        `json:"total_count"`
+		List       []*foundationview.UserRank `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
@@ -118,9 +119,9 @@ func (c *RankController) GetAcProblemToday(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                   `json:"time"`
-		TotalCount int                         `json:"total_count"`
-		List       []*foundationmodel.UserRank `json:"list"`
+		Time       time.Time                  `json:"time"`
+		TotalCount int                        `json:"total_count"`
+		List       []*foundationview.UserRank `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
@@ -161,9 +162,9 @@ func (c *RankController) GetAcProblemDay7(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                   `json:"time"`
-		TotalCount int                         `json:"total_count"`
-		List       []*foundationmodel.UserRank `json:"list"`
+		Time       time.Time                  `json:"time"`
+		TotalCount int                        `json:"total_count"`
+		List       []*foundationview.UserRank `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
@@ -204,9 +205,9 @@ func (c *RankController) GetAcProblemDay30(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                   `json:"time"`
-		TotalCount int                         `json:"total_count"`
-		List       []*foundationmodel.UserRank `json:"list"`
+		Time       time.Time                  `json:"time"`
+		TotalCount int                        `json:"total_count"`
+		List       []*foundationview.UserRank `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
@@ -247,9 +248,9 @@ func (c *RankController) GetAcProblemYear(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                   `json:"time"`
-		TotalCount int                         `json:"total_count"`
-		List       []*foundationmodel.UserRank `json:"list"`
+		Time       time.Time                  `json:"time"`
+		TotalCount int                        `json:"total_count"`
+		List       []*foundationview.UserRank `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,

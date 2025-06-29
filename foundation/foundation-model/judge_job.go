@@ -17,9 +17,9 @@ type JudgeJob struct {
 	JudgeTime       *time.Time                    `json:"judge_time,omitempty" gorm:"column:judge_time"`
 	TaskCurrent     *int                          `json:"task_current,omitempty" gorm:"column:task_current"`
 	TaskTotal       *int                          `json:"task_total,omitempty" gorm:"column:task_total"`
-	Score           *int                          `json:"score,omitempty" gorm:"column:score"`
-	Time            *int                          `json:"time,omitempty" gorm:"column:time"`
-	Memory          *int                          `json:"memory,omitempty" gorm:"column:memory"`
+	Score           int                           `json:"score,omitempty" gorm:"column:score"`
+	Time            int                           `json:"time,omitempty" gorm:"column:time"`
+	Memory          int                           `json:"memory,omitempty" gorm:"column:memory"`
 	Private         bool                          `json:"private" gorm:"column:private;not null"`
 	RemoteJudgeId   *string                       `json:"remote_judge_id,omitempty" gorm:"column:remote_judge_id"`
 	RemoteAccountId *string                       `json:"remote_account_id,omitempty" gorm:"column:remote_account_id"`
@@ -52,8 +52,12 @@ func (b *JudgeJobBuilder) ProblemId(problemId int) *JudgeJobBuilder {
 	return b
 }
 
-func (b *JudgeJobBuilder) ContestId(contestId *int) *JudgeJobBuilder {
-	b.item.ContestId = contestId
+func (b *JudgeJobBuilder) ContestId(contestId int) *JudgeJobBuilder {
+	if contestId <= 0 {
+		b.item.ContestId = nil
+	} else {
+		b.item.ContestId = &contestId
+	}
 	return b
 }
 
@@ -97,17 +101,17 @@ func (b *JudgeJobBuilder) TaskTotal(total *int) *JudgeJobBuilder {
 	return b
 }
 
-func (b *JudgeJobBuilder) Score(score *int) *JudgeJobBuilder {
+func (b *JudgeJobBuilder) Score(score int) *JudgeJobBuilder {
 	b.item.Score = score
 	return b
 }
 
-func (b *JudgeJobBuilder) Time(timeVal *int) *JudgeJobBuilder {
+func (b *JudgeJobBuilder) Time(timeVal int) *JudgeJobBuilder {
 	b.item.Time = timeVal
 	return b
 }
 
-func (b *JudgeJobBuilder) Memory(memory *int) *JudgeJobBuilder {
+func (b *JudgeJobBuilder) Memory(memory int) *JudgeJobBuilder {
 	b.item.Memory = memory
 	return b
 }

@@ -2,6 +2,16 @@ package foundationview
 
 import foundationmodel "foundation/foundation-model"
 
+type ProblemDaily struct {
+	foundationmodel.ProblemDaily
+
+	ProblemKey     string `json:"problem_key"`
+	ProblemTitle   string `json:"problem_title"`
+	ProblemTags    []int  `json:"problem_tags"`
+	ProblemAccept  int    `json:"problem_accept"`
+	ProblemAttempt int    `json:"problem_attempt"`
+}
+
 type ProblemDailyEdit struct {
 	foundationmodel.ProblemDaily
 

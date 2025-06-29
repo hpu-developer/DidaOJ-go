@@ -38,18 +38,22 @@ func (b *CollectionBuilder) Title(title string) *CollectionBuilder {
 	return b
 }
 
-func (b *CollectionBuilder) Description(desc *string) *CollectionBuilder {
-	b.item.Description = desc
+func (b *CollectionBuilder) Description(desc string) *CollectionBuilder {
+	var descriptionPtr *string
+	if desc != "" {
+		descriptionPtr = &desc
+	}
+	b.item.Description = descriptionPtr
 	return b
 }
 
-func (b *CollectionBuilder) StartTime(t time.Time) *CollectionBuilder {
-	b.item.StartTime = &t
+func (b *CollectionBuilder) StartTime(t *time.Time) *CollectionBuilder {
+	b.item.StartTime = t
 	return b
 }
 
-func (b *CollectionBuilder) EndTime(t time.Time) *CollectionBuilder {
-	b.item.EndTime = &t
+func (b *CollectionBuilder) EndTime(t *time.Time) *CollectionBuilder {
+	b.item.EndTime = t
 	return b
 }
 

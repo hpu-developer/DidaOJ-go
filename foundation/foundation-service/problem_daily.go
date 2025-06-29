@@ -54,10 +54,10 @@ func (s *ProblemDailyService) GetDailyList(
 	page int,
 	pageSize int,
 ) (
-	[]*foundationmodel.ProblemDaily,
+	[]*foundationview.ProblemDaily,
 	int,
-	[]*foundationmodel.ProblemTag,
-	map[string]foundationenum.ProblemAttemptStatus,
+	[]*foundationmodel.Tag,
+	map[int]foundationenum.ProblemAttemptStatus,
 	error,
 ) {
 	dailyList, totalCount, err := foundationdao.GetProblemDailyDao().GetDailyList(
@@ -75,11 +75,11 @@ func (s *ProblemDailyService) GetDailyList(
 	if len(dailyList) == 0 {
 		return nil, 0, nil, nil, nil
 	}
-	var problemIds []string
+	var problemIds []int
 	for _, daily := range dailyList {
 		problemIds = append(problemIds, daily.ProblemId)
 	}
-	problemList, err := foundationdao.GetProblemDao().GetProblems(ctx, problemIds)
+	problemList, err := foundationdao.GetProblemDao().SelectProblemViewList(ctx, problemIds, true)
 	if err != nil {
 		return nil, 0, nil, nil, err
 	}
@@ -87,19 +87,19 @@ func (s *ProblemDailyService) GetDailyList(
 	for _, problem := range problemList {
 		tagIds = append(tagIds, problem.Tags...)
 	}
-	var tags []*foundationmodel.ProblemTag
+	var tags []*foundationmodel.Tag
 	if len(tagIds) > 0 {
-		tags, err = foundationdao.GetProblemTagDao().GetProblemTagByIds(ctx, tagIds)
+		tags, err = foundationdao.GetTagDao().GetTags(ctx, tagIds)
 		if err != nil {
 			return nil, 0, nil, nil, err
 		}
 	}
-	var problemStatus map[string]foundationenum.ProblemAttemptStatus
+	var problemStatus map[int]foundationenum.ProblemAttemptStatus
 	if userId > 0 {
 		problemStatus, err = foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
 			ctx,
-			problemIds,
 			userId,
+			problemIds,
 			-1,
 			nil,
 			nil,
@@ -108,51 +108,43 @@ func (s *ProblemDailyService) GetDailyList(
 			return nil, 0, nil, nil, err
 		}
 	}
-	problemMap := make(map[string]*foundationmodel.Problem)
+	problemMap := make(map[int]*foundationview.ProblemViewList)
 	for _, problem := range problemList {
 		problemMap[problem.Id] = problem
 	}
 	for _, daily := range dailyList {
 		problem, ok := problemMap[daily.ProblemId]
 		if ok {
-			daily.Title = &problem.Title
-			daily.Tags = problem.Tags
-			daily.Accept = problem.Accept
-			daily.Attempt = problem.Attempt
+			daily.ProblemKey = problem.Key
+			daily.ProblemTitle = problem.Title
+			daily.ProblemTags = problem.Tags
+			daily.ProblemAccept = problem.Accept
+			daily.ProblemAttempt = problem.Attempt
 		}
 	}
 	return dailyList, totalCount, tags, problemStatus, nil
 }
 
 func (s *ProblemDailyService) GetDailyRecently(ctx *gin.Context, userId int) (
-	[]*foundationmodel.ProblemDaily,
-	map[string]foundationenum.ProblemAttemptStatus,
+	[]*foundationview.ProblemDaily,
+	map[int]foundationenum.ProblemAttemptStatus,
 	error,
 ) {
 	daily, err := foundationdao.GetProblemDailyDao().GetDailyRecently(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	if daily == nil {
+	if len(daily) == 0 {
 		return nil, nil, nil
 	}
-	for _, d := range daily {
-		title, err := foundationdao.GetProblemDao().GetProblemTitle(ctx, &d.ProblemId)
-		if err == nil {
-			d.Title = title
-		} else {
-			titlePtr := "未知题目"
-			d.Title = &titlePtr
-		}
-	}
-	var problemAttemptStatus map[string]foundationenum.ProblemAttemptStatus
+	var problemAttemptStatus map[int]foundationenum.ProblemAttemptStatus
 	if userId > 0 {
-		problemIds := make([]string, len(daily))
+		problemIds := make([]int, len(daily))
 		for i, d := range daily {
 			problemIds[i] = d.ProblemId
 		}
 		problemAttemptStatus, err = foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
-			ctx, problemIds, userId, -1, nil, nil,
+			ctx, userId, problemIds, -1, nil, nil,
 		)
 		if err != nil {
 			return nil, nil, err

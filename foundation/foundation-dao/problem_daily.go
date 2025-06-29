@@ -3,6 +3,7 @@ package foundationdao
 import (
 	"context"
 	"errors"
+	"fmt"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
@@ -117,6 +118,79 @@ func (d *ProblemDailyDao) GetProblemDailyEdit(ctx *gin.Context, dailyId string) 
 		return nil, metaerror.Wrap(err, "failed to find problem daily edit by id: %s", dailyId)
 	}
 	return &record, nil
+}
+
+func (d *ProblemDailyDao) GetDailyList(
+	ctx context.Context,
+	hasAuth bool,
+	startDate *string,
+	endDate *string,
+	problemId string,
+	page int,
+	pageSize int,
+) ([]*foundationview.ProblemDaily, int, error) {
+	db := d.db.WithContext(ctx).Model(&foundationmodel.ProblemDaily{})
+	nowId := metatime.GetTimeNowBeijing().Format("2006-01-02")
+	if startDate != nil && *startDate != "" {
+		db = db.Where("id >= ?", *startDate)
+	}
+	if hasAuth {
+		if endDate != nil && *endDate != "" {
+			db = db.Where("id <= ?", *endDate)
+		}
+	} else {
+		if endDate != nil && *endDate != "" {
+			if *endDate < nowId {
+				db = db.Where("id <= ?", *endDate)
+			} else {
+				db = db.Where("id <= ?", nowId)
+			}
+		} else {
+			db = db.Where("id <= ?", nowId)
+		}
+	}
+	if problemId != "" {
+		db = db.Where("problem_id = ?", problemId)
+	}
+	var totalCount int64
+	if err := db.Count(&totalCount).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count problem daily: %w", err)
+	}
+	offset := (page - 1) * pageSize
+	var list []*foundationview.ProblemDaily
+	err := db.Select("id", "problem_id").
+		Order("id DESC").
+		Limit(pageSize).
+		Offset(offset).
+		Find(&list).Error
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query problem daily list: %w", err)
+	}
+	return list, int(totalCount), nil
+}
+
+func (d *ProblemDailyDao) GetDailyRecently(ctx *gin.Context) ([]*foundationview.ProblemDaily, error) {
+	// 获取今天日期
+	today := metatime.GetTimeNowBeijing().Format("2006-01-02")
+	var result []*foundationview.ProblemDaily
+	err := d.db.WithContext(ctx).
+		Table("problem_daily AS pd").
+		Select(
+			`
+			pd.key,
+			p.key AS problem_key,
+			p.title AS problem_title
+		`,
+		).
+		Joins("LEFT JOIN problems AS p ON pd.problem_id = p.id").
+		Where("pd.id <= ?", today).
+		Order("pd.id DESC").
+		Limit(7).
+		Scan(&result).Error
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to query problem daily")
+	}
+	return result, nil
 }
 
 func (d *ProblemDailyDao) InsertProblemDaily(

@@ -386,19 +386,15 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 		return
 	}
 
-	if requestData.ProblemId != nil {
-		if *requestData.ProblemId == "" {
-			requestData.ProblemId = nil
-		} else {
-			ok, err := foundationservice.GetProblemService().HasProblem(ctx, *requestData.ProblemId)
-			if err != nil {
-				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-				return
-			}
-			if !ok {
-				metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
-				return
-			}
+	if requestData.ProblemId > 0 {
+		ok, err := foundationservice.GetProblemService().HasProblem(ctx, requestData.ProblemId)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		if !ok {
+			metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
+			return
 		}
 	}
 
@@ -469,19 +465,15 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	if requestData.ProblemId != nil {
-		if *requestData.ProblemId == "" {
-			requestData.ProblemId = nil
-		} else {
-			ok, err := foundationservice.GetProblemService().HasProblem(ctx, *requestData.ProblemId)
-			if err != nil {
-				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-				return
-			}
-			if !ok {
-				metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
-				return
-			}
+	if requestData.ProblemId > 0 {
+		ok, err := foundationservice.GetProblemService().HasProblem(ctx, requestData.ProblemId)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		if !ok {
+			metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
+			return
 		}
 	}
 
@@ -517,7 +509,7 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 	discuss := foundationmodel.NewDiscussBuilder().
 		Id(discussId).
 		Title(requestData.Title).
-		ProblemId(requestData.ProblemId).
+		//ProblemId(requestData.ProblemId).
 		Content(requestData.Content).
 		ModifyTime(nowTime).
 		UpdateTime(nowTime).

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationenum "foundation/foundation-enum"
+	foundationmodel "foundation/foundation-model"
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
+	foundationview "foundation/foundation-view"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
@@ -20,6 +22,7 @@ import (
 	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
 	"meta/meta-response"
+	metaslice "meta/meta-slice"
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	"meta/set"
@@ -60,7 +63,7 @@ func (c *ContestController) Get(ctx *gin.Context) {
 		Now           time.Time                                   `json:"now"`
 		HasAuth       bool                                        `json:"has_auth"`
 		NeedPassword  bool                                        `json:"need_password,omitempty"` // 是否需要密码
-		Contest       *foundationmodel.Contest                    `json:"contest"`
+		Contest       *foundationview.ContestDetail               `json:"contest"`
 		AttemptStatus map[int]foundationenum.ProblemAttemptStatus `json:"attempt_status,omitempty"`
 	}{
 		Now:           nowTime,
@@ -93,7 +96,7 @@ func (c *ContestController) GetEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	contest, problems, err := contestService.GetContestEdit(ctx, id)
+	contest, err := contestService.GetContestEdit(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -103,11 +106,9 @@ func (c *ContestController) GetEdit(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Contest  *foundationmodel.Contest `json:"contest"`
-		Problems []string                 `json:"problems"` // 题目索引列表
+		Contest *foundationview.ContestDetail `json:"contest"`
 	}{
-		Contest:  contest,
-		Problems: problems,
+		Contest: contest,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
@@ -132,7 +133,7 @@ func (c *ContestController) GetList(ctx *gin.Context) {
 	}
 	title := ctx.Query("title")
 	username := ctx.Query("username")
-	var list []*foundationmodel.Contest
+	var list []*foundationview.ContestList
 	var totalCount int
 	list, totalCount, err = contestService.GetContestList(ctx, title, username, page, pageSize)
 	if err != nil {
@@ -140,9 +141,9 @@ func (c *ContestController) GetList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                  `json:"time"`
-		TotalCount int                        `json:"total_count"`
-		List       []*foundationmodel.Contest `json:"list"`
+		Time       time.Time                     `json:"time"`
+		TotalCount int                           `json:"total_count"`
+		List       []*foundationview.ContestList `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
@@ -182,7 +183,7 @@ func (c *ContestController) GetProblem(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	problemId, err := foundationservice.GetContestService().GetProblemIdByContest(ctx, contestId, problemIndex)
+	problemId, err := foundationservice.GetContestService().GetProblemIdByContestIndex(ctx, contestId, problemIndex)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
@@ -265,11 +266,10 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 
 	nowTime := metatime.GetTimeNow()
 
-	var contest *foundationmodel.ContestViewRank
-	var problems []int
+	var contest *foundationview.ContestRankDetail
+	var ranks []*foundationview.ContestRank
 	var isLocked bool
-	var ranks []*foundationmodel.ContestRank
-	contest, problems, ranks, isLocked, err = foundationservice.GetContestService().GetContestRanks(
+	contest, ranks, isLocked, err = foundationservice.GetContestService().GetContestRanks(
 		ctx,
 		contestId,
 		nowTime,
@@ -283,18 +283,16 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		HasAuth  bool                             `json:"has_auth"`
-		Now      time.Time                        `json:"now"`
-		IsLocked bool                             `json:"is_locked"` // 是否锁榜状态
-		Contest  *foundationmodel.ContestViewRank `json:"contest"`
-		Problems []int                            `json:"problems"` // 题目索引列表
-		Ranks    []*foundationmodel.ContestRank   `json:"ranks"`
+		HasAuth  bool                              `json:"has_auth"`
+		Now      time.Time                         `json:"now"`
+		IsLocked bool                              `json:"is_locked"` // 是否锁榜状态
+		Contest  *foundationview.ContestRankDetail `json:"contest"`
+		Ranks    []*foundationview.ContestRank     `json:"ranks"` // 排行榜
 	}{
 		HasAuth:  true,
 		Now:      nowTime,
 		IsLocked: isLocked,
 		Contest:  contest,
-		Problems: problems,
 		Ranks:    ranks,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
@@ -404,14 +402,14 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		return
 	}
 	// 去重
-	problemIds := metastring.RemoveDuplicate(requestData.Problems)
+	problemIds := metaslice.RemoveDuplicate(requestData.Problems)
 	validProblemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, problemIds)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
 	validProblemIdSet := set.FromSlice(validProblemIds)
-	var realProblemIds []string
+	var realProblemIds []int
 	// 保持输入的problemIds顺序
 	for _, problemId := range problemIds {
 		if validProblemIdSet.Contains(problemId) {
@@ -432,9 +430,9 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Weight(0).              // 分数默认为0
-				Index(len(problems)+1). // 索引从1开始
+				ViewId(nil).                   // 题目描述Id，默认为nil
+				Score(0).                      // 分数默认为0
+				Index(uint8(len(problems)+1)). // 索引从1开始
 				Build(),
 		)
 	}
@@ -458,47 +456,48 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		Notification(requestData.Notification).
 		StartTime(startTime).
 		EndTime(endTime).
-		OwnerId(userId).
-		CreateTime(nowTime).
-		UpdateTime(nowTime).
-		Problems(problems).
+		Inserter(userId).
+		InsertTime(nowTime).
+		Modifier(userId).
+		ModifyTime(nowTime).
 		Private(private).
 		Password(password).
-		Members(memberIds).
 		LockRankDuration(lockRankDuration).
 		AlwaysLock(requestData.AlwaysLock).
 		SubmitAnytime(requestData.SubmitAnytime).
 		Build()
 
-	err = contestService.InsertContest(ctx, contest)
+	err = contestService.InsertContest(ctx, contest, problems, nil, nil, memberIds, nil, nil, nil)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
 
-	var description string
-	var needUpdateUrls []*foundationr2.R2ImageUrl
-	description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
-		requestData.Description,
-		nil,
-		metahttp.UrlJoin("contest"),
-		metahttp.UrlJoin("contest", strconv.Itoa(contest.Id)),
-	)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-	if len(needUpdateUrls) > 0 {
-		err := foundationservice.GetContestService().UpdateDescription(ctx, contest.Id, description)
+	if requestData.Description != nil {
+		var description string
+		var needUpdateUrls []*foundationr2.R2ImageUrl
+		description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
+			*requestData.Description,
+			nil,
+			metahttp.UrlJoin("contest"),
+			metahttp.UrlJoin("contest", strconv.Itoa(contest.Id)),
+		)
 		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
 		}
-		err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
-		if err != nil {
-			metapanic.ProcessError(err)
+		if len(needUpdateUrls) > 0 {
+			err := foundationservice.GetContestService().UpdateDescription(ctx, contest.Id, description)
+			if err != nil {
+				return
+			}
+			err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
+			if err != nil {
+				metapanic.ProcessError(err)
+			}
 		}
+		contest.Description = &description
 	}
-	contest.Description = description
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, contest)
 }
@@ -544,14 +543,14 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		return
 	}
 	// 去重
-	problemIds := metastring.RemoveDuplicate(requestData.Problems)
+	problemIds := metaslice.RemoveDuplicate(requestData.Problems)
 	validProblemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, problemIds)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
 	validProblemIdSet := set.FromSlice(validProblemIds)
-	var realProblemIds []string
+	var realProblemIds []int
 	// 保持输入的problemIds顺序
 	for _, problemId := range problemIds {
 		if validProblemIdSet.Contains(problemId) {
@@ -581,9 +580,14 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
+	var description string
+	if requestData.Description != nil {
+		description = *requestData.Description
+	}
+
 	var needUpdateUrls []*foundationr2.R2ImageUrl
-	requestData.Description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
-		requestData.Description,
+	description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
+		description,
 		oldDescription,
 		metahttp.UrlJoin("contest", strconv.Itoa(contestId)),
 		metahttp.UrlJoin("contest", strconv.Itoa(contestId)),
@@ -593,14 +597,20 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		return
 	}
 
+	if description != "" {
+		requestData.Description = &description
+	} else {
+		requestData.Description = nil
+	}
+
 	var problems []*foundationmodel.ContestProblem
 	for _, problemId := range realProblemIds {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).            // 题目描述Id，默认为nil
-				Weight(0).              // 分数默认为0
-				Index(len(problems)+1). // 索引从1开始
+				ViewId(nil).                   // 题目描述Id，默认为nil
+				Score(0).                      // 分数默认为0
+				Index(uint8(len(problems)+1)). // 索引从1开始
 				Build(),
 		)
 	}
@@ -624,19 +634,16 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		Notification(requestData.Notification).
 		StartTime(startTime).
 		EndTime(endTime).
-		OwnerId(userId).
-		CreateTime(nowTime).
-		UpdateTime(nowTime).
-		Problems(problems).
+		Modifier(userId).
+		ModifyTime(nowTime).
 		Private(private).
 		Password(password).
-		Members(memberIds).
 		LockRankDuration(lockRankDuration).
 		AlwaysLock(requestData.AlwaysLock).
 		SubmitAnytime(requestData.SubmitAnytime).
 		Build()
 
-	err = contestService.UpdateContest(ctx, requestData.Id, contest)
+	err = contestService.UpdateContest(ctx, requestData.Id, contest, problems, nil, nil, memberIds, nil, nil, nil)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
@@ -649,11 +656,11 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 	}
 
 	responseData := struct {
-		Description string     `json:"description"`
+		Description *string    `json:"description"`
 		UpdateTime  *time.Time `json:"update_time"`
 	}{
 		Description: requestData.Description,
-		UpdateTime:  &contest.UpdateTime,
+		UpdateTime:  &contest.ModifyTime,
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)

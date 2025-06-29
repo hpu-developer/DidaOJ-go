@@ -76,8 +76,8 @@ type ProblemViewAuth struct {
 	AuthMembers []int  `json:"auth_members" bson:"auth_members"` // 题目管理员，对题目有编辑权限
 }
 
-type ProblemViewAttempt struct {
-	Id      string `json:"id" bson:"_id"`
-	Accept  int    `json:"accept" bson:"accept"`
-	Attempt int    `json:"attempt" bson:"attempt"`
+type ProblemAttemptInfo struct {
+	Id      int `json:"id" bson:"_id"`
+	Accept  int `json:"accept" bson:"accept"`
+	Attempt int `json:"attempt" bson:"attempt"`
 }

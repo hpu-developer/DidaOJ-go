@@ -1,4 +1,4 @@
-package foundationmodelmongo
+package foundationview
 
 import (
 	"time"

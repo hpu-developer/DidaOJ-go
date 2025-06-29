@@ -81,7 +81,7 @@ func (s *ProblemService) CheckEditAuth(ctx *gin.Context, id string) (
 	return userId, true, nil
 }
 
-func (s *ProblemService) CheckSubmitAuth(ctx *gin.Context, id string) (
+func (s *ProblemService) CheckSubmitAuth(ctx *gin.Context, id int) (
 	int,
 	bool,
 	error,
@@ -148,7 +148,7 @@ func (s *ProblemService) GetProblemsTags(ctx context.Context, ids []int) ([]*fou
 }
 
 func (s *ProblemService) GetProblemIdByContest(ctx *gin.Context, contestId int, problemIndex int) (int, error) {
-	return foundationdao.GetContestProblemDao().GetProblemIdByContest(ctx, contestId, problemIndex)
+	return foundationdao.GetContestProblemDao().GetProblemId(ctx, contestId, problemIndex)
 }
 
 func (s *ProblemService) GetProblemDescription(
@@ -165,7 +165,7 @@ func (s *ProblemService) GetProblemViewJudgeData(ctx context.Context, id string)
 	return foundationdao.GetProblemDao().GetProblemViewJudgeData(ctx, id)
 }
 
-func (s *ProblemService) GetProblemViewApproveJudge(ctx context.Context, id string) (
+func (s *ProblemService) GetProblemViewApproveJudge(ctx context.Context, id int) (
 	*foundationview.ProblemViewApproveJudge,
 	error,
 ) {
@@ -174,6 +174,10 @@ func (s *ProblemService) GetProblemViewApproveJudge(ctx context.Context, id stri
 
 func (s *ProblemService) HasProblem(ctx context.Context, id int) (bool, error) {
 	return foundationdao.GetProblemDao().HasProblem(ctx, id)
+}
+
+func (s *ProblemService) HasProblemByKey(ctx context.Context, key string) (bool, error) {
+	return foundationdao.GetProblemDao().HasProblemByKey(ctx, key)
 }
 
 func (s *ProblemService) HasProblemTitle(ctx *gin.Context, title string) (bool, error) {
@@ -243,8 +247,8 @@ func (s *ProblemService) GetProblemListWithUser(
 	}
 	problemStatus, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
 		ctx,
-		problemIds,
 		userId,
+		problemIds,
 		-1,
 		nil,
 		nil,
@@ -289,7 +293,7 @@ func (s *ProblemService) GetProblemRecommend(
 		}
 		return nil, nil
 	}
-	problemList, err := foundationdao.GetProblemDao().SelectProblemViewList(ctx, problemIds)
+	problemList, err := foundationdao.GetProblemDao().SelectProblemViewList(ctx, problemIds, true)
 	if err != nil {
 		return nil, err
 	}
@@ -324,6 +328,10 @@ func (s *ProblemService) GetProblemTitles(ctx *gin.Context, userId int, hasAuth 
 	error,
 ) {
 	return foundationdao.GetProblemDao().GetProblemTitles(ctx, userId, hasAuth, problems)
+}
+
+func (s *ProblemService) FilterValidProblemIds(ctx context.Context, ids []int) ([]int, error) {
+	return foundationdao.GetProblemDao().FilterValidProblemIds(ctx, ids)
 }
 
 func (s *ProblemService) InsertProblemLocal(

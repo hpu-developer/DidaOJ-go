@@ -2,6 +2,7 @@ package foundationdao
 
 import (
 	"context"
+	"encoding/json"
 	foundationmodel "foundation/foundation-model"
 	"gorm.io/gorm"
 	metaerror "meta/meta-error"
@@ -26,6 +27,7 @@ func GetProblemTagDao() *ProblemTagDao {
 }
 
 func (d *ProblemTagDao) GetProblemTags(ctx context.Context, problemIds []int) ([]int, error) {
+
 	var ids []int
 	err := d.db.WithContext(ctx).
 		Select("DISTINCT tag_id").
@@ -36,6 +38,36 @@ func (d *ProblemTagDao) GetProblemTags(ctx context.Context, problemIds []int) ([
 		return nil, metaerror.Wrap(err, "failed to pluck tag ids")
 	}
 	return ids, nil
+}
+
+func (d *ProblemTagDao) GetProblemTagMap(ctx context.Context, problemIds []int) (map[int][]int, error) {
+	type ProblemTagsResult struct {
+		ProblemId int    `json:"problem_id"`
+		TagIdsRaw string `json:"tag_ids"` // JSON 字符串，如 "[1,2,3]"
+	}
+	var results []ProblemTagsResult
+	err := d.db.WithContext(ctx).
+		Raw(
+			`
+			SELECT problem_id, JSON_ARRAYAGG(tag_id ORDER BY `+"`index`"+`) AS tag_ids
+			FROM problem_tag
+			WHERE problem_id IN ?
+			GROUP BY problem_id
+		`, problemIds,
+		).
+		Scan(&results).Error
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to aggregate tag_ids")
+	}
+	tagMap := make(map[int][]int)
+	for _, r := range results {
+		var tagIDs []int
+		if err := json.Unmarshal([]byte(r.TagIdsRaw), &tagIDs); err != nil {
+			return nil, metaerror.Wrap(err, "failed to unmarshal tag_ids JSON")
+		}
+		tagMap[r.ProblemId] = tagIDs
+	}
+	return tagMap, nil
 }
 
 func (d *ProblemTagDao) GetProblemTagList(ctx context.Context, maxCount int) (

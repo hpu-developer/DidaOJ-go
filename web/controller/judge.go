@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
-	foundationcontest "foundation/foundation-contest"
 	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
+	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
 	"log/slog"
 	metacontroller "meta/controller"
@@ -101,7 +101,7 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
 		}
-		judgeJob.ProblemId = ""
+		judgeJob.ProblemId = 0
 		if contest.Type == foundationenum.ContestTypeAcm {
 			// IOI模式之外隐藏分数信息
 			if judgeJob.Score < 100 {
@@ -174,9 +174,9 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.JudgeListTooManySkip, nil)
 		return
 	}
-	problemId := ctx.Query("problem_id")
-	var contestId, constProblemIndex int
 	contestIdStr := ctx.Query("contest_id")
+	var problemId int
+	var contestId int
 	if contestIdStr != "" {
 		contestId, err = strconv.Atoi(contestIdStr)
 		if err != nil {
@@ -197,7 +197,36 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 			return
 		}
-		constProblemIndex = foundationcontest.GetContestProblemIndex(problemId)
+		problemIndexStr := ctx.Query("problem_index")
+		problemIndex, err := strconv.Atoi(problemIndexStr)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		if problemIndex <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		problemId, err = foundationservice.GetContestService().GetProblemIdByContestIndex(
+			ctx,
+			contestId,
+			problemIndex,
+		)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+	} else {
+		problemIdStr := ctx.Query("problem_id")
+		problemId, err = strconv.Atoi(problemIdStr)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+	}
+	if problemId <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
 	}
 	username := ctx.Query("username")
 	languageStr := ctx.Query("language")
@@ -216,11 +245,12 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 			status = foundationjudge.JudgeStatus(statusInt)
 		}
 	}
+
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	list, err := judgeService.GetJudgeList(
 		ctx, userId,
-		contestId, constProblemIndex,
-		problemId, username, language, status,
+		problemId, contestId,
+		username, language, status,
 		page, pageSize,
 	)
 	if err != nil {
@@ -228,8 +258,8 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		HasAuth bool                        `json:"has_auth"`
-		List    []*foundationmodel.JudgeJob `json:"list"`
+		HasAuth bool                       `json:"has_auth"`
+		List    []*foundationview.JudgeJob `json:"list"`
 	}{
 		HasAuth: true,
 		List:    list,
@@ -278,13 +308,13 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 	problemId := judgeApprove.ProblemId
 	contestId := judgeApprove.ContestId
 	problemIndex := judgeApprove.ProblemIndex
-	if problemId == "" && (contestId <= 0 || problemIndex <= 0) {
+	if problemId == 0 && (contestId <= 0 || problemIndex <= 0) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	var userId int
 	var hasAuth bool
-	if problemId != "" {
+	if problemId > 0 {
 		userId, hasAuth, err = foundationservice.GetProblemService().CheckSubmitAuth(ctx, problemId)
 		if err != nil {
 			metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
@@ -293,16 +323,19 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		contestId = 0
 		problemIndex = 0
 	} else {
-		problemIdPtr, err := foundationservice.GetContestService().GetProblemIdByContest(ctx, contestId, problemIndex)
+		problemId, err = foundationservice.GetContestService().GetProblemIdByContestIndex(
+			ctx,
+			contestId,
+			problemIndex,
+		)
 		if err != nil {
 			metaresponse.NewResponseError(ctx, err)
 			return
 		}
-		if problemIdPtr == nil {
-			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		if problemId <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 			return
 		}
-		problemId = *problemIdPtr
 		userId, hasAuth, err = foundationservice.GetContestService().CheckSubmitAuth(
 			ctx,
 			contestId,
@@ -327,7 +360,7 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		return
 	}
 
-	if problem.OriginId != nil {
+	if problem.OriginId != "" {
 		metaresponse.NewResponse(ctx, weberrorcode.JudgeApproveCannotOriginOj, nil)
 		return
 	}
@@ -339,8 +372,8 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 	judgeJob := foundationmodel.NewJudgeJobBuilder().
 		ProblemId(problemId).
 		ContestId(contestId).
-		AuthorId(userId).
-		ApproveTime(nowTime).
+		Inserter(userId).
+		InsertTime(nowTime).
 		Language(language).
 		Code(code).
 		CodeLength(codeLength).

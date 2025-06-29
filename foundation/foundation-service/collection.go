@@ -3,12 +3,13 @@ package foundationservice
 import (
 	"context"
 	foundationauth "foundation/foundation-auth"
-	"foundation/foundation-dao-mongo"
+	foundationdao "foundation/foundation-dao"
+	foundationdaomongo "foundation/foundation-dao-mongo"
 	foundationenum "foundation/foundation-enum"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
+	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
-	"slices"
 	"time"
 )
 
@@ -75,199 +76,128 @@ func (s *CollectionService) HasCollectionTitle(ctx *gin.Context, id int, title s
 }
 
 func (s *CollectionService) GetCollection(ctx context.Context, id int, userId int) (
-	*foundationmodel.Collection,
-	[]*foundationmodel.CollectionProblem,
-	bool,
-	map[string]foundationenum.ProblemAttemptStatus,
-	error,
+	collection *foundationview.CollectionDetail,
+	joined bool,
+	collectionProblems []*foundationview.ProblemViewList,
+	tags []*foundationmodel.Tag,
+	userAttempts map[int]foundationenum.ProblemAttemptStatus,
+	err error,
 ) {
-	collection, err := foundationdaomongo.GetCollectionDao().GetCollection(ctx, id)
+	collection, err = foundationdao.GetCollectionDao().GetCollectionDetail(ctx, id)
 	if err != nil {
-		return nil, nil, false, nil, err
+		return
 	}
 	if collection == nil {
-		return nil, nil, false, nil, nil
+		return
 	}
-	ownerUser, err := foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, collection.OwnerId)
-	if err != nil {
-		return nil, nil, false, nil, err
-	}
-	collection.OwnerUsername = &ownerUser.Username
-	collection.OwnerNickname = &ownerUser.Nickname
-
-	joined := false
-	var collectionProblemList []*foundationmodel.CollectionProblem
-	var problemStatus map[string]foundationenum.ProblemAttemptStatus
-	if len(collection.Problems) > 0 {
-		collectionProblems := map[string]*foundationmodel.CollectionProblem{}
-		for _, problem := range collection.Problems {
-			collectionProblems[problem] = &foundationmodel.CollectionProblem{
-				Id: problem,
-			}
-		}
-		var problemIds []string
-		for _, problem := range collection.Problems {
-			problemIds = append(problemIds, problem)
-		}
-		problems, err := foundationdaomongo.GetProblemDao().GetProblemListTitle(ctx, problemIds)
+	collection.Password = nil // 不真正返回密码
+	if userId > 0 {
+		joined, err = foundationdao.GetCollectionDao().CheckUserJoin(ctx, id, userId)
 		if err != nil {
-			return nil, nil, false, nil, err
-		}
-		for _, problem := range problems {
-			if collectionProblem, ok := collectionProblems[problem.Id]; ok {
-				collectionProblem.Title = &problem.Title
-			}
-		}
-		if userId > 0 {
-			problemStatus, err = foundationdaomongo.GetJudgeJobDao().GetProblemAttemptStatus(
-				ctx,
-				problemIds,
-				userId,
-				-1,
-				collection.StartTime,
-				collection.EndTime,
-			)
-			if err != nil {
-				return nil, nil, false, nil, err
-			}
-		}
-
-		var judgeAccepts []*foundationmodel.ProblemViewAttempt
-		if len(collection.Members) > 0 {
-			judgeAccepts, err = foundationdaomongo.GetJudgeJobDao().GetProblemTimeViewAttempt(
-				ctx,
-				collection.StartTime,
-				collection.EndTime,
-				problemIds,
-				collection.Members,
-			)
-			if err != nil {
-				return nil, nil, false, nil, err
-			}
-			for _, judgeAccept := range judgeAccepts {
-				if collectionProblem, ok := collectionProblems[judgeAccept.Id]; ok {
-					collectionProblem.Accept = judgeAccept.Accept
-					collectionProblem.Attempt = judgeAccept.Attempt
-				}
-			}
-			joined = slices.Contains(collection.Members, userId)
-			// 不需要返回全部信息
-			collection.Members = nil
-		}
-		for _, problem := range collection.Problems {
-			collectionProblemList = append(collectionProblemList, collectionProblems[problem])
+			return
 		}
 	}
-	return collection, collectionProblemList, joined, problemStatus, err
+	var collectionProblemIds []int
+	collectionProblemIds, err = foundationdao.GetCollectionProblemDao().GetCollectionProblems(ctx, id)
+	if err != nil {
+		return
+	}
+	if len(collectionProblemIds) == 0 {
+		return
+	}
+	problemMap := make(map[int]*foundationview.ProblemViewList, len(collectionProblemIds))
+	for _, problem := range collectionProblems {
+		problemMap[problem.Id] = problem
+	}
+	collectionProblems, err = foundationdao.GetProblemDao().SelectProblemViewList(ctx, collectionProblemIds, false)
+	if err != nil {
+		return
+	}
+	var problemTags map[int][]int
+	problemTags, err = foundationdao.GetProblemTagDao().GetProblemTagMap(ctx, collectionProblemIds)
+	var problemTagIds []int
+	for problemId, tag := range problemTags {
+		problemTagIds = append(problemTagIds, tag...)
+		problemMap[problemId].Tags = tag
+	}
+	tags, err = foundationdao.GetTagDao().GetTags(ctx, problemTagIds)
+	if err != nil {
+		return
+	}
+	if userId > 0 {
+		userAttempts, err = foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
+			ctx,
+			userId,
+			collectionProblemIds,
+			-1,
+			collection.StartTime,
+			collection.EndTime,
+		)
+		if err != nil {
+			return
+		}
+	}
+	var problemAttempts []*foundationview.ProblemAttemptInfo
+	problemAttempts, err = foundationdao.GetCollectionDao().GetProblemAttemptInfo(
+		ctx,
+		id,
+		collectionProblemIds,
+		collection.StartTime,
+		collection.EndTime,
+	)
+	if err != nil {
+		return
+	}
+	if len(problemAttempts) > 0 {
+		for _, attempt := range problemAttempts {
+			if problem, ok := problemMap[attempt.Id]; ok {
+				problem.Accept = attempt.Accept
+				problem.Attempt = attempt.Attempt
+			}
+		}
+	}
+	return
 }
 
 func (s *CollectionService) GetCollectionEdit(ctx context.Context, id int) (
-	*foundationmodel.Collection,
+	*foundationview.CollectionDetail,
 	error,
 ) {
-	collection, err := foundationdaomongo.GetCollectionDao().GetCollectionEdit(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if collection == nil {
-		return nil, nil
-	}
-	ownerUser, err := foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, collection.OwnerId)
-	if err != nil {
-		return nil, err
-	}
-	collection.OwnerUsername = &ownerUser.Username
-	collection.OwnerNickname = &ownerUser.Nickname
-	return collection, err
+	return foundationdao.GetCollectionDao().GetCollectionDetail(ctx, id)
 }
 
 func (s *CollectionService) GetCollectionList(
 	ctx context.Context,
 	page int,
 	pageSize int,
-) ([]*foundationmodel.Collection, int, error) {
-	collections, totalCount, err := foundationdaomongo.GetCollectionDao().GetCollectionList(ctx, page, pageSize)
-	if err != nil {
-		return nil, 0, err
-	}
-	if len(collections) > 0 {
-		var userIds []int
-		for _, collection := range collections {
-			userIds = append(userIds, collection.OwnerId)
-		}
-		users, err := foundationdaomongo.GetUserDao().GetUsersAccountInfo(ctx, userIds)
-		if err != nil {
-			return nil, 0, err
-		}
-		userMap := make(map[int]*foundationmodel.UserAccountInfo)
-		for _, user := range users {
-			userMap[user.Id] = user
-		}
-		for _, collection := range collections {
-			if user, ok := userMap[collection.OwnerId]; ok {
-				collection.OwnerUsername = &user.Username
-				collection.OwnerNickname = &user.Nickname
-			}
-		}
-	}
-	return collections, totalCount, nil
-}
-
-func (s *CollectionService) InsertCollection(ctx context.Context, collection *foundationmodel.Collection) error {
-	return foundationdaomongo.GetCollectionDao().InsertCollection(ctx, collection)
+) ([]*foundationview.CollectionList, int, error) {
+	return foundationdao.GetCollectionDao().GetCollectionList(ctx, page, pageSize)
 }
 
 func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
-	*time.Time,
-	*time.Time,
-	int,
-	[]*foundationmodel.CollectionRank,
-	error,
+	startTime *time.Time,
+	endTime *time.Time,
+	problems []int,
+	ranks []*foundationview.CollectionRank,
+	err error,
 ) {
-	collectionView, err := foundationdaomongo.GetCollectionDao().GetCollectionRankView(ctx, id)
+	var collection *foundationview.CollectionRankDetail
+	collection, err = foundationdao.GetCollectionDao().GetCollectionRankDetail(ctx, id)
 	if err != nil {
-		return nil, nil, 0, nil, err
+		return
 	}
-	var collectionRanks []*foundationmodel.CollectionRank
-	if len(collectionView.Members) > 0 {
-		users, err := foundationdaomongo.GetUserDao().GetUsersAccountInfo(ctx, collectionView.Members)
-		if err != nil {
-			return nil, nil, 0, nil, err
-		}
-		userMap := make(map[int]*foundationmodel.UserAccountInfo)
-		for _, user := range users {
-			userMap[user.Id] = user
-		}
-		for _, authorId := range collectionView.Members {
-			if user, ok := userMap[authorId]; ok {
-				collectionRanks = append(
-					collectionRanks, &foundationmodel.CollectionRank{
-						AuthorId:       authorId,
-						AuthorUsername: &user.Username,
-						AuthorNickname: &user.Nickname,
-					},
-				)
-			}
-		}
-		if len(collectionView.Problems) > 0 {
-			userAcMap, err := foundationdaomongo.GetJudgeJobDao().GetAcceptedProblemCount(
-				ctx,
-				collectionView.StartTime,
-				collectionView.EndTime,
-				collectionView.Problems,
-				collectionView.Members,
-			)
-			if err != nil {
-				return nil, nil, 0, nil, err
-			}
-			for _, collectionRank := range collectionRanks {
-				if acCount, ok := userAcMap[collectionRank.AuthorId]; ok {
-					collectionRank.Accept = acCount
-				}
-			}
-		}
+	if collection == nil {
+		return
 	}
-	return collectionView.StartTime, collectionView.EndTime, len(collectionView.Problems), collectionRanks, nil
+	collection.Problems, err = foundationdao.GetCollectionProblemDao().GetCollectionProblems(ctx, id)
+	if err != nil {
+		return
+	}
+	ranks, err = foundationdao.GetCollectionDao().GetCollectionRank(ctx, id, collection)
+	if err != nil {
+		return
+	}
+	return
 }
 
 func (s *CollectionService) PostJoin(ctx *gin.Context, collectionId int, userId int) error {
@@ -278,10 +208,20 @@ func (s *CollectionService) PostQuit(ctx *gin.Context, collectionId int, userId 
 	return foundationdaomongo.GetCollectionDao().PostQuit(ctx, collectionId, userId)
 }
 
+func (s *CollectionService) InsertCollection(
+	ctx context.Context,
+	collection *foundationmodel.Collection,
+	problemIds []int,
+	members []int,
+) error {
+	return foundationdao.GetCollectionDao().InsertCollection(ctx, collection, problemIds, members)
+}
+
 func (s *CollectionService) UpdateCollection(
 	ctx context.Context,
-	id int,
 	collection *foundationmodel.Collection,
+	problemIds []int,
+	members []int,
 ) error {
-	return foundationdaomongo.GetCollectionDao().UpdateCollection(ctx, id, collection)
+	return foundationdao.GetCollectionDao().UpdateCollection(ctx, collection, problemIds, members)
 }

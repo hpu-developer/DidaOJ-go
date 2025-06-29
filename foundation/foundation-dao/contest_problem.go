@@ -2,7 +2,8 @@ package foundationdao
 
 import (
 	"context"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
+	foundationview "foundation/foundation-view"
 	"gorm.io/gorm"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
@@ -24,17 +25,107 @@ func GetContestProblemDao() *ContestProblemDao {
 	)
 }
 
-func (d *ContestProblemDao) GetProblemIdByContest(ctx context.Context, id int, index int) (int, error) {
-	var problemIds []int
+func (d *ContestProblemDao) GetProblemId(ctx context.Context, id int, index int) (int, error) {
+	var problemId int
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.ContestProblem{}).
-		Where("contest_id = ? AND `index` = ?", id, index). // index 是保留字，建议加反引号
-		Pluck("problem_id", &problemIds).Error
+		Where("contest_id = ? AND `index` = ?", id, index).
+		Pluck("problem_id", &problemId).Error // index 是保留字，建议加反引号
 	if err != nil {
 		return 0, err
 	}
-	if len(problemIds) == 0 {
+	if problemId == 0 {
 		return 0, gorm.ErrRecordNotFound
 	}
-	return problemIds[0], nil
+	return problemId, nil
+}
+
+func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problemId int) (int, error) {
+	var index int
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.ContestProblem{}).
+		Where("contest_id = ? AND problem_id = ?", id, problemId).
+		Pluck("`index`", &index).Error // index 是保留字，建议加反引号
+	if err != nil {
+		return 0, err
+	}
+	if index == 0 {
+		return 0, gorm.ErrRecordNotFound
+	}
+	return index, nil
+}
+
+func (d *ContestProblemDao) GetProblems(ctx context.Context, contestId int) (
+	[]*foundationview.ContestProblemDetail,
+	error,
+) {
+	var results []*foundationview.ContestProblemDetail
+	err := d.db.WithContext(ctx).
+		Table("contest_problem AS cp").
+		Select(
+			`
+			cp.id,
+			cp.problem_id,
+			cp.index,
+			cp.view_id,
+			cp.score,
+			p.title
+		`,
+		).
+		Joins("JOIN problem AS p ON cp.problem_id = p.id").
+		Where("cp.id = ?", contestId).
+		Order("cp.index ASC").
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (d *ContestProblemDao) GetProblemsRank(ctx context.Context, id int) ([]*foundationview.ContestProblemRank, error) {
+	var results []*foundationview.ContestProblemRank
+	err := d.db.WithContext(ctx).
+		Table("contest_problem AS cp").
+		Select(
+			`
+			cp.problem_id,
+			cp.index,
+			cp.score,
+		`,
+		).
+		Where("cp.id = ?", id).
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (d *ContestProblemDao) GetProblemsDetail(ctx context.Context, contestId int) (
+	[]*foundationview.ContestProblemDetail,
+	error,
+) {
+	var results []*foundationview.ContestProblemDetail
+	err := d.db.WithContext(ctx).
+		Table("contest_problem AS cp").
+		Select(
+			`
+			cp.id,
+			cp.problem_id,
+			cp.index,
+			cp.view_id,
+			cp.score,
+			p.title
+		`,
+		).
+		Joins("JOIN problem AS p ON cp.problem_id = p.id").
+		Where("cp.id = ?", contestId).
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }

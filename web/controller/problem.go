@@ -532,21 +532,21 @@ func (c *ProblemController) PostParse(ctx *gin.Context) {
 
 func (c *ProblemController) PostCrawl(ctx *gin.Context) {
 	var requestData struct {
-		OJ string `json:"oj" binding:"required"`
-		Id string `json:"id" binding:"required"`
+		OJ  string `json:"oj" binding:"required"`
+		Key string `json:"key" binding:"required"`
 	}
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	if requestData.OJ == "" || requestData.Id == "" {
+	if requestData.OJ == "" || requestData.Key == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	oj := strings.ToLower(requestData.OJ)
-	id := strings.TrimSpace(requestData.Id)
+	key := strings.TrimSpace(requestData.Key)
 	if oj == "didaoj" {
-		ok, err := foundationservice.GetProblemService().HasProblem(ctx, id)
+		ok, err := foundationservice.GetProblemService().HasProblemByKey(ctx, key)
 		if err != nil {
 			return
 		}
@@ -554,10 +554,10 @@ func (c *ProblemController) PostCrawl(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 			return
 		}
-		metaresponse.NewResponse(ctx, metaerrorcode.Success, id)
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, key)
 		return
 	}
-	newId, err := service.GetProblemCrawlService().PostCrawlProblem(ctx, oj, id)
+	newId, err := service.GetProblemCrawlService().PostCrawlProblem(ctx, oj, key)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return

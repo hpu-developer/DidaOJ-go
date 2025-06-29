@@ -7,6 +7,7 @@ import (
 	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model-mongo"
+	"foundation/foundation-view"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -1167,7 +1168,7 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 }
 
 func (d *JudgeJobDao) GetJudgeJobCountStaticsRecently(ctx context.Context) (
-	[]*foundationmodel.JudgeJobCountStatics,
+	[]*foundationview.JudgeJobCountStatics,
 	error,
 ) {
 	const days = 30
@@ -1220,7 +1221,7 @@ func (d *JudgeJobDao) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 	}
 
 	// 临时统计结果
-	resultMap := map[string]*foundationmodel.JudgeJobCountStatics{}
+	resultMap := map[string]*foundationview.JudgeJobCountStatics{}
 
 	for cursor.Next(ctx) {
 		var res aggResult
@@ -1230,7 +1231,7 @@ func (d *JudgeJobDao) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 		dateStr := res.ID.Date
 		if _, ok := resultMap[dateStr]; !ok {
 			parsedDate, _ := time.Parse("2006-01-02", dateStr)
-			resultMap[dateStr] = &foundationmodel.JudgeJobCountStatics{
+			resultMap[dateStr] = &foundationview.JudgeJobCountStatics{
 				Date:    parsedDate,
 				Accept:  0,
 				Attempt: 0,
@@ -1244,7 +1245,7 @@ func (d *JudgeJobDao) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 	}
 
 	// 构造返回列表，按日期排序
-	var statList []*foundationmodel.JudgeJobCountStatics
+	var statList []*foundationview.JudgeJobCountStatics
 	for i := 0; i < days; i++ {
 		date := start.AddDate(0, 0, i)
 		dateStr := date.Format("2006-01-02")
@@ -1252,7 +1253,7 @@ func (d *JudgeJobDao) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 			statList = append(statList, stat)
 		} else {
 			statList = append(
-				statList, &foundationmodel.JudgeJobCountStatics{
+				statList, &foundationview.JudgeJobCountStatics{
 					Date:    date,
 					Accept:  0,
 					Attempt: 0,

@@ -160,7 +160,7 @@ func (d *ProblemDao) CheckProblemEditAuth(ctx context.Context, problemId string,
 	return exists == 1, nil
 }
 
-func (d *ProblemDao) CheckProblemSubmitAuth(ctx context.Context, problemId string, userId int) (
+func (d *ProblemDao) CheckProblemSubmitAuth(ctx context.Context, problemId int, userId int) (
 	bool,
 	error,
 ) {
@@ -220,6 +220,23 @@ func (d *ProblemDao) HasProblem(ctx context.Context, id int) (bool, error) {
 		Model(&foundationmodel.Problem{}).
 		Select("1").
 		Where("id = ?", id).
+		Limit(1).
+		Scan(&dummy).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func (d *ProblemDao) HasProblemByKey(ctx context.Context, key string) (bool, error) {
+	var dummy int
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Problem{}).
+		Select("1").
+		Where("key = ?", key).
 		Limit(1).
 		Scan(&dummy).Error
 	if err != nil {
@@ -354,7 +371,7 @@ func (d *ProblemDao) GetProblemViewJudgeData(ctx context.Context, id string) (*f
 
 func (d *ProblemDao) GetProblemViewApproveJudge(
 	ctx context.Context,
-	id string,
+	id int,
 ) (*foundationview.ProblemViewApproveJudge, error) {
 	db := d.db.WithContext(ctx).
 		Model(&foundationview.ProblemViewApproveJudge{}).
@@ -417,7 +434,23 @@ func (d *ProblemDao) GetProblemListTitle(ctx context.Context, ids []string) (
 	return list, nil
 }
 
-func (d *ProblemDao) SelectProblemViewList(ctx context.Context, ids []int) (
+func (d *ProblemDao) FilterValidProblemIds(ctx context.Context, ids []int) ([]int, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var validIds []int
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Problem{}).
+		Select("id").
+		Where("id IN ?", ids).
+		Pluck("id", &validIds).Error
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find problems error")
+	}
+	return validIds, nil
+}
+
+func (d *ProblemDao) SelectProblemViewList(ctx context.Context, ids []int, needAttempt bool) (
 	[]*foundationview.ProblemViewList,
 	error,
 ) {
@@ -425,8 +458,12 @@ func (d *ProblemDao) SelectProblemViewList(ctx context.Context, ids []int) (
 		return nil, nil
 	}
 	var list []*foundationview.ProblemViewList
+	fields := []string{"id", "key", "title"}
+	if needAttempt {
+		fields = append(fields, "accept", "attempt")
+	}
 	err := d.db.WithContext(ctx).
-		Select("id", "key", "title", "tags", "accept", "attempt").
+		Select(fields).
 		Where("id IN ?", ids).
 		Find(&list).Error
 	if err != nil {
@@ -434,47 +471,6 @@ func (d *ProblemDao) SelectProblemViewList(ctx context.Context, ids []int) (
 	}
 	return list, nil
 }
-
-//func (d *ProblemDao) FilterValidProblemIds(ctx context.Context, keys []string, userId int, hasAuth bool) (
-//	[]*foundationview.ProblemViewTitle,
-//	error,
-//) {
-//	if len(ids) == 0 {
-//		return nil, nil
-//	}
-//	var validIds []string
-//	db := d.db.WithContext(ctx).
-//		Model(&foundationmodel.Problem{}).
-//		Select("id,key,title").
-//		Where("key IN ?", keys)
-//
-//	// 权限控制
-//	if !hasAuth {
-//		if userId > 0 {
-//			db = db.Where(
-//				`
-//				private = 0 OR
-//				creator_id = ? OR
-//				EXISTS (
-//					SELECT 1 FROM problem_member
-//					WHERE problem_member.problem_id = problems.id AND problem_member.user_id = ?
-//				) OR
-//				EXISTS (
-//					SELECT 1 FROM problem_auth_member
-//					WHERE problem_auth_member.problem_id = problems.id AND problem_auth_member.user_id = ?
-//				)
-//			`, userId, userId, userId,
-//			)
-//		} else {
-//			db = db.Where("private = 0")
-//		}
-//	}
-//	err := db.Pluck("id", &validIds).Error
-//	if err != nil {
-//		return nil, metaerror.Wrap(err, "filter valid problem ids error")
-//	}
-//	return validIds, nil
-//}
 
 func (d *ProblemDao) UpdateProblem(
 	ctx context.Context,
