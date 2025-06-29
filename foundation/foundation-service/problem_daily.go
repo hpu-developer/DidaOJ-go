@@ -54,13 +54,13 @@ func (s *ProblemDailyService) GetDailyList(
 	page int,
 	pageSize int,
 ) (
-	[]*foundationview.ProblemDaily,
-	int,
-	[]*foundationmodel.Tag,
-	map[int]foundationenum.ProblemAttemptStatus,
-	error,
+	dailyList []*foundationview.ProblemDailyList,
+	totalCount int,
+	tags []*foundationmodel.Tag,
+	attemptStatus map[int]foundationenum.ProblemAttemptStatus,
+	err error,
 ) {
-	dailyList, totalCount, err := foundationdao.GetProblemDailyDao().GetDailyList(
+	dailyList, totalCount, err = foundationdao.GetProblemDailyDao().GetDailyList(
 		ctx,
 		hasAuth,
 		startDate,
@@ -70,24 +70,24 @@ func (s *ProblemDailyService) GetDailyList(
 		pageSize,
 	)
 	if err != nil {
-		return nil, 0, nil, nil, err
+		return
 	}
 	if len(dailyList) == 0 {
-		return nil, 0, nil, nil, nil
+		return
 	}
-	var problemIds []int
+	problemIds := make([]int, len(dailyList))
 	for _, daily := range dailyList {
 		problemIds = append(problemIds, daily.ProblemId)
 	}
-	problemList, err := foundationdao.GetProblemDao().SelectProblemViewList(ctx, problemIds, true)
+	var problemTagMap map[int][]int
+	problemTagMap, err = foundationdao.GetProblemTagDao().GetProblemTagMap(ctx, problemIds)
 	if err != nil {
 		return nil, 0, nil, nil, err
 	}
 	var tagIds []int
-	for _, problem := range problemList {
-		tagIds = append(tagIds, problem.Tags...)
+	for _, tag := range problemTagMap {
+		tagIds = append(tagIds, tag...)
 	}
-	var tags []*foundationmodel.Tag
 	if len(tagIds) > 0 {
 		tags, err = foundationdao.GetTagDao().GetTags(ctx, tagIds)
 		if err != nil {
@@ -108,25 +108,19 @@ func (s *ProblemDailyService) GetDailyList(
 			return nil, 0, nil, nil, err
 		}
 	}
-	problemMap := make(map[int]*foundationview.ProblemViewList)
-	for _, problem := range problemList {
-		problemMap[problem.Id] = problem
-	}
 	for _, daily := range dailyList {
-		problem, ok := problemMap[daily.ProblemId]
+		tag, ok := problemTagMap[daily.ProblemId]
 		if ok {
-			daily.ProblemKey = problem.Key
-			daily.ProblemTitle = problem.Title
-			daily.ProblemTags = problem.Tags
-			daily.ProblemAccept = problem.Accept
-			daily.ProblemAttempt = problem.Attempt
+			daily.Tags = tag
+		} else {
+			daily.Tags = nil
 		}
 	}
 	return dailyList, totalCount, tags, problemStatus, nil
 }
 
 func (s *ProblemDailyService) GetDailyRecently(ctx *gin.Context, userId int) (
-	[]*foundationview.ProblemDaily,
+	[]*foundationview.ProblemDailyList,
 	map[int]foundationenum.ProblemAttemptStatus,
 	error,
 ) {

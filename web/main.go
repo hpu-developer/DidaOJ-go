@@ -7,6 +7,7 @@ import (
 	"meta/engine"
 	"meta/meta-http"
 	metamogo "meta/meta-mongo"
+	metamysql "meta/meta-mysql"
 	metapanic "meta/meta-panic"
 	metaredis "meta/meta-redis"
 	"meta/subsystem"
@@ -44,6 +45,16 @@ func InitPre() error {
 				return config.GetRedisConfig()
 			}
 			return redisSubsystem
+		},
+	)
+
+	engine.RegisterSubsystem(
+		func() subsystem.Interface {
+			mysqlSubsystem := &metamysql.Subsystem{}
+			mysqlSubsystem.GetConfig = func() map[string]*metamysql.Config {
+				return config.GetMysqlConfig()
+			}
+			return mysqlSubsystem
 		},
 	)
 

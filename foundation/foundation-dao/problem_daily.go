@@ -128,25 +128,25 @@ func (d *ProblemDailyDao) GetDailyList(
 	problemId string,
 	page int,
 	pageSize int,
-) ([]*foundationview.ProblemDaily, int, error) {
+) ([]*foundationview.ProblemDailyList, int, error) {
 	db := d.db.WithContext(ctx).Model(&foundationmodel.ProblemDaily{})
 	nowId := metatime.GetTimeNowBeijing().Format("2006-01-02")
 	if startDate != nil && *startDate != "" {
-		db = db.Where("id >= ?", *startDate)
+		db = db.Where("key >= ?", *startDate)
 	}
 	if hasAuth {
 		if endDate != nil && *endDate != "" {
-			db = db.Where("id <= ?", *endDate)
+			db = db.Where("key <= ?", *endDate)
 		}
 	} else {
 		if endDate != nil && *endDate != "" {
 			if *endDate < nowId {
-				db = db.Where("id <= ?", *endDate)
+				db = db.Where("key <= ?", *endDate)
 			} else {
-				db = db.Where("id <= ?", nowId)
+				db = db.Where("key <= ?", nowId)
 			}
 		} else {
-			db = db.Where("id <= ?", nowId)
+			db = db.Where("key <= ?", nowId)
 		}
 	}
 	if problemId != "" {
@@ -157,9 +157,17 @@ func (d *ProblemDailyDao) GetDailyList(
 		return nil, 0, fmt.Errorf("failed to count problem daily: %w", err)
 	}
 	offset := (page - 1) * pageSize
-	var list []*foundationview.ProblemDaily
-	err := db.Select("id", "problem_id").
-		Order("id DESC").
+	var list []*foundationview.ProblemDailyList
+	err := db.Select(
+		"`key`",
+		"p.title AS title",
+		"problem_id",
+		"`p`.`key` AS problem_key",
+		"p.accept AS accept",
+		"p.attempt AS attempt",
+	).
+		Joins("LEFT JOIN problem AS p ON pd.problem_id = p.id").
+		Order("key DESC").
 		Limit(pageSize).
 		Offset(offset).
 		Find(&list).Error
@@ -169,22 +177,21 @@ func (d *ProblemDailyDao) GetDailyList(
 	return list, int(totalCount), nil
 }
 
-func (d *ProblemDailyDao) GetDailyRecently(ctx *gin.Context) ([]*foundationview.ProblemDaily, error) {
+func (d *ProblemDailyDao) GetDailyRecently(ctx *gin.Context) ([]*foundationview.ProblemDailyList, error) {
 	// 获取今天日期
 	today := metatime.GetTimeNowBeijing().Format("2006-01-02")
-	var result []*foundationview.ProblemDaily
+	var result []*foundationview.ProblemDailyList
 	err := d.db.WithContext(ctx).
 		Table("problem_daily AS pd").
 		Select(
-			`
-			pd.key,
-			p.key AS problem_key,
-			p.title AS problem_title
-		`,
+			"`pd`.`key` AS `key`",
+			"p.title AS title",
+			"pd.problem_id AS problem_id",
+			"p.`key` AS problem_key",
 		).
-		Joins("LEFT JOIN problems AS p ON pd.problem_id = p.id").
-		Where("pd.id <= ?", today).
-		Order("pd.id DESC").
+		Joins("LEFT JOIN problem AS p ON pd.problem_id = p.id").
+		Where("pd.`key` <= ?", today).
+		Order("pd.`key` DESC").
 		Limit(7).
 		Scan(&result).Error
 	if err != nil {
