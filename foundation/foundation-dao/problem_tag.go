@@ -20,19 +20,20 @@ func GetProblemTagDao() *ProblemTagDao {
 	return singletonProblemTagDao.GetInstance(
 		func() *ProblemTagDao {
 			dao := &ProblemTagDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			db := metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = db.Model((*foundationmodel.ProblemTag)(nil))
 			return dao
 		},
 	)
 }
 
 func (d *ProblemTagDao) GetProblemTags(ctx context.Context, problemIds []int) ([]int, error) {
-
 	var ids []int
 	err := d.db.WithContext(ctx).
-		Select("DISTINCT tag_id").
+		Select("tag_id").
 		Where("id IN ?", problemIds).
-		Order("index ASC").
+		Group("tag_id").
+		Order("MIN(`index`) ASC").
 		Pluck("tag_id", &ids).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to pluck tag ids")
@@ -80,23 +81,21 @@ func (d *ProblemTagDao) GetProblemTagList(ctx context.Context, maxCount int) (
 	error,
 ) {
 	var tags []*foundationmodel.Tag
+
+	subQuery := d.db.Model(&foundationmodel.ProblemTag{}).Select("DISTINCT tag_id")
+
 	var count int64
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Tag{}).
-		Where(
-			"id IN (?)",
-			d.db.Model(&foundationmodel.ProblemTag{}).Select("DISTINCT tag_id"),
-		).
+		Where("id IN (?)", subQuery).
 		Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
 	err = d.db.WithContext(ctx).
 		Model(&foundationmodel.Tag{}).
-		Where(
-			"id IN (?)",
-			d.db.Model(&foundationmodel.ProblemTag{}).Select("DISTINCT tag_id"),
-		).
+		Select("id,name").
+		Where("id IN (?)", subQuery).
 		Limit(maxCount).
 		Find(&tags).Error
 	if err != nil {

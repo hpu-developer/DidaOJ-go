@@ -139,7 +139,7 @@ func (s *ProblemService) GetProblemsTags(ctx context.Context, ids []int) ([]*fou
 		tagMap[tag.Id] = tag
 	}
 	var resultTags []*foundationmodel.Tag
-	for _, tagId := range ids {
+	for _, tagId := range tagIds {
 		if tag, ok := tagMap[tagId]; ok {
 			resultTags = append(resultTags, tag)
 		}

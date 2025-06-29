@@ -97,7 +97,7 @@ func (d *ProblemDao) GetProblemList(
 func (d *ProblemDao) GetProblemView(
 	ctx context.Context, id string, userId int, hasAuth bool,
 ) (*foundationview.Problem, error) {
-	db := d.db.WithContext(ctx).Table("problems AS p").
+	db := d.db.WithContext(ctx).Table("problem AS p").
 		Select(
 			`
 			p.*,
@@ -106,8 +106,8 @@ func (d *ProblemDao) GetProblemView(
 			r.origin_oj, r.origin_id, r.origin_url, r.origin_author
 		`,
 		).
-		Joins(`LEFT JOIN users u1 ON u1.id = p.inserter`).
-		Joins(`LEFT JOIN users u2 ON u2.id = p.modifier`).
+		Joins(`LEFT JOIN user u1 ON u1.id = p.inserter`).
+		Joins(`LEFT JOIN user u2 ON u2.id = p.modifier`).
 		Joins(`LEFT JOIN problem_remote r ON r.problem_id = p.id`).
 		Where("p.id = ?", id)
 
@@ -355,8 +355,8 @@ func (d *ProblemDao) GetProblemViewJudgeData(ctx context.Context, id string) (*f
 			r.judge_md5
 		`,
 		).
-		Joins(`LEFT JOIN users u1 ON u1.id = p.inserter`).
-		Joins(`LEFT JOIN users u2 ON u2.id = p.modifier`).
+		Joins(`LEFT JOIN user u1 ON u1.id = p.inserter`).
+		Joins(`LEFT JOIN user u2 ON u2.id = p.modifier`).
 		Joins(`LEFT JOIN problem_local r ON r.problem_id = p.id`).
 		Where("p.id = ?", id)
 	var problem foundationview.ProblemJudgeData

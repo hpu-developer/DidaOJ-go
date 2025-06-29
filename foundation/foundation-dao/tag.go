@@ -44,7 +44,6 @@ func (d *TagDao) GetTags(ctx context.Context, ids []int) ([]*foundationmodel.Tag
 	}
 	var tags []*foundationmodel.Tag
 	err := d.db.WithContext(ctx).
-		Model(&foundationmodel.Tag{}).
 		Where("id IN ?", ids).
 		Find(&tags).Error
 	if err != nil {
