@@ -5,9 +5,10 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
 	foundationuser "foundation/foundation-user"
+	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	cfturnstile "meta/cf-turnstile"
@@ -35,7 +36,7 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	userInfo, err := foundationservice.GetUserService().GetInfo(ctx, username)
+	userInfo, err := foundationservice.GetUserService().GetInfoByUsername(ctx, username)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -51,8 +52,8 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 	}
 
 	responseData := struct {
-		User       *foundationmodel.UserInfo `json:"user"`
-		ProblemsAc []string                  `json:"problems_ac"`
+		User       *foundationview.UserInfo `json:"user"`
+		ProblemsAc []string                 `json:"problems_ac"`
 	}{
 		User:       userInfo,
 		ProblemsAc: acProblems,
@@ -74,7 +75,7 @@ func (c *UserController) PostAccountInfos(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Users []*foundationmodel.UserAccountInfo `json:"users"`
+		Users []*foundationview.UserAccountInfo `json:"users"`
 	}{
 		Users: userAccountInfos,
 	}
@@ -96,7 +97,7 @@ func (c *UserController) PostParse(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Users []*foundationmodel.UserAccountInfo `json:"users"`
+		Users []*foundationview.UserAccountInfo `json:"users"`
 	}{
 		Users: userAccountInfos,
 	}
@@ -247,12 +248,15 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 		return
 	}
 
+	nowTime := metatime.GetTimeNow()
+
 	user := foundationmodel.NewUserBuilder().
 		Username(requestData.Username).
 		Password(passwordEncode).
 		Email(requestData.Email).
 		Nickname(requestData.Nickname).
-		RegTime(metatime.GetTimeNow()).
+		InsertTime(nowTime).
+		ModifyTime(nowTime).
 		Build()
 
 	err = foundationservice.GetUserService().InsertUser(ctx, user)

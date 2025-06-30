@@ -56,10 +56,10 @@ type ProblemController struct {
 func (c *ProblemController) Get(ctx *gin.Context) {
 	var err error
 	problemService := foundationservice.GetProblemService()
-	idStr := ctx.Query("id")
+	problemKey := ctx.Query("key")
 	isContest := false
-	id := 0
-	if idStr == "" {
+	problemId := 0
+	if problemKey == "" {
 		contestIdStr := ctx.Query("contest_id")
 		if contestIdStr == "" {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
@@ -80,27 +80,27 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 			return
 		}
-		id, err = problemService.GetProblemIdByContest(ctx, contestId, problemIndex)
+		problemId, err = problemService.GetProblemIdByContest(ctx, contestId, problemIndex)
 		if err != nil {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 			return
 		}
 		isContest = true
 	} else {
-		id, err = strconv.Atoi(idStr)
+		problemId, err = problemService.GetProblemIdByKey(ctx, problemKey)
 		if err != nil {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 			return
 		}
 	}
-	if id <= 0 {
+	if problemId <= 0 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 
 	userId, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
 
-	problem, err := problemService.GetProblemView(ctx, idStr, userId, ok)
+	problem, err := problemService.GetProblemView(ctx, problemId, userId, ok)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -121,7 +121,7 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 		problem.OriginId = nil
 		problem.OriginUrl = nil
 	} else {
-		tags, err = problemService.GetProblemTags(ctx, id)
+		tags, err = problemService.GetProblemTags(ctx, problemId)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
@@ -827,8 +827,8 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 	description, needUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
 		description,
 		oldDescription,
-		metahttp.UrlJoin("problem", problemId),
-		metahttp.UrlJoin("problem", problemId),
+		metahttp.UrlJoin("problem", strconv.Itoa(problemId)),
+		metahttp.UrlJoin("problem", strconv.Itoa(problemId)),
 	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)

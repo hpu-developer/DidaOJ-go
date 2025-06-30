@@ -57,7 +57,7 @@ func GetProblemService() *ProblemService {
 	)
 }
 
-func (s *ProblemService) CheckEditAuth(ctx *gin.Context, id string) (
+func (s *ProblemService) CheckEditAuth(ctx *gin.Context, id int) (
 	int,
 	bool,
 	error,
@@ -107,7 +107,7 @@ func (s *ProblemService) CheckSubmitAuth(ctx *gin.Context, id int) (
 
 func (s *ProblemService) GetProblemView(
 	ctx context.Context,
-	id string,
+	id int,
 	userId int,
 	hasAuth bool,
 ) (*foundationview.Problem, error) {
@@ -153,7 +153,7 @@ func (s *ProblemService) GetProblemIdByContest(ctx *gin.Context, contestId int, 
 
 func (s *ProblemService) GetProblemDescription(
 	ctx context.Context,
-	id string,
+	id int,
 ) (*string, error) {
 	return foundationdao.GetProblemDao().GetProblemDescription(ctx, id)
 }
@@ -378,7 +378,7 @@ func (s *ProblemService) InsertProblemLocal(
 
 func (s *ProblemService) UpdateProblem(
 	ctx context.Context,
-	problemId string,
+	problemId int,
 	problem *foundationmodel.Problem,
 	tags []string,
 ) error {

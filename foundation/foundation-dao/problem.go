@@ -84,7 +84,7 @@ func (d *ProblemDao) GetProblemList(
 	}
 	var list []*foundationview.ProblemViewList
 	if err := db.
-		Select("id", "title", "accept", "attempt").
+		Select("id", "key", "title", "accept", "attempt").
 		Order("id ASC").
 		Offset(offset).
 		Limit(pageSize).
@@ -95,7 +95,7 @@ func (d *ProblemDao) GetProblemList(
 }
 
 func (d *ProblemDao) GetProblemView(
-	ctx context.Context, id string, userId int, hasAuth bool,
+	ctx context.Context, id int, userId int, hasAuth bool,
 ) (*foundationview.Problem, error) {
 	db := d.db.WithContext(ctx).Table("problem AS p").
 		Select(
@@ -140,7 +140,7 @@ func (d *ProblemDao) GetProblemView(
 	return &problem, nil
 }
 
-func (d *ProblemDao) CheckProblemEditAuth(ctx context.Context, problemId string, userId int) (
+func (d *ProblemDao) CheckProblemEditAuth(ctx context.Context, problemId int, userId int) (
 	bool,
 	error,
 ) {
@@ -449,7 +449,7 @@ func (d *ProblemDao) GetProblemJudgeMd5(ctx context.Context, id string) (*string
 	return result.JudgeMd5, err
 }
 
-func (d *ProblemDao) GetProblemDescription(ctx context.Context, id string) (*string, error) {
+func (d *ProblemDao) GetProblemDescription(ctx context.Context, id int) (*string, error) {
 	var result struct {
 		Description string `gorm:"column:description"`
 	}
@@ -521,7 +521,7 @@ func (d *ProblemDao) SelectProblemViewList(ctx context.Context, ids []int, needA
 
 func (d *ProblemDao) UpdateProblem(
 	ctx context.Context,
-	problemId string,
+	problemId int,
 	problem *foundationmodel.Problem,
 	tags []string,
 ) error {
@@ -544,13 +544,16 @@ func (d *ProblemDao) UpdateProblem(
 				"modify_time":  problem.ModifyTime,
 				"private":      problem.Private,
 			}
-			err := tx.Model(&foundationmodel.Problem{}).
+			txRes := tx.Model(&foundationmodel.Problem{}).
 				Where("id = ?", problemId).
-				Updates(updateData).Error
-			if err != nil {
-				return err
+				Updates(updateData)
+			if txRes.Error != nil {
+				return txRes.Error
 			}
-			err = GetProblemTagDao().UpdateProblemTagsByDb(tx, problem.Id, tagIds)
+			if txRes.RowsAffected == 0 {
+				return metaerror.New("problem not found")
+			}
+			err := GetProblemTagDao().UpdateProblemTagsByDb(tx, problem.Id, tagIds)
 			if err != nil {
 				return err
 			}
