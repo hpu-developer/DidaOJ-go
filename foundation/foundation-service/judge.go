@@ -2,7 +2,9 @@ package foundationservice
 
 import (
 	"context"
+	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
+	foundationcontest "foundation/foundation-contest"
 	foundationdao "foundation/foundation-dao"
 	foundationdaomongo "foundation/foundation-dao-mongo"
 	foundationenum "foundation/foundation-enum"
@@ -10,6 +12,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
+	metaerror "meta/meta-error"
 	metatime "meta/meta-time"
 	"meta/singleton"
 	"time"
@@ -93,9 +96,15 @@ func (s *JudgeService) GetJudgeCode(ctx context.Context, id int) (
 }
 
 func (s *JudgeService) GetJudgeList(
-	ctx context.Context, userId int,
-	problemId int, contestId int,
-	username string, language foundationjudge.JudgeLanguage, status foundationjudge.JudgeStatus, page int, pageSize int,
+	ctx context.Context,
+	userId int,
+	problemKey string,
+	contestId int,
+	username string,
+	language foundationjudge.JudgeLanguage,
+	status foundationjudge.JudgeStatus,
+	page int,
+	pageSize int,
 ) ([]*foundationview.JudgeJob, error) {
 	var err error
 	searchUserId := -1
@@ -106,6 +115,27 @@ func (s *JudgeService) GetJudgeList(
 		}
 		if searchUserId <= 0 {
 			return nil, nil
+		}
+	}
+
+	problemId := 0
+	if contestId > 0 {
+		problemIndex := foundationcontest.GetContestProblemIndex(problemKey)
+		if problemIndex <= 0 {
+			return nil, metaerror.NewCode(foundationerrorcode.ParamError)
+		}
+		problemId, err = GetContestService().GetProblemIdByContestIndex(
+			ctx,
+			contestId,
+			problemIndex,
+		)
+		if err != nil {
+			return nil, metaerror.Wrap(err, "get problem id by contest index error")
+		}
+	} else {
+		problemId, err = GetProblemService().GetProblemIdByKey(ctx, problemKey)
+		if err != nil {
+			return nil, metaerror.Wrap(err, "get problem id by key error")
 		}
 	}
 

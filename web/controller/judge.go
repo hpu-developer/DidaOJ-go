@@ -61,10 +61,10 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		}
 	}
 	fields := []string{
-		"_id",
+		"id",
 		"problem_id",
-		"author_id",
-		"approve_time",
+		"inserter",
+		"insert_time",
 		"language",
 		"code",
 		"code_length",
@@ -76,11 +76,7 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		"score",
 		"time",
 		"memory",
-		"compile_message",
 		"private",
-	}
-	if hasTaskAuth {
-		fields = append(fields, "task")
 	}
 	judgeJob, err := judgeService.GetJudge(ctx, id, fields)
 	if err != nil {
@@ -90,6 +86,10 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 	if judgeJob == nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
+	}
+	if hasTaskAuth {
+		// TODO搜索task
+
 	}
 	if contest != nil {
 		judgeJob.ContestProblemIndex, err = foundationservice.GetContestService().GetContestProblemIndexById(
@@ -175,7 +175,7 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		return
 	}
 	contestIdStr := ctx.Query("contest_id")
-	var problemId int
+	var problemKey string
 	var contestId int
 	if contestIdStr != "" {
 		contestId, err = strconv.Atoi(contestIdStr)
@@ -197,36 +197,8 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 			return
 		}
-		problemIndexStr := ctx.Query("problem_index")
-		problemIndex, err := strconv.Atoi(problemIndexStr)
-		if err != nil {
-			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-			return
-		}
-		if problemIndex <= 0 {
-			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-			return
-		}
-		problemId, err = foundationservice.GetContestService().GetProblemIdByContestIndex(
-			ctx,
-			contestId,
-			problemIndex,
-		)
-		if err != nil {
-			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-			return
-		}
 	} else {
-		problemIdStr := ctx.Query("problem_id")
-		problemId, err = strconv.Atoi(problemIdStr)
-		if err != nil {
-			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-			return
-		}
-	}
-	if problemId <= 0 {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
+		problemKey = ctx.Query("problem_key")
 	}
 	username := ctx.Query("username")
 	languageStr := ctx.Query("language")
@@ -249,7 +221,7 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	list, err := judgeService.GetJudgeList(
 		ctx, userId,
-		problemId, contestId,
+		problemKey, contestId,
 		username, language, status,
 		page, pageSize,
 	)

@@ -291,7 +291,7 @@ func (s *ContestService) GetContestList(
 	return foundationdao.GetContestDao().GetContestList(ctx, title, userId, page, pageSize)
 }
 
-func (s *ContestService) GetProblemIdByContestIndex(ctx *gin.Context, id int, problemIndex int) (int, error) {
+func (s *ContestService) GetProblemIdByContestIndex(ctx context.Context, id int, problemIndex int) (int, error) {
 	return foundationdao.GetContestProblemDao().GetProblemId(ctx, id, problemIndex)
 }
 

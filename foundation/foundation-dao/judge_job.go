@@ -49,6 +49,7 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int, fields []str
 			"u.username AS inserter_username",
 			"u.nickname AS inserter_nickname",
 			"judger.name AS judger_name",
+			"jc.message AS compile_message",
 		)
 	} else {
 		selectFields = []string{
@@ -56,12 +57,14 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int, fields []str
 			"u.username AS inserter_username",
 			"u.nickname AS inserter_nickname",
 			"judger.name AS judger_name",
+			"jc.message AS compile_message",
 		}
 	}
 	err := d.db.WithContext(ctx).Table("judge_job AS j").
 		Select(strings.Join(selectFields, ", ")).
-		Joins("LEFT JOIN users AS u ON u.id = j.inserter").
+		Joins("LEFT JOIN user AS u ON u.id = j.inserter").
 		Joins("LEFT JOIN judger AS judger ON judger.key = j.judger").
+		Joins("LEFT JOIN judge_job_compile AS jc ON jc.id = j.id").
 		Where("j.id = ?", judgeId).
 		Scan(&view).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -83,21 +86,25 @@ func (d *JudgeJobDao) GetJudgeJobList(
 	page int,
 	pageSize int,
 ) ([]*foundationview.JudgeJob, error) {
+
+	selectSql := `
+			j.id, j.insert_time, j.language, j.score, j.status,
+			j.time, j.memory, j.problem_id, j.inserter, j.code_length,
+			u.username AS inserter_username, u.nickname AS inserter_nickname`
+
+	if contestId > 0 {
+		selectSql += ", cp.`index` AS contest_problem_index"
+	}
+
 	db := d.db.WithContext(ctx).Table("judge_job AS j").
 		Select(
-			`
-			j.id, j.approve_time, j.language, j.score, j.status,
-			j.time, j.memory, j.problem_id, j.author_id, j.code_length,
-			u.username AS inserter_username, u.nickname AS inserter_nickname,
-			cp.index AS contest_problem_index
-		`,
+			selectSql,
 		).
-		Joins("LEFT JOIN users AS u ON u.id = j.author_id")
+		Joins("LEFT JOIN user AS u ON u.id = j.inserter")
 	if contestId > 0 {
 		db = db.Joins(
 			`
-			LEFT JOIN contest_problem AS cp
-			ON cp.id = j.contest_id AND cp.problem_id = j.problem_id
+			LEFT JOIN contest_problem AS cp ON cp.id = j.contest_id AND cp.problem_id = j.problem_id
 		`,
 		)
 		db = db.Where("j.contest_id = ?", contestId)
@@ -108,7 +115,7 @@ func (d *JudgeJobDao) GetJudgeJobList(
 		db = db.Where("j.problem_id = ?", problemId)
 	}
 	if searchUserId > 0 {
-		db = db.Where("j.author_id = ?", searchUserId)
+		db = db.Where("j.inserter = ?", searchUserId)
 	}
 	if foundationjudge.IsValidJudgeLanguage(int(language)) {
 		db = db.Where("j.language = ?", language)
@@ -175,7 +182,7 @@ func (d *JudgeJobDao) GetUserAcProblemIds(db *gorm.DB, userId int) ([]string, er
 	err := db.Model(&foundationmodel.JudgeJob{}).
 		Select("DISTINCT problem_id").
 		Where("status = ?", foundationjudge.JudgeStatusAC).
-		Where("author_id = ?", userId).
+		Where("inserter = ?", userId).
 		Pluck("problem_id", &problemIds).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to get distinct problem_ids")
@@ -186,13 +193,13 @@ func (d *JudgeJobDao) GetUserAcProblemIds(db *gorm.DB, userId int) ([]string, er
 func (d *JudgeJobDao) GetAcUserIds(db *gorm.DB, problemId int, limit int) ([]int, error) {
 	var acUserIds []int
 	subDb := db.Model(&foundationmodel.JudgeJob{}).
-		Select("DISTINCT author_id").
+		Select("DISTINCT inserter").
 		Where("status = ?", foundationjudge.JudgeStatusAC)
 	if problemId > 0 {
 		subDb = subDb.Where("problem_id = ?", problemId)
 	}
 	subDb = subDb.Limit(1000)
-	if err := subDb.Pluck("author_id", &acUserIds).Error; err != nil {
+	if err := subDb.Pluck("inserter", &acUserIds).Error; err != nil {
 		return nil, err
 	}
 	return acUserIds, nil
@@ -226,8 +233,8 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 		Select("jj.problem_id, COUNT(*) AS count").
 		Joins("JOIN problem p ON p.id = jj.problem_id").
 		Where("jj.status = ?", foundationjudge.JudgeStatusAC).
-		Where("jj.approve_time IS NOT NULL").
-		Where("jj.author_id IN ?", acUserIDs).
+		Where("jj.insert_time IS NOT NULL").
+		Where("jj.inserter IN ?", acUserIDs).
 		Where("jj.problem_id NOT IN ?", userAcProblems)
 
 	if problemId > 0 {
@@ -277,14 +284,14 @@ func (d *JudgeJobDao) GetRankAcProblem(
 	db := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{})
 	db = db.Where("status = ?", foundationjudge.JudgeStatusAC)
 	if approveStartTime != nil {
-		db = db.Where("approve_time >= ?", *approveStartTime)
+		db = db.Where("insert_time >= ?", *approveStartTime)
 	}
 	if approveEndTime != nil {
-		db = db.Where("approve_time < ?", *approveEndTime)
+		db = db.Where("insert_time < ?", *approveEndTime)
 	}
 	subQuery := db.
-		Select("author_id AS id, COUNT(DISTINCT problem_id) AS problem_count").
-		Group("author_id")
+		Select("inserter AS id, COUNT(DISTINCT problem_id) AS problem_count").
+		Group("inserter")
 	var result []*foundationview.UserRank
 	err := d.db.Table("(?) AS t", subQuery).
 		Select("t.id, t.problem_count, u.username, u.nickname, u.slogan").

@@ -105,7 +105,7 @@ func (d *CollectionDao) GetCollectionList(
 			u.nickname AS inserter_nickname
 		`,
 		).
-		Joins("LEFT JOIN users u ON u.id = c.inserter").
+		Joins("LEFT JOIN user u ON u.id = c.inserter").
 		Order("c.id DESC").
 		Limit(pageSize).
 		Offset(offset).

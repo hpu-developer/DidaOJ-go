@@ -12,4 +12,6 @@ type JudgeJob struct {
 	JudgerName       string `json:"judger_name"`
 	InserterUsername string `json:"inserter_username"`
 	InserterNickname string `json:"inserter_nickname"`
+
+	CompileMessage *string `json:"compile_message,omitempty"`
 }
