@@ -318,8 +318,13 @@ func (c *ProblemController) GetTagList(ctx *gin.Context) {
 }
 
 func (c *ProblemController) GetJudge(ctx *gin.Context) {
-	id := ctx.Query("id")
-	if id == "" {
+	idStr := ctx.Query("id")
+	if idStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil || id <= 0 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -387,8 +392,8 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 }
 
 func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
-	id := ctx.Query("id")
-	if id == "" {
+	problemKey := ctx.Query("problem_key")
+	if problemKey == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -410,7 +415,7 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 	}
 	// 获取题目信息
 	problemService := foundationservice.GetProblemService()
-	problem, err := problemService.GetProblemViewJudgeData(ctx, id)
+	problem, err := problemService.GetProblemViewJudgeDataByKey(ctx, problemKey)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -426,7 +431,7 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 		return
 	}
 	// 生成预签名链接
-	objectKey := filepath.ToSlash(path.Join(id, key))
+	objectKey := filepath.ToSlash(path.Join(problemKey, key))
 	req, _ := r2Client.GetObjectRequest(
 		&s3.GetObjectInput{
 			Bucket: aws.String("didaoj-judge"),
@@ -600,7 +605,7 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		return
 	}
 	problemService := foundationservice.GetProblemService()
-	problem, err := problemService.GetProblemViewJudgeData(ctx, problemId)
+	problem, err := problemService.GetProblemViewJudgeDataByKey(ctx, problemId)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

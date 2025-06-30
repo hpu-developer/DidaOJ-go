@@ -315,9 +315,11 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int, nowTime ti
 		return
 	}
 
+	var problemIndexes []int
 	problemMap := make(map[int]uint8)
 	for _, problem := range contestProblems {
 		problemMap[problem.ProblemId] = problem.Index
+		problemIndexes = append(problemIndexes, int(problem.Index))
 	}
 
 	isEnd := nowTime.After(contest.EndTime)
@@ -342,6 +344,9 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int, nowTime ti
 	if err != nil {
 		return
 	}
+
+	contest.Problems = problemIndexes
+
 	return contest, contestRanks, isLocked, nil
 }
 

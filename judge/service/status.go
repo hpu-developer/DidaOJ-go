@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
-	foundationdao "foundation/foundation-dao-mongo"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationdao "foundation/foundation-dao"
+	foundationmodel "foundation/foundation-model"
 	"judge/config"
 	"log/slog"
 	cfr2 "meta/cf-r2"
@@ -89,7 +89,7 @@ func (s *StatusService) handleStart() error {
 		MemUsage(memoryUsed).
 		MemTotal(memoryTotal).
 		AvgMessage(avgMessage).
-		UpdateTime(nowTime).
+		ModifyTime(nowTime).
 		Build()
 
 	err = foundationdao.GetJudgerDao().UpdateJudger(ctx, judgerData)

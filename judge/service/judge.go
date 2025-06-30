@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	foundationdao "foundation/foundation-dao-mongo"
+	foundationdao "foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
+	foundationview "foundation/foundation-view"
 	"gopkg.in/yaml.v3"
 	"io"
 	"judge/config"
@@ -55,8 +56,9 @@ type JudgeService struct {
 	problemMutexMap sync.Map
 
 	// 题目号对应的特判程序文件ID
-	specialFileIds map[string]string
-	configFileIds  map[string]string
+	specialFileIds map[int]string
+	// 配置静态文件标识与文件ID的映射
+	configFileIds map[string]string
 
 	goJudgeClient *http.Client
 }
@@ -113,7 +115,7 @@ func (s *JudgeService) Start() error {
 	return nil
 }
 
-func (s *JudgeService) getSpecialFileId(problemId string) string {
+func (s *JudgeService) getSpecialFileId(problemId int) string {
 	if s.specialFileIds == nil {
 		return ""
 	}
@@ -275,7 +277,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 		// 如果没有成功处理，可以认为是中途已经被别的判题机处理了
 		return nil
 	}
-	problem, err := foundationdao.GetProblemDao().GetProblemViewJudge(ctx, job.ProblemId)
+	problem, err := foundationdao.GetProblemDao().GetProblemViewForJudge(ctx, job.ProblemId)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to get problem")
 	}
@@ -296,7 +298,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	if foundationjudge.IsLanguageNeedCompile(job.Language) {
 		execFileIds, extraMessage, compileStatus, err = s.compileCode(job)
 		if extraMessage != "" {
-			markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobCompileMessage(
+			markErr := foundationdao.GetJudgeJobCompileDao().MarkJudgeJobCompileMessage(
 				ctx, job.Id, config.GetConfig().Judger.Key,
 				extraMessage,
 			)
@@ -344,7 +346,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	return err
 }
 
-func (s *JudgeService) updateJudgeData(ctx context.Context, problemId string, md5 string) error {
+func (s *JudgeService) updateJudgeData(ctx context.Context, problemId int, md5 string) error {
 	val, _ := s.problemMutexMap.LoadOrStore(problemId, &judgeMutexEntry{})
 	e := val.(*judgeMutexEntry)
 	atomic.AddInt32(&e.ref, 1)
@@ -355,7 +357,7 @@ func (s *JudgeService) updateJudgeData(ctx context.Context, problemId string, md
 	}()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	judgeMd5FilePath := path.Join(".judge_data", problemId, md5)
+	judgeMd5FilePath := path.Join(".judge_data", strconv.Itoa(problemId), md5)
 	// 判断 judgeMd5FilePath 是否存在
 	_, err := os.Stat(judgeMd5FilePath)
 	if err == nil {
@@ -369,7 +371,7 @@ func (s *JudgeService) updateJudgeData(ctx context.Context, problemId string, md
 	if err != nil {
 		// 有可能下载了一半，因此删除文件夹
 		slog.Error("download judge data failed", "problemId", problemId, "error", err)
-		judgeDataDir := path.Join(".judge_data", problemId)
+		judgeDataDir := path.Join(".judge_data", strconv.Itoa(problemId))
 		removeErr := os.RemoveAll(judgeDataDir)
 		if err != nil {
 			err = metaerror.Join(err, removeErr)
@@ -379,7 +381,7 @@ func (s *JudgeService) updateJudgeData(ctx context.Context, problemId string, md
 	return err
 }
 
-func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, md5 string) error {
+func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId int, md5 string) error {
 
 	slog.Info("downloading judge data", "problemId", problemId)
 
@@ -389,7 +391,7 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 	}
 
 	// 删除旧的判题数据
-	judgeDataDir := path.Join(".judge_data", problemId)
+	judgeDataDir := path.Join(".judge_data", strconv.Itoa(problemId))
 	err := os.RemoveAll(judgeDataDir)
 
 	// 删除旧缓存的spj
@@ -410,7 +412,7 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId string, 
 	// 1. 列出 problemId 目录下的所有对象
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String("didaoj-judge"),
-		Prefix: aws.String(problemId + "/"), // 确保带 `/`，只列出这个目录下的
+		Prefix: aws.String(strconv.Itoa(problemId) + "/"), // 确保带 `/`，只列出这个目录下的
 	}
 
 	var wg sync.WaitGroup
@@ -546,7 +548,7 @@ func (s *JudgeService) compileSpecialJudge(
 		return "", metaerror.New("language %s not valid special language", jobConfig.SpecialJudge.Language)
 	}
 
-	judgeDataDir := path.Join(".judge_data", problemId, md5)
+	judgeDataDir := path.Join(".judge_data", strconv.Itoa(problemId), md5)
 
 	codeFilePath := filepath.Join(judgeDataDir, jobConfig.SpecialJudge.Source)
 	codeContent, err := metastring.GetStringFromOpenFile(codeFilePath)
@@ -579,7 +581,7 @@ func (s *JudgeService) compileSpecialJudge(
 		return "", metaerror.New("special judge compile failed, fileId not found")
 	}
 	if s.specialFileIds == nil {
-		s.specialFileIds = make(map[string]string)
+		s.specialFileIds = make(map[int]string)
 	}
 	s.specialFileIds[problemId] = specialFileId
 	return specialFileId, nil
@@ -605,8 +607,9 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (
 }
 
 func (s *JudgeService) runJudgeJob(
-	ctx context.Context, job *foundationmodel.JudgeJob,
-	problem *foundationmodel.Problem,
+	ctx context.Context,
+	job *foundationmodel.JudgeJob,
+	problem *foundationview.ProblemForJudge,
 	execFileIds map[string]string,
 ) error {
 	problemId := job.ProblemId
@@ -615,7 +618,7 @@ func (s *JudgeService) runJudgeJob(
 	memoryLimit := problem.MemoryLimit
 	md5 := *problem.JudgeMd5
 
-	judgeDataDir := path.Join(".judge_data", problemId, md5)
+	judgeDataDir := path.Join(".judge_data", strconv.Itoa(problemId), md5)
 
 	taskCount := 0
 
@@ -783,7 +786,7 @@ func (s *JudgeService) runJudgeJob(
 		ctx, job.Id, config.GetConfig().Judger.Key,
 		finalStatus,
 		problemId,
-		job.AuthorId,
+		job.Inserter,
 		finalScore,
 		finalTime,
 		finalMemory,
@@ -809,13 +812,14 @@ func (s *JudgeService) runJudgeTask(
 
 	key := taskConfig.Key
 	task := foundationmodel.NewJudgeTaskBuilder().
+		Id(job.Id).
 		TaskId(key).
 		Status(foundationjudge.JudgeStatusJudgeFail).
 		Time(0).
 		Memory(0).
 		Score(0).
 		Content("").
-		WaHint("").
+		Hint("").
 		Build()
 
 	goJudgeUrl := config.GetConfig().GoJudge.Url
@@ -1077,7 +1081,7 @@ func (s *JudgeService) runJudgeTask(
 		}
 		if WaHint != "" {
 			task.Status = foundationjudge.JudgeStatusWA
-			task.WaHint = metastring.GetTextEllipsis(WaHint, 1000)
+			task.Hint = metastring.GetTextEllipsis(WaHint, 1000)
 		} else {
 			//各自删除最后的换行符，避免最后的换行与测试数据不同带来没必要的误差
 			rightOutContent = strings.TrimSuffix(rightOutContent, "\n")
@@ -1192,10 +1196,10 @@ func (s *JudgeService) runJudgeTask(
 		}
 		task.Content = task.Content + specialRespData.Files.Stdout
 
-		if task.WaHint != "" {
-			task.WaHint = task.WaHint + "\n"
+		if task.Hint != "" {
+			task.Hint = task.Hint + "\n"
 		}
-		task.WaHint = task.WaHint + specialRespData.Files.Stderr
+		task.Hint = task.Hint + specialRespData.Files.Stderr
 
 		if specialRespData.Status == gojudge.StatusAccepted {
 			task.Score = taskConfig.Score

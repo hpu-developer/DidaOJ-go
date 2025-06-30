@@ -13,8 +13,8 @@ type Problem struct {
 	Description string  `json:"description" gorm:"column:description;type:text;not null"` // 描述
 	Source      *string `json:"source,omitempty" gorm:"column:source;type:varchar(120)"`  // 来源
 
-	TimeLimit   int                       `json:"time_limit" gorm:"column:time_limit;not null"`     // 时间限制
-	MemoryLimit int                       `json:"memory_limit" gorm:"column:memory_limit;not null"` // 内存限制
+	TimeLimit   int                       `json:"time_limit" gorm:"column:time_limit;not null"`     // 时间限制，单位ms
+	MemoryLimit int                       `json:"memory_limit" gorm:"column:memory_limit;not null"` // 内存限制，单位KB
 	JudgeType   foundationjudge.JudgeType `json:"judge_type" gorm:"column:judge_type;not null"`     // 判题类型
 
 	Private bool `json:"private,omitempty" gorm:"column:private;not null"` // 是否私有

@@ -120,17 +120,19 @@ func (s *JudgeService) GetJudgeList(
 
 	problemId := 0
 	if contestId > 0 {
-		problemIndex := foundationcontest.GetContestProblemIndex(problemKey)
-		if problemIndex <= 0 {
-			return nil, metaerror.NewCode(foundationerrorcode.ParamError)
-		}
-		problemId, err = GetContestService().GetProblemIdByContestIndex(
-			ctx,
-			contestId,
-			problemIndex,
-		)
-		if err != nil {
-			return nil, metaerror.Wrap(err, "get problem id by contest index error")
+		if problemKey != "" {
+			problemIndex := foundationcontest.GetContestProblemIndex(problemKey)
+			if problemIndex <= 0 {
+				return nil, metaerror.NewCode(foundationerrorcode.ParamError)
+			}
+			problemId, err = GetContestService().GetProblemIdByContestIndex(
+				ctx,
+				contestId,
+				problemIndex,
+			)
+			if err != nil {
+				return nil, metaerror.Wrap(err, "get problem id by contest index error")
+			}
 		}
 	} else {
 		problemId, err = GetProblemService().GetProblemIdByKey(ctx, problemKey)
@@ -206,6 +208,10 @@ func (s *JudgeService) GetJudgeList(
 		}
 	}
 	return judgeJobs, nil
+}
+
+func (s *JudgeService) GetJudgeTaskList(ctx *gin.Context, id int) ([]*foundationmodel.JudgeTask, error) {
+	return foundationdao.GetJudgeJobDao().GetJudgeTaskList(ctx, id)
 }
 
 func (s *JudgeService) isContestJudgeHasViewAuth(
@@ -312,7 +318,7 @@ func (s *JudgeService) InsertJudgeJob(ctx context.Context, judgeJob *foundationm
 }
 
 func (s *JudgeService) RejudgeJob(ctx context.Context, id int) error {
-	return foundationdaomongo.GetJudgeJobDao().RejudgeJob(ctx, id)
+	return foundationdao.GetJudgeJobDao().RejudgeJob(ctx, id)
 }
 
 func (s *JudgeService) PostRejudgeSearch(

@@ -5,7 +5,7 @@ import (
 	cfr2 "meta/cf-r2"
 	"meta/engine"
 	metaconfig "meta/meta-config"
-	metamongo "meta/meta-mongo"
+	metamysql "meta/meta-mysql"
 )
 
 type Config struct {
@@ -13,7 +13,7 @@ type Config struct {
 	GoJudge   foundationjudge.GoJudgeConfig `yaml:"go-judge"`   // GoJudge 数据服务地址
 	MaxJob    int                           `yaml:"max-job"`    // 最大同时评测的job数量
 	JudgeData cfr2.Config                   `yaml:"judge-data"` // GoJudge 数据服务地址
-	Mongo     metamongo.Config              `yaml:"mongo"`
+	Mysql     map[string]*metamysql.Config  `yaml:"mysql"`      // MySQL 数据库配置
 
 	CfR2 map[string]*cfr2.Config `yaml:"cf-r2"` // GoJudge 数据服务地址
 
@@ -45,7 +45,7 @@ func GetConfig() *Config {
 	return GetSubsystem().config
 }
 
-func GetMongoConfig() *metamongo.Config {
+func GetMysqlConfig() map[string]*metamysql.Config {
 	configSubsystem := GetSubsystem()
 	if configSubsystem == nil {
 		return nil
@@ -53,7 +53,7 @@ func GetMongoConfig() *metamongo.Config {
 	if configSubsystem.config == nil {
 		return nil
 	}
-	return &configSubsystem.config.Mongo
+	return configSubsystem.config.Mysql
 }
 
 func GetCfr2Config() map[string]*cfr2.Config {

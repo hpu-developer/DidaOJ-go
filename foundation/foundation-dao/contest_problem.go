@@ -5,6 +5,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	"gorm.io/gorm"
+	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
 )
@@ -19,7 +20,8 @@ func GetContestProblemDao() *ContestProblemDao {
 	return singletonContestProblemDao.GetInstance(
 		func() *ContestProblemDao {
 			dao := &ContestProblemDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			db := metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = db.Model(&foundationmodel.ContestProblem{})
 			return dao
 		},
 	)
@@ -43,7 +45,6 @@ func (d *ContestProblemDao) GetProblemId(ctx context.Context, id int, index int)
 func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problemId int) (int, error) {
 	var index int
 	err := d.db.WithContext(ctx).
-		Model(&foundationmodel.ContestProblem{}).
 		Where("contest_id = ? AND problem_id = ?", id, problemId).
 		Pluck("`index`", &index).Error // index 是保留字，建议加反引号
 	if err != nil {
@@ -86,19 +87,12 @@ func (d *ContestProblemDao) GetProblems(ctx context.Context, contestId int) (
 func (d *ContestProblemDao) GetProblemsRank(ctx context.Context, id int) ([]*foundationview.ContestProblemRank, error) {
 	var results []*foundationview.ContestProblemRank
 	err := d.db.WithContext(ctx).
-		Table("contest_problem AS cp").
-		Select(
-			`
-			cp.problem_id,
-			cp.index,
-			cp.score,
-		`,
-		).
-		Where("cp.id = ?", id).
+		Select("problem_id,`index`,score").
+		Where("id = ?", id).
 		Scan(&results).Error
 
 	if err != nil {
-		return nil, err
+		return nil, metaerror.Wrap(err)
 	}
 	return results, nil
 }

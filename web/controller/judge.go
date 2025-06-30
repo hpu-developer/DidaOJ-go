@@ -88,8 +88,11 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		return
 	}
 	if hasTaskAuth {
-		// TODO搜索task
-
+		judgeJob.Task, err = foundationservice.GetJudgeService().GetJudgeTaskList(ctx, id)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
 	}
 	if contest != nil {
 		judgeJob.ContestProblemIndex, err = foundationservice.GetContestService().GetContestProblemIndexById(

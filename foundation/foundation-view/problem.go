@@ -21,6 +21,14 @@ type Problem struct {
 	OriginAuthor *string `json:"origin_author,omitempty"`
 }
 
+type ProblemForJudge struct {
+	Id          int                       `json:"id"`
+	TimeLimit   int                       `json:"time_limit"`   // 毫秒
+	MemoryLimit int                       `json:"memory_limit"` // KB
+	JudgeType   foundationjudge.JudgeType `json:"judge_type"`
+	JudgeMd5    *string                   `json:"judge_md5"`
+}
+
 type ProblemJudgeData struct {
 	Id  int    `json:"id"`
 	Key string `json:"key"`

@@ -12,7 +12,7 @@ type ContestRankDetail struct {
 
 	Problems []int `json:"problems,omitempty" gorm:"-"` // 题目Id列表
 
-	MembersIgnore []int `json:"members_ignore,omitempty"` // 忽略排名成员列表
+	MembersIgnore []int `json:"members_ignore,omitempty" gorm:"-"` // 忽略排名成员列表
 }
 
 type ContestRankProblem struct {
@@ -24,9 +24,9 @@ type ContestRankProblem struct {
 }
 
 type ContestRank struct {
-	AuthorId       int     `json:"author_id"`                 // 提交者UserId
-	AuthorUsername *string `json:"author_username,omitempty"` // 提交者用户名
-	AuthorNickname *string `json:"author_nickname,omitempty"` // 提交者昵称
+	Inserter         int     `json:"inserter"`                    // 提交者UserId
+	InserterUsername *string `json:"inserter_username,omitempty"` // 提交者用户名
+	InserterNickname *string `json:"inserter_nickname,omitempty"` // 提交者昵称
 
 	Problems []*ContestRankProblem `json:"problems,omitempty" gorm:"-"` // 题目提交情况
 }

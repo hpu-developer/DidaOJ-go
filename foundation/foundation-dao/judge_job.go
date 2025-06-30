@@ -3,12 +3,15 @@ package foundationdao
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	metapanic "meta/meta-panic"
@@ -130,6 +133,18 @@ func (d *JudgeJobDao) GetJudgeJobList(
 		return nil, metaerror.Wrap(err, "failed to query judge job list")
 	}
 	return list, nil
+}
+
+func (d *JudgeJobDao) GetJudgeTaskList(ctx *gin.Context, id int) ([]*foundationmodel.JudgeTask, error) {
+	var tasks []*foundationmodel.JudgeTask
+	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeTask{}).
+		Where("id = ?", id).
+		Order("task_id ASC").
+		Find(&tasks).Error
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to query judge task list")
+	}
+	return tasks, nil
 }
 
 func (d *JudgeJobDao) GetProblemAttemptStatus(
@@ -331,7 +346,7 @@ SELECT inserter,
                JSON_OBJECT(
                        'id', problem_id,
                        'attempt', count,
-                       'ac', ac
+                       'ac', DATE_FORMAT(ac, '%Y-%m-%dT%H:%i:%sZ')
                )
        )          AS problems
 FROM (SELECT j.inserter,
@@ -341,11 +356,11 @@ FROM (SELECT j.inserter,
       FROM judge_job j
                LEFT JOIN (SELECT inserter, problem_id, MIN(id) AS ac_id
                           FROM judge_job
-                          WHERE contest_id = 10
-                            AND status = 6
+                          WHERE contest_id = ?
+                            AND status = ?
                           GROUP BY inserter, problem_id) fa ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
                LEFT JOIN judge_job ac ON ac.id = fa.ac_id
-      WHERE j.contest_id = 10
+      WHERE j.contest_id = ?
         AND (fa.ac_id IS NULL OR j.id < fa.ac_id)
       GROUP BY j.inserter, j.problem_id) AS flat
          LEFT JOIN user as u ON flat.inserter = u.id
@@ -362,7 +377,7 @@ SELECT inserter,
                        'id', problem_id,
                        'attempt', count_before,
                        'lock', count_after,
-                       'ac', ac
+                       'ac', DATE_FORMAT(ac, '%Y-%m-%dT%H:%i:%sZ')
                )
        )          AS problems
 FROM (SELECT j.inserter,
@@ -384,7 +399,7 @@ FROM (SELECT j.inserter,
          LEFT JOIN user u ON flat.inserter = u.id
 GROUP BY inserter;`
 
-		rows, err = d.db.WithContext(ctx).Raw(
+		rows, err = d.db.WithContext(ctx).Debug().Raw(
 			execSql,
 			lockTime,
 			lockTime,
@@ -396,7 +411,7 @@ GROUP BY inserter;`
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, metaerror.Wrap(err)
 	}
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
@@ -409,9 +424,14 @@ GROUP BY inserter;`
 
 	for rows.Next() {
 		var rank foundationview.ContestRank
-		err := rows.Scan(&rank)
+		var jsonProblems json.RawMessage
+		err := rows.Scan(&rank.Inserter, &rank.InserterUsername, &rank.InserterNickname, &jsonProblems)
 		if err != nil {
-			return nil, err
+			return nil, metaerror.Wrap(err, "failed to scan row")
+		}
+		err = json.Unmarshal(jsonProblems, &rank.Problems)
+		if err != nil {
+			return nil, metaerror.Wrap(err, "failed to unmarshal problems")
 		}
 		for _, problem := range rank.Problems {
 			problem.Index = problemMap[problem.Id]
@@ -420,6 +440,274 @@ GROUP BY inserter;`
 		ranks = append(ranks, &rank)
 	}
 	return ranks, nil
+}
+
+// RequestJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的
+func (d *JudgeJobDao) RequestJudgeJobListPendingJudge(
+	ctx context.Context,
+	maxCount int,
+	judger string,
+) ([]*foundationmodel.JudgeJob, error) {
+	var jobs []*foundationmodel.JudgeJob
+
+	err := d.db.WithContext(ctx).Transaction(
+		func(tx *gorm.DB) error {
+			err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where(
+					"status IN ?", []foundationjudge.JudgeStatus{
+						foundationjudge.JudgeStatusInit,
+						foundationjudge.JudgeStatusRejudge,
+					},
+				).
+				Order("status ASC, id ASC").
+				Limit(maxCount).
+				Find(&jobs).Error
+			if err != nil {
+				return err
+			}
+			if len(jobs) == 0 {
+				return gorm.ErrRecordNotFound
+			}
+
+			// 批量更新每条记录的状态
+			for _, job := range jobs {
+				err := tx.Model(job).Updates(
+					map[string]interface{}{
+						"status":     foundationjudge.JudgeStatusQueuing,
+						"judger":     judger,
+						"judge_time": time.Now(),
+					},
+				).Error
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		},
+	)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // 没有待评测的任务
+		}
+		return nil, metaerror.Wrap(err, "failed to request judge job list pending judge")
+	}
+	return jobs, nil
+}
+
+func (d *JudgeJobDao) StartProcessJudgeJob(ctx context.Context, id int, judger string) (bool, error) {
+	tx := d.db.WithContext(ctx).
+		Model(&foundationmodel.JudgeJob{}).
+		Where("id = ? AND judger = ?", id, judger).
+		Update("status", foundationjudge.JudgeStatusCompiling)
+	if tx.Error != nil {
+		return false, metaerror.Wrap(tx.Error, "failed to update job")
+	}
+	if tx.RowsAffected == 0 {
+		// 没有匹配到符合条件的记录
+		return false, nil
+	}
+	return true, nil
+}
+
+func (d *JudgeJobDao) MarkJudgeJobJudgeStatus(
+	ctx context.Context,
+	id int,
+	judger string,
+	status foundationjudge.JudgeStatus,
+) error {
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.JudgeJob{}).
+		Where("id = ? AND judger = ?", id, judger).
+		Update("status", status).Error
+	if err != nil {
+		return metaerror.Wrap(err, "failed to mark judge job status")
+	}
+	return nil
+}
+
+func (d *JudgeJobDao) MarkJudgeJobTaskTotal(ctx context.Context, id int, judger string, taskTotalCount int) error {
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.JudgeJob{}).
+		Where("id = ? AND judger = ?", id, judger).
+		Update("task_current", 0).
+		Update("task_total", taskTotalCount).Error
+	if err != nil {
+		return metaerror.Wrap(err, "failed to mark judge job task total")
+	}
+	return nil
+}
+
+func (d *JudgeJobDao) AddJudgeJobTaskCurrent(
+	ctx context.Context,
+	id int,
+	judger string,
+	task *foundationmodel.JudgeTask,
+) error {
+	return d.db.WithContext(ctx).Transaction(
+		func(tx *gorm.DB) error {
+			// 确保 judge_job 中有这条记录且 judger 匹配
+			var job foundationmodel.JudgeJob
+			if err := tx.
+				Where("id = ? AND judger = ?", id, judger).
+				First(&job).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return metaerror.New("judge_job not found with id=%d and judger=%s", id, judger)
+				}
+				return metaerror.Wrap(err, "failed to find judge_job")
+			}
+			// 插入任务记录（保底设置 id 关联）
+			task.Id = id
+			if err := tx.Create(task).Error; err != nil {
+				return metaerror.Wrap(err, "failed to insert judge_task")
+			}
+			// 更新 task_current 计数器
+			if err := tx.Model(&foundationmodel.JudgeJob{}).
+				Where("id = ?", id).
+				UpdateColumn("task_current", gorm.Expr("task_current + 1")).Error; err != nil {
+				return metaerror.Wrap(err, "failed to increment task_current")
+			}
+			return nil
+		},
+	)
+}
+
+func (d *JudgeJobDao) MarkJudgeJobJudgeFinalStatus(
+	ctx context.Context, id int, judger string,
+	status foundationjudge.JudgeStatus,
+	problemId int,
+	userId int,
+	score int,
+	time int,
+	memory int,
+) error {
+	markStatusFunc := func(tx *gorm.DB) error {
+		// 限定条件 id + judger，避免误更新其他评测
+		res := tx.Model(&foundationmodel.JudgeJob{}).
+			Where("id = ? AND judger = ?", id, judger).
+			Updates(
+				map[string]interface{}{
+					"status": status,
+					"score":  score,
+					"time":   time,
+					"memory": memory,
+				},
+			)
+
+		if res.Error != nil {
+			return metaerror.Wrap(res.Error, "failed to mark judge job status")
+		}
+		if res.RowsAffected == 0 {
+			return metaerror.New("no judge_job found with id=%d and judger=%s", id, judger)
+		}
+		return nil
+	}
+
+	if status == foundationjudge.JudgeStatusAC {
+		// 事务中进行多个表的更新
+		return d.db.WithContext(ctx).Transaction(
+			func(tx *gorm.DB) error {
+				if err := markStatusFunc(tx); err != nil {
+					return err
+				}
+
+				// problem 表 accept++
+				if err := tx.Model(&foundationmodel.Problem{}).
+					Where("id = ?", problemId).
+					UpdateColumn("accept", gorm.Expr("accept + ?", 1)).Error; err != nil {
+					return metaerror.Wrap(err, "failed to update problem accept count")
+				}
+
+				// user 表 accept++
+				if err := tx.Model(&foundationmodel.User{}).
+					Where("id = ?", userId).
+					UpdateColumn("accept", gorm.Expr("accept + ?", 1)).Error; err != nil {
+					return metaerror.Wrap(err, "failed to update user accept count")
+				}
+
+				return nil
+			},
+		)
+	} else {
+		// 非 AC 情况下，只更新 judge_job 状态
+		return markStatusFunc(d.db.WithContext(ctx))
+	}
+}
+func (d *JudgeJobDao) RejudgeJob(ctx context.Context, id int) error {
+	return d.db.WithContext(ctx).Transaction(
+		func(tx *gorm.DB) error {
+			// 1. 加锁查找 judge_job（防止并发修改）
+			var job struct {
+				ID        int                         `gorm:"column:id"`
+				ProblemId int                         `gorm:"column:problem_id"`
+				Inserter  int                         `gorm:"column:inserter"`
+				Status    foundationjudge.JudgeStatus `gorm:"column:status"`
+			}
+			if err := tx.Table("judge_job").
+				Select("id, problem_id, inserter, status").
+				Where("id = ?", id).
+				Clauses(clause.Locking{Strength: "UPDATE"}). // 加锁
+				First(&job).Error; err != nil {
+				return metaerror.Wrap(err, "find judge_job error")
+			}
+
+			// 2. 计算更新偏移
+			problemAcceptDelta := 0
+			userAcceptDelta := 0
+			if job.Status == foundationjudge.JudgeStatusAC {
+				problemAcceptDelta--
+				userAcceptDelta--
+			}
+
+			// 3. 更新 judge_job
+			updateMap := map[string]interface{}{
+				"status": foundationjudge.JudgeStatusRejudge,
+				"score":  nil, "time": nil, "memory": nil,
+				"task_current": nil,
+				"task_total":   nil,
+				"judger":       nil,
+				"judge_time":   nil,
+			}
+			if err := tx.Table("judge_job").
+				Where("id = ?", id).
+				Updates(updateMap).Error; err != nil {
+				return metaerror.Wrap(err, "failed to update judge_job")
+			}
+
+			// 4. 删除 judge_job_compile 中对应记录
+			if err := tx.Table("judge_job_compile").
+				Where("id = ?", id).
+				Delete(nil).Error; err != nil {
+				return metaerror.Wrap(err, "failed to delete compile message")
+			}
+
+			// 5. 删除 judge_task 中对应记录
+			if err := tx.Table("judge_task").
+				Where("id = ?", id).
+				Delete(nil).Error; err != nil {
+				return metaerror.Wrap(err, "failed to delete judge_task")
+			}
+
+			// 6. 更新 problem.accept
+			if problemAcceptDelta != 0 {
+				if err := tx.Table("problem").
+					Where("id = ?", job.ProblemId).
+					Update("accept", gorm.Expr("accept + ?", problemAcceptDelta)).Error; err != nil {
+					return metaerror.Wrap(err, "failed to update problem accept count")
+				}
+			}
+
+			// 7. 更新 user.accept
+			if userAcceptDelta != 0 {
+				if err := tx.Table("user").
+					Where("id = ?", job.Inserter).
+					Update("accept", gorm.Expr("accept + ?", userAcceptDelta)).Error; err != nil {
+					return metaerror.Wrap(err, "failed to update user accept count")
+				}
+			}
+			return nil
+		},
+	)
 }
 
 func (d *JudgeJobDao) InsertJudgeJob(

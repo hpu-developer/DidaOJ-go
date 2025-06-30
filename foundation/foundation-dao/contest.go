@@ -24,7 +24,8 @@ func GetContestDao() *ContestDao {
 	return singletonContestDao.GetInstance(
 		func() *ContestDao {
 			dao := &ContestDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			db := metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = db.Model(&foundationmodel.Contest{})
 			return dao
 		},
 	)
@@ -49,7 +50,6 @@ func (d *ContestDao) CheckContestEditAuth(ctx context.Context, id int, userId in
 func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundationview.ContestViewLock, error) {
 	var contest foundationview.ContestViewLock
 	err := d.db.WithContext(ctx).
-		Table("contests").
 		Select("id, inserter, start_time, end_time, type, always_lock, lock_rank_duration").
 		Where("id = ?", id).
 		Take(&contest).Error
@@ -153,7 +153,7 @@ func (d *ContestDao) GetContestList(
 		db = db.Where("inserter = ?", userId)
 	}
 	if err := db.Count(&total).Error; err != nil {
-		return nil, 0, metaerror.Wrap(err, "failed to count contests")
+		return nil, 0, metaerror.Wrap(err, "failed to count contes")
 	}
 	err := db.
 		Select("id", "title", "start_time", "end_time", "inserter", "private").
@@ -162,7 +162,7 @@ func (d *ContestDao) GetContestList(
 		Limit(pageSize).
 		Find(&list).Error
 	if err != nil {
-		return nil, 0, metaerror.Wrap(err, "failed to find contests")
+		return nil, 0, metaerror.Wrap(err, "failed to find contes")
 	}
 	return list, int(total), nil
 }

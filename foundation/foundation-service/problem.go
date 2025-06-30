@@ -158,11 +158,18 @@ func (s *ProblemService) GetProblemDescription(
 	return foundationdao.GetProblemDao().GetProblemDescription(ctx, id)
 }
 
-func (s *ProblemService) GetProblemViewJudgeData(ctx context.Context, id string) (
+func (s *ProblemService) GetProblemViewJudgeData(ctx context.Context, id int) (
 	*foundationview.ProblemJudgeData,
 	error,
 ) {
 	return foundationdao.GetProblemDao().GetProblemViewJudgeData(ctx, id)
+}
+
+func (s *ProblemService) GetProblemViewJudgeDataByKey(ctx context.Context, key string) (
+	*foundationview.ProblemJudgeData,
+	error,
+) {
+	return foundationdao.GetProblemDao().GetProblemViewJudgeDataByKey(ctx, key)
 }
 
 func (s *ProblemService) GetProblemViewApproveJudge(ctx context.Context, id int) (

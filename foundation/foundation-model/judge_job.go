@@ -20,7 +20,7 @@ type JudgeJob struct {
 	Score           int                           `json:"score,omitempty" gorm:"column:score"`
 	Time            int                           `json:"time,omitempty" gorm:"column:time"`
 	Memory          int                           `json:"memory,omitempty" gorm:"column:memory"`
-	Private         bool                          `json:"private" gorm:"column:private;not null"`
+	Private         bool                          `json:"private,omitempty" gorm:"column:private;not null"`
 	RemoteJudgeId   *string                       `json:"remote_judge_id,omitempty" gorm:"column:remote_judge_id"`
 	RemoteAccountId *string                       `json:"remote_account_id,omitempty" gorm:"column:remote_account_id"`
 	Inserter        int                           `json:"inserter" gorm:"column:inserter;not null"`

@@ -149,7 +149,7 @@ func (d *ProblemDao) CheckProblemEditAuth(ctx context.Context, problemId string,
 		`SELECT 1
 		FROM problem p
 		LEFT JOIN problem_member_auth pa ON p.id = pa.id AND pa.user_id = ?
-		WHERE p.id = ? AND (p.creator_id = ? OR pa.user_id IS NOT NULL)
+		WHERE p.id = ? AND (p.inserter = ? OR pa.user_id IS NOT NULL)
 		LIMIT 1
 	`, userId, problemId, userId,
 	).Scan(&exists).Error
@@ -174,7 +174,7 @@ func (d *ProblemDao) CheckProblemSubmitAuth(ctx context.Context, problemId int, 
 		WHERE p.id = ?
 		  AND (
 		    p.private = false
-		    OR p.creator_id = ?
+		    OR p.inserter = ?
 		    OR m.user_id IS NOT NULL
 		    OR a.user_id IS NOT NULL
 		  )
@@ -191,7 +191,7 @@ func (d *ProblemDao) GetProblemViewAuth(ctx context.Context, id string) (*founda
 	var problem foundationview.ProblemViewAuth
 	tx := d.db.WithContext(ctx)
 	if err := tx.
-		Select("id", "creator_id", "private").
+		Select("id", "inserter", "private").
 		Where("id = ?", id).
 		Take(&problem).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -345,8 +345,28 @@ func (d *ProblemDao) GetProblemTitles(
 	return titles, err
 }
 
-func (d *ProblemDao) GetProblemViewJudgeData(ctx context.Context, id string) (*foundationview.ProblemJudgeData, error) {
-	db := d.db.WithContext(ctx).Table("problems AS p").
+func (d *ProblemDao) GetProblemViewForJudge(ctx context.Context, id int) (*foundationview.ProblemForJudge, error) {
+	db := d.db.WithContext(ctx).Table("problem AS p").
+		Select(
+			`
+			p.id, p.judge_type, p.time_limit, p.memory_limit,
+			r.judge_md5
+		`,
+		).
+		Joins(`LEFT JOIN problem_local r ON r.problem_id = p.id`).
+		Where("p.id = ?", id)
+	var problem foundationview.ProblemForJudge
+	if err := db.First(&problem).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem with remote info error")
+	}
+	return &problem, nil
+}
+
+func (d *ProblemDao) GetProblemViewJudgeData(ctx context.Context, id int) (*foundationview.ProblemJudgeData, error) {
+	db := d.db.WithContext(ctx).Table("problem AS p").
 		Select(
 			`
 			p.id, p.key, p.title, p.judge_type,p.inserter, p.insert_time, p.modifier, p.modify_time,
@@ -359,6 +379,33 @@ func (d *ProblemDao) GetProblemViewJudgeData(ctx context.Context, id string) (*f
 		Joins(`LEFT JOIN user u2 ON u2.id = p.modifier`).
 		Joins(`LEFT JOIN problem_local r ON r.problem_id = p.id`).
 		Where("p.id = ?", id)
+	var problem foundationview.ProblemJudgeData
+	if err := db.First(&problem).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem with remote info error")
+	}
+	return &problem, nil
+}
+
+func (d *ProblemDao) GetProblemViewJudgeDataByKey(ctx context.Context, key string) (
+	*foundationview.ProblemJudgeData,
+	error,
+) {
+	db := d.db.WithContext(ctx).Table("problem AS p").
+		Select(
+			`
+			p.id, p.key, p.title, p.judge_type,p.inserter, p.insert_time, p.modifier, p.modify_time,
+			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
+			u2.username AS modifier_username, u2.nickname AS modifier_nickname,
+			r.judge_md5
+		`,
+		).
+		Joins(`LEFT JOIN user u1 ON u1.id = p.inserter`).
+		Joins(`LEFT JOIN user u2 ON u2.id = p.modifier`).
+		Joins(`LEFT JOIN problem_local r ON r.problem_id = p.id`).
+		Where("p.`key` = ?", key)
 	var problem foundationview.ProblemJudgeData
 	if err := db.First(&problem).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -445,7 +492,7 @@ func (d *ProblemDao) FilterValidProblemIds(ctx context.Context, ids []int) ([]in
 		Where("id IN ?", ids).
 		Pluck("id", &validIds).Error
 	if err != nil {
-		return nil, metaerror.Wrap(err, "find problems error")
+		return nil, metaerror.Wrap(err, "find problem error")
 	}
 	return validIds, nil
 }
@@ -467,7 +514,7 @@ func (d *ProblemDao) SelectProblemViewList(ctx context.Context, ids []int, needA
 		Where("id IN ?", ids).
 		Find(&list).Error
 	if err != nil {
-		return nil, metaerror.Wrap(err, "get problems error")
+		return nil, metaerror.Wrap(err, "get problem error")
 	}
 	return list, nil
 }
