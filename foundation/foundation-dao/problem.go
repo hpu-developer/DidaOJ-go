@@ -318,7 +318,7 @@ func (d *ProblemDao) GetProblemTitles(
 ) ([]*foundationview.ProblemViewTitle, error) {
 	query := d.db.WithContext(ctx).
 		Model(&foundationmodel.Problem{}).
-		Select("id", "title").
+		Select("id", "key", "title").
 		Where("id IN ?", ids)
 	if !hasAuth {
 		if userId > 0 {

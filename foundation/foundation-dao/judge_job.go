@@ -346,27 +346,29 @@ SELECT inserter,
                JSON_OBJECT(
                        'id', problem_id,
                        'attempt', count,
-                       'ac', DATE_FORMAT(ac, '%Y-%m-%dT%H:%i:%sZ')
+                       'ac', ac
                )
        )          AS problems
 FROM (SELECT j.inserter,
              j.problem_id,
-             COUNT(*)       AS count,
-             ac.insert_time AS ac
+             SUM(fa.ac_id is null OR j.id < fa.ac_id) AS count,
+             ac.insert_time                           AS ac
       FROM judge_job j
                LEFT JOIN (SELECT inserter, problem_id, MIN(id) AS ac_id
                           FROM judge_job
                           WHERE contest_id = ?
                             AND status = ?
-                          GROUP BY inserter, problem_id) fa ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
+                          GROUP BY inserter, problem_id) fa
+                            ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
                LEFT JOIN judge_job ac ON ac.id = fa.ac_id
       WHERE j.contest_id = ?
-        AND (fa.ac_id IS NULL OR j.id < fa.ac_id)
       GROUP BY j.inserter, j.problem_id) AS flat
          LEFT JOIN user as u ON flat.inserter = u.id
 GROUP BY inserter
 `
-		rows, err = d.db.WithContext(ctx).Raw(execSql, id, foundationjudge.JudgeStatusAC, id).Rows()
+		rows, err = d.db.WithContext(ctx).
+			Raw(execSql, id, foundationjudge.JudgeStatusAC, id).
+			Rows()
 	} else {
 		execSql = `
 SELECT inserter,
@@ -376,25 +378,25 @@ SELECT inserter,
                JSON_OBJECT(
                        'id', problem_id,
                        'attempt', count_before,
-                       'lock', count_after,
-                       'ac', DATE_FORMAT(ac, '%Y-%m-%dT%H:%i:%sZ')
+                       'lock', count_lock,
+                       'ac', ac
                )
        )          AS problems
 FROM (SELECT j.inserter,
              j.problem_id,
-             SUM(j.insert_time < ?)  AS count_before,
-             SUM(j.insert_time >= ?) AS count_after,
-             ac.insert_time                   AS ac
+             SUM((fa.ac_id is null AND j.insert_time < ?) OR j.id < fa.ac_id) AS count_before,
+             SUM(fa.ac_id is not null AND j.insert_time >= ?)                 AS count_lock,
+             ac.insert_time                                                                       AS ac
       FROM judge_job j
                LEFT JOIN (SELECT inserter, problem_id, MIN(id) AS ac_id
                           FROM judge_job
                           WHERE contest_id = ?
                             AND status = ?
                             AND insert_time < ?
-                          GROUP BY inserter, problem_id) fa ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
+                          GROUP BY inserter, problem_id) fa
+                            ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
                LEFT JOIN judge_job ac ON ac.id = fa.ac_id
       WHERE j.contest_id = ?
-        AND (fa.ac_id IS NULL OR j.id < fa.ac_id)
       GROUP BY j.inserter, j.problem_id) AS flat
          LEFT JOIN user u ON flat.inserter = u.id
 GROUP BY inserter;`

@@ -32,19 +32,23 @@ func GetContestDao() *ContestDao {
 }
 
 func (d *ContestDao) CheckContestEditAuth(ctx context.Context, id int, userId int) (bool, error) {
-	var exists bool
+	var dummy int
 	err := d.db.WithContext(ctx).
 		Raw(
 			`
-		SELECT EXISTS (
-			SELECT 1 FROM contest c
-			WHERE c.id = ? AND (c.inserter = ? OR EXISTS (
-				SELECT 1 FROM contest_member_auth a WHERE a.id = c.id AND a.user_id = ?
-			))
-		) AS exist
-	`, id, userId, userId,
-		).Scan(&exists).Error
-	return exists, err
+			SELECT 1
+			FROM contest c
+			LEFT JOIN contest_member_auth a
+			  ON a.id = c.id AND a.user_id = ?
+			WHERE c.id = ? AND (c.inserter = ? OR a.user_id IS NOT NULL)
+			LIMIT 1
+		`, userId, id, userId,
+		).
+		Scan(&dummy).Error
+	if err != nil {
+		return false, err
+	}
+	return dummy == 1, nil
 }
 
 func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundationview.ContestViewLock, error) {
@@ -70,6 +74,32 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationview.Co
 			`
 			c.id, c.title, c.description, c.notification, c.start_time, c.end_time,
 			c.inserter, c.modifier, c.insert_time, c.modify_time, c.password, c.private,
+			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
+			u2.username AS modifier_username, u2.nickname AS modifier_nickname
+		`,
+		).
+		Joins("LEFT JOIN user AS u1 ON c.inserter = u1.id").
+		Joins("LEFT JOIN user AS u2 ON c.modifier = u2.id").
+		Where("c.id = ?", id).
+		Take(&result).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &result, nil
+}
+
+func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationview.ContestDetailEdit, error) {
+	var result foundationview.ContestDetailEdit
+	err := d.db.WithContext(ctx).
+		Table("contest AS c").
+		Select(
+			`
+			c.id, c.title, c.description, c.notification, c.start_time, c.end_time,
+			c.inserter, c.modifier, c.insert_time, c.modify_time, c.password, c.private,
+			c.always_lock, c.lock_rank_duration, c.type, c.score_type, c.discuss_type,
 			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
 			u2.username AS modifier_username, u2.nickname AS modifier_nickname
 		`,
@@ -129,7 +159,8 @@ func (d *ContestDao) GetProblemAttemptInfo(
 		db = db.Where("insert_time <= ?", *endTime)
 	}
 	var results []*foundationview.ProblemAttemptInfo
-	if err := db.Group("problem_id").Scan(&results).Error; err != nil {
+	if err := db.Group("problem_id").
+		Scan(&results).Error; err != nil {
 		return nil, err
 	}
 	return results, nil
@@ -184,8 +215,19 @@ func (d *ContestDao) UpdateContest(
 	err := d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			// 更新 contest 主表
-			if err := tx.Model(contest).Save(contest).Error; err != nil {
-				return metaerror.Wrap(err, "insert contest")
+			txResult := tx.Model(contest).
+				Where("id = ?", contest.Id).
+				Select(
+					"title", "description", "notification", "start_time", "end_time",
+					"private", "password", "lock_rank_duration", "always_lock", "submit_anytime",
+					"modifier", "modify_time",
+				).
+				Updates(contest)
+			if txResult.Error != nil {
+				return metaerror.Wrap(txResult.Error, "update contest")
+			}
+			if txResult.RowsAffected == 0 {
+				return metaerror.New("no contest updated: record may not exist")
 			}
 
 			// contestProblems
@@ -195,11 +237,15 @@ func (d *ContestDao) UpdateContest(
 					cp.Id = contest.Id
 					problemIds = append(problemIds, cp.ProblemId)
 				}
-				if err := tx.Where("id = ? AND problem_id NOT IN ?", contest.Id, problemIds).
+				if err := tx.Model(&foundationmodel.ContestProblem{}).Where(
+					"id = ? AND problem_id NOT IN ?",
+					contest.Id,
+					problemIds,
+				).
 					Delete(&foundationmodel.ContestProblem{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete outdated contest problems")
 				}
-				if err := tx.Clauses(
+				if err := tx.Model(&foundationmodel.ContestProblem{}).Clauses(
 					clause.OnConflict{
 						Columns:   []clause.Column{{Name: "id"}, {Name: "problem_id"}},
 						DoUpdates: clause.AssignmentColumns([]string{"index"}),
@@ -209,7 +255,7 @@ func (d *ContestDao) UpdateContest(
 				}
 			} else {
 				// 如果没有 contestProblems，删除所有相关的记录
-				if err := tx.Where("id = ?", contest.Id).
+				if err := tx.Model(&foundationmodel.ContestProblem{}).Where("id = ?", contest.Id).
 					Delete(&foundationmodel.ContestProblem{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete all contest problems")
 				}
@@ -226,7 +272,11 @@ func (d *ContestDao) UpdateContest(
 						},
 					)
 				}
-				if err := tx.Where("id = ? AND language NOT IN ?", contest.Id, languages).
+				if err := tx.Model(&foundationmodel.ContestLanguage{}).Where(
+					"id = ? AND language NOT IN ?",
+					contest.Id,
+					languages,
+				).
 					Delete(&foundationmodel.ContestLanguage{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete outdated languages")
 				}
@@ -240,7 +290,7 @@ func (d *ContestDao) UpdateContest(
 				}
 			} else {
 				// 如果没有 languages，删除所有相关的记录
-				if err := tx.Where("id = ?", contest.Id).
+				if err := tx.Model(&foundationmodel.ContestLanguage{}).Where("id = ?", contest.Id).
 					Delete(&foundationmodel.ContestLanguage{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete all languages")
 				}
@@ -257,7 +307,11 @@ func (d *ContestDao) UpdateContest(
 						},
 					)
 				}
-				if err := tx.Where("id = ? AND user_id NOT IN ?", contest.Id, authors).
+				if err := tx.Model(&foundationmodel.ContestMemberAuthor{}).Where(
+					"id = ? AND user_id NOT IN ?",
+					contest.Id,
+					authors,
+				).
 					Delete(&foundationmodel.ContestMemberAuthor{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete outdated authors")
 				}
@@ -271,7 +325,7 @@ func (d *ContestDao) UpdateContest(
 				}
 			} else {
 				// 如果没有 authors，删除所有相关的记录
-				if err := tx.Where("id = ?", contest.Id).
+				if err := tx.Model(&foundationmodel.ContestMemberAuthor{}).Where("id = ?", contest.Id).
 					Delete(&foundationmodel.ContestMemberAuthor{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete all authors")
 				}
@@ -288,7 +342,11 @@ func (d *ContestDao) UpdateContest(
 						},
 					)
 				}
-				if err := tx.Where("id = ? AND user_id NOT IN ?", contest.Id, members).
+				if err := tx.Model(&foundationmodel.ContestMember{}).Where(
+					"id = ? AND user_id NOT IN ?",
+					contest.Id,
+					members,
+				).
 					Delete(&foundationmodel.ContestMember{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete outdated members")
 				}
@@ -302,7 +360,7 @@ func (d *ContestDao) UpdateContest(
 				}
 			} else {
 				// 如果没有 members，删除所有相关的记录
-				if err := tx.Where("id = ?", contest.Id).
+				if err := tx.Model(&foundationmodel.ContestMember{}).Where("id = ?", contest.Id).
 					Delete(&foundationmodel.ContestMember{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete all members")
 				}
@@ -310,17 +368,21 @@ func (d *ContestDao) UpdateContest(
 
 			// memberAuths
 			if len(memberAuths) > 0 {
-				var authModels []*foundationmodel.ContestMemberAuthor
+				var authModels []*foundationmodel.ContestMemberAuth
 				for _, uid := range memberAuths {
 					authModels = append(
-						authModels, &foundationmodel.ContestMemberAuthor{
+						authModels, &foundationmodel.ContestMemberAuth{
 							Id:     contest.Id,
 							UserId: uid,
 						},
 					)
 				}
-				if err := tx.Where("id = ? AND user_id NOT IN ?", contest.Id, memberAuths).
-					Delete(&foundationmodel.ContestMemberAuthor{}).Error; err != nil {
+				if err := tx.Model(&foundationmodel.ContestMemberAuth{}).Where(
+					"id = ? AND user_id NOT IN ?",
+					contest.Id,
+					memberAuths,
+				).
+					Delete(&foundationmodel.ContestMemberAuth{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete outdated memberAuths")
 				}
 				if err := tx.Clauses(
@@ -333,8 +395,8 @@ func (d *ContestDao) UpdateContest(
 				}
 			} else {
 				// 如果没有 memberAuths，删除所有相关的记录
-				if err := tx.Where("id = ?", contest.Id).
-					Delete(&foundationmodel.ContestMemberAuthor{}).Error; err != nil {
+				if err := tx.Model(&foundationmodel.ContestMemberAuth{}).Where("id = ?", contest.Id).
+					Delete(&foundationmodel.ContestMemberAuth{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete all memberAuths")
 				}
 			}
@@ -350,7 +412,11 @@ func (d *ContestDao) UpdateContest(
 						},
 					)
 				}
-				if err := tx.Where("id = ? AND user_id NOT IN ?", contest.Id, memberIgnores).
+				if err := tx.Model(&foundationmodel.ContestMemberIgnore{}).Where(
+					"id = ? AND user_id NOT IN ?",
+					contest.Id,
+					memberIgnores,
+				).
 					Delete(&foundationmodel.ContestMemberIgnore{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete outdated ignores")
 				}
@@ -364,7 +430,7 @@ func (d *ContestDao) UpdateContest(
 				}
 			} else {
 				// 如果没有 memberIgnores，删除所有相关的记录
-				if err := tx.Where("id = ?", contest.Id).
+				if err := tx.Model(&foundationmodel.ContestMemberIgnore{}).Where("id = ?", contest.Id).
 					Delete(&foundationmodel.ContestMemberIgnore{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete all ignores")
 				}
@@ -381,7 +447,11 @@ func (d *ContestDao) UpdateContest(
 						},
 					)
 				}
-				if err := tx.Where("id = ? AND user_id NOT IN ?", contest.Id, memberVolunteers).
+				if err := tx.Model(&foundationmodel.ContestMemberVolunteer{}).Where(
+					"id = ? AND user_id NOT IN ?",
+					contest.Id,
+					memberVolunteers,
+				).
 					Delete(&foundationmodel.ContestMemberVolunteer{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete outdated volunteers")
 				}
@@ -395,7 +465,7 @@ func (d *ContestDao) UpdateContest(
 				}
 			} else {
 				// 如果没有 memberVolunteers，删除所有相关的记录
-				if err := tx.Where("id = ?", contest.Id).
+				if err := tx.Model(&foundationmodel.ContestMemberVolunteer{}).Where("id = ?", contest.Id).
 					Delete(&foundationmodel.ContestMemberVolunteer{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete all volunteers")
 				}

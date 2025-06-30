@@ -198,6 +198,10 @@ func (s *ProblemService) GetProblemIdsByKey(ctx context.Context, problemKeys []s
 	return foundationdao.GetProblemDao().GetProblemIdsByKey(ctx, problemKeys)
 }
 
+func (s *ProblemService) FilterValidProblemIds(ctx context.Context, ids []int) ([]int, error) {
+	return foundationdao.GetProblemDao().FilterValidProblemIds(ctx, ids)
+}
+
 func (s *ProblemService) GetProblemList(
 	ctx context.Context,
 	oj string, title string, tag string,
@@ -361,10 +365,6 @@ func (s *ProblemService) GetProblemTitles(ctx *gin.Context, userId int, hasAuth 
 	error,
 ) {
 	return foundationdao.GetProblemDao().GetProblemTitles(ctx, userId, hasAuth, problems)
-}
-
-func (s *ProblemService) FilterValidProblemIds(ctx context.Context, ids []int) ([]int, error) {
-	return foundationdao.GetProblemDao().FilterValidProblemIds(ctx, ids)
 }
 
 func (s *ProblemService) InsertProblemLocal(

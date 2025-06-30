@@ -106,7 +106,7 @@ func (c *ContestController) GetEdit(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Contest *foundationview.ContestDetail `json:"contest"`
+		Contest *foundationview.ContestDetailEdit `json:"contest"`
 	}{
 		Contest: contest,
 	}
@@ -629,6 +629,7 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 	}
 
 	contest := foundationmodel.NewContestBuilder().
+		Id(contestId).
 		Title(requestData.Title).
 		Description(requestData.Description).
 		Notification(requestData.Notification).
@@ -643,7 +644,7 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		SubmitAnytime(requestData.SubmitAnytime).
 		Build()
 
-	err = contestService.UpdateContest(ctx, requestData.Id, contest, problems, nil, nil, memberIds, nil, nil, nil)
+	err = contestService.UpdateContest(ctx, contest, problems, nil, nil, memberIds, nil, nil, nil)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return

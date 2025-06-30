@@ -17,6 +17,17 @@ type ContestDetail struct {
 	ModifierNickname string `json:"modifier_nickname"`
 }
 
+type ContestDetailEdit struct {
+	foundationmodel.Contest
+
+	Problems []int `json:"problems" gorm:"-"` // 比赛题目列表
+
+	InserterUsername string `json:"inserter_username"`
+	InserterNickname string `json:"inserter_nickname"`
+	ModifierUsername string `json:"modifier_username"`
+	ModifierNickname string `json:"modifier_nickname"`
+}
+
 type ContestViewLock struct {
 	Id int `json:"id"` // 比赛ID
 

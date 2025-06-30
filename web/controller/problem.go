@@ -535,6 +535,42 @@ func (c *ProblemController) PostParse(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ProblemController) PostParseId(ctx *gin.Context) {
+	var requestData struct {
+		Problems []int `json:"problems" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	problemList := requestData.Problems
+	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
+		ctx,
+		foundationauth.AuthTypeManageProblem,
+	)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	problemIds, err := foundationservice.GetProblemService().FilterValidProblemIds(ctx, problemList)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	problemTitles, err := foundationservice.GetProblemService().GetProblemTitles(ctx, userId, hasAuth, problemIds)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	responseData := struct {
+		Problems []*foundationview.ProblemViewTitle `json:"problems"`
+	}{
+		Problems: problemTitles,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
 func (c *ProblemController) PostCrawl(ctx *gin.Context) {
 	var requestData struct {
 		OJ  string `json:"oj" binding:"required"`

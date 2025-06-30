@@ -193,9 +193,9 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 	return
 }
 
-func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundationview.ContestDetail, error) {
-	contest, err := foundationdao.GetContestDao().GetContest(ctx, id)
-	contest.Problems, err = foundationdao.GetContestProblemDao().GetProblemsDetail(ctx, id)
+func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundationview.ContestDetailEdit, error) {
+	contest, err := foundationdao.GetContestDao().GetContestEdit(ctx, id)
+	contest.Problems, err = foundationdao.GetContestProblemDao().GetProblems(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +351,7 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int, nowTime ti
 }
 
 func (s *ContestService) UpdateContest(
-	ctx context.Context, id int, contest *foundationmodel.Contest,
+	ctx context.Context, contest *foundationmodel.Contest,
 	contestProblems []*foundationmodel.ContestProblem,
 	languages []string,
 	authors []int,

@@ -1,6 +1,9 @@
 package foundationview
 
-import "time"
+import (
+	metamysql "meta/meta-mysql"
+	"time"
+)
 
 type ContestRankDetail struct {
 	Id               int            `json:"id" bson:"_id"` // 比赛Id
@@ -16,11 +19,11 @@ type ContestRankDetail struct {
 }
 
 type ContestRankProblem struct {
-	Id      int        `json:"id,omitempty"`
-	Index   uint8      `json:"index,omitempty"`   // 题目索引
-	Attempt int        `json:"attempt,omitempty"` // 尝试次数（截止到首次AC）
-	Ac      *time.Time `json:"ac,omitempty"`      // 首次AC时间
-	Lock    int        `json:"lock,omitempty"`    // 未知的尝试次数（可能是锁榜期间的尝试次数）
+	Id      int                  `json:"id,omitempty"`
+	Index   uint8                `json:"index,omitempty"`   // 题目索引
+	Attempt int                  `json:"attempt,omitempty"` // 尝试次数（截止到首次AC）
+	Ac      *metamysql.MysqlTime `json:"ac,omitempty"`      // 首次AC时间
+	Lock    int                  `json:"lock,omitempty"`    // 未知的尝试次数（可能是锁榜期间的尝试次数）
 }
 
 type ContestRank struct {

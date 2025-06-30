@@ -57,27 +57,14 @@ func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problem
 }
 
 func (d *ContestProblemDao) GetProblems(ctx context.Context, contestId int) (
-	[]*foundationview.ContestProblemDetail,
+	[]int,
 	error,
 ) {
-	var results []*foundationview.ContestProblemDetail
+	var results []int
 	err := d.db.WithContext(ctx).
-		Table("contest_problem AS cp").
-		Select(
-			`
-			cp.id,
-			cp.problem_id,
-			cp.index,
-			cp.view_id,
-			cp.score,
-			p.title
-		`,
-		).
-		Joins("JOIN problem AS p ON cp.problem_id = p.id").
-		Where("cp.id = ?", contestId).
-		Order("cp.index ASC").
-		Scan(&results).Error
-
+		Model(&foundationmodel.ContestProblem{}).
+		Where("id = ?", contestId).
+		Pluck("problem_id", &results).Error // 使用 Pluck 获取指定字段的值
 	if err != nil {
 		return nil, err
 	}
