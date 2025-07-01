@@ -17,7 +17,6 @@ import (
 	"io"
 	metaerror "meta/meta-error"
 	"meta/singleton"
-	"web/response"
 )
 
 type UserService struct {
@@ -50,9 +49,10 @@ func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*fo
 		return nil, err
 	}
 	resultUser.Token = token
-
-	resultUser.Roles = foundationdao.GetUserR
-
+	resultUser.Roles, err = foundationdao.GetUserRoleDao().GetUserRoles(ctx, resultUser.Id)
+	if err != nil {
+		return nil, err
+	}
 	return resultUser, nil
 }
 
@@ -60,7 +60,7 @@ func (s *UserService) GetEmailByUsername(ctx context.Context, username string) (
 	return foundationdao.GetUserDao().GetEmailByUsername(ctx, username)
 }
 
-func (s *UserService) GetUserAccountInfo(ctx context.Context, userId int) (*foundationmodel.UserAccountInfo, error) {
+func (s *UserService) GetUserAccountInfo(ctx context.Context, userId int) (*foundationview.UserAccountInfo, error) {
 	return foundationdao.GetUserDao().GetUserAccountInfo(ctx, userId)
 }
 
@@ -70,14 +70,15 @@ func (s *UserService) GetUserAccountInfos(ctx context.Context, userIds []int) (
 	return foundationdao.GetUserDao().GetUserAccountInfos(ctx, userIds)
 }
 
-func (s *UserService) GetUserAccountInfoByUsernames(ctx context.Context, usernames []string) (
-	[]*foundationmodel.UserAccountInfo, error,
-) {
-	return foundationdao.GetUserDao().GetUserAccountInfoByUsernames(ctx, usernames)
+func (s *UserService) GetUserAccountInfoByUsernames(
+	ctx context.Context,
+	usernames []string,
+) ([]*foundationview.UserAccountInfo, error) {
+	return foundationdao.GetUserDao().GetUserAccountInfosByUsername(ctx, usernames)
 }
 
-func (s *UserService) GetUserIds(ctx *gin.Context, usernames []string) ([]int, error) {
-	return foundationdao.GetUserDao().GetUserIds(ctx, usernames)
+func (s *UserService) GetUserIdsByUsername(ctx *gin.Context, usernames []string) ([]int, error) {
+	return foundationdao.GetUserDao().GetUserIdsByUsername(ctx, usernames)
 }
 
 func (s *UserService) InsertUser(ctx context.Context, user *foundationmodel.User) error {
@@ -105,7 +106,7 @@ func (s *UserService) UpdatePassword(ctx *gin.Context, username string, password
 	return foundationdao.GetUserDao().UpdatePassword(ctx, username, passwordEncode)
 }
 
-func (s *UserService) Login(ctx *gin.Context, username string, password string) (*response.UserLogin, error) {
+func (s *UserService) Login(ctx *gin.Context, username string, password string) (*foundationview.UserLogin, error) {
 	resultUser, err := foundationdao.GetUserDao().GetUserLoginByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -141,20 +142,16 @@ func (s *UserService) Login(ctx *gin.Context, username string, password string) 
 			return nil, nil
 		}
 	}
+	resultUser.Roles, err = foundationdao.GetUserRoleDao().GetUserRoles(ctx, resultUser.Id)
+	if err != nil {
+		return nil, err
+	}
 	token, err := s.GetTokenByUserId(resultUser.Id, foundationconfig.GetJwtSecret())
 	if err != nil {
 		return nil, err
 	}
-
-	userResponse := response.NewUserLoginBuilder().
-		Token(*token).
-		UserId(resultUser.Id).
-		Username(resultUser.Username).
-		Nickname(resultUser.Nickname).
-		Roles(resultUser.Roles).
-		Build()
-
-	return userResponse, nil
+	resultUser.Token = token
+	return resultUser, nil
 }
 
 func (s *UserService) GetTokenByUserId(userId int, secret []byte) (*string, error) {
@@ -184,7 +181,7 @@ func (s *UserService) CheckUserAuthByUserId(ctx context.Context, userId int, aut
 	bool,
 	error,
 ) {
-	userRoles, err := foundationdao.GetUserDao().GetUserRoles(ctx, userId)
+	userRoles, err := foundationdao.GetUserRoleDao().GetUserRoles(ctx, userId)
 	if err != nil {
 		return false, err
 	}
@@ -196,7 +193,7 @@ func (s *UserService) CheckUserAuthsByUserId(ctx context.Context, userId int, au
 	bool,
 	error,
 ) {
-	userRoles, err := foundationdao.GetUserDao().GetUserRoles(ctx, userId)
+	userRoles, err := foundationdao.GetUserRoleDao().GetUserRoles(ctx, userId)
 	if err != nil {
 		return false, err
 	}
@@ -204,7 +201,7 @@ func (s *UserService) CheckUserAuthsByUserId(ctx context.Context, userId int, au
 	return ok, nil
 }
 
-func (s *UserService) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]*foundationmodel.UserRank, int, error) {
+func (s *UserService) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]*foundationview.UserRank, int, error) {
 	return foundationdao.GetUserDao().GetRankAcAll(ctx, page, pageSize)
 }
 

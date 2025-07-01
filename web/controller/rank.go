@@ -2,7 +2,6 @@ package controller
 
 import (
 	foundationerrorcode "foundation/error-code"
-	foundationmodel "foundation/foundation-model-mongo"
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
@@ -42,9 +41,9 @@ func (c *RankController) GetAcAll(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                   `json:"time"`
-		TotalCount int                         `json:"total_count"`
-		List       []*foundationmodel.UserRank `json:"list"`
+		Time       time.Time                  `json:"time"`
+		TotalCount int                        `json:"total_count"`
+		List       []*foundationview.UserRank `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
