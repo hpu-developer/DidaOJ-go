@@ -49,9 +49,9 @@ func (s *MigrateJudgeSqlService) Start(ctx context.Context) error {
 			Judger(nil).
 			TaskCurrent(nil).
 			TaskTotal(nil).
-			Score(nil).
-			Time(nil).
-			Memory(nil).
+			Score(0).
+			Time(0).
+			Memory(0).
 			Private(judgeJob.Private).
 			RemoteJudgeId(judgeJob.RemoteJudgeId).
 			RemoteAccountId(judgeJob.RemoteAccountId).

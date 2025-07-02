@@ -131,6 +131,21 @@ func (d *UserDao) GetUserAccountInfosByUsername(
 	return userAccountInfos, nil
 }
 
+func (d *UserDao) GetUserIdByUsername(ctx context.Context, username string) (int, error) {
+	var userId int
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.User{}).
+		Where("username = ?", username).
+		Pluck("id", &userId).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, nil // User not found
+		}
+		return 0, metaerror.Wrap(err, "get user id by username")
+	}
+	return userId, nil
+}
+
 func (d *UserDao) GetUserIdsByUsername(ctx context.Context, usernames []string) ([]int, error) {
 	if len(usernames) == 0 {
 		return nil, nil

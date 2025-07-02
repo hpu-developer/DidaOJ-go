@@ -6,7 +6,6 @@ import (
 	cfr2 "meta/cf-r2"
 	"meta/engine"
 	"meta/meta-http"
-	metamogo "meta/meta-mongo"
 	metamysql "meta/meta-mysql"
 	metapanic "meta/meta-panic"
 	metaredis "meta/meta-redis"
@@ -25,16 +24,6 @@ func InitPre() error {
 	engine.RegisterSubsystem(
 		func() subsystem.Interface {
 			return &config.Subsystem{}
-		},
-	)
-
-	engine.RegisterSubsystem(
-		func() subsystem.Interface {
-			mongoSubsystem := &metamogo.Subsystem{}
-			mongoSubsystem.GetConfig = func() *metamogo.Config {
-				return config.GetMongoConfig()
-			}
-			return mongoSubsystem
 		},
 	)
 

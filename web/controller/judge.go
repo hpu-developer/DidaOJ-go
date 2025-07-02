@@ -402,22 +402,34 @@ func (c *JudgeController) PostRejudge(ctx *gin.Context) {
 
 func (c *JudgeController) PostRejudgeSearch(ctx *gin.Context) {
 	var requestData struct {
-		ProblemId string                        `json:"problem_id"`
-		Language  foundationjudge.JudgeLanguage `json:"language"`
-		Status    foundationjudge.JudgeStatus   `json:"status"`
+		ProblemKey string                        `json:"problem_key"`
+		Language   foundationjudge.JudgeLanguage `json:"language"`
+		Status     foundationjudge.JudgeStatus   `json:"status"`
 	}
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	problemId := requestData.ProblemId
+	ProblemKey := requestData.ProblemKey
 	language := requestData.Language
 	status := requestData.Status
-	if problemId == "" &&
+	problemId := 0
+	if ProblemKey == "" &&
 		!foundationjudge.IsValidJudgeLanguage(int(language)) &&
 		!foundationjudge.IsValidJudgeStatus(int(status)) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
+	} else {
+		var err error
+		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, ProblemKey)
+		if err != nil {
+			metaresponse.NewResponseError(ctx, err)
+			return
+		}
+		if problemId <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+			return
+		}
 	}
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {

@@ -31,7 +31,7 @@ func (d *UserRoleDao) GetUserRoles(ctx context.Context, userId int) ([]string, e
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.UserRole{}).
 		Where("id = ?", userId).
-		Pluck("name", &roles).Error
+		Pluck("role_id", &roles).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

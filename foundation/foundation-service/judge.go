@@ -6,7 +6,6 @@ import (
 	foundationauth "foundation/foundation-auth"
 	foundationcontest "foundation/foundation-contest"
 	foundationdao "foundation/foundation-dao"
-	foundationdaomongo "foundation/foundation-dao-mongo"
 	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
@@ -42,7 +41,7 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 	if err != nil {
 		return userId, false, false, nil, err
 	}
-	judgeAuth, err := foundationdaomongo.GetJudgeJobDao().GetJudgeJobViewAuth(ctx, id)
+	judgeAuth, err := foundationdao.GetJudgeJobDao().GetJudgeJobViewAuth(ctx, id)
 	if err != nil {
 		return userId, false, false, nil, err
 	}
@@ -51,7 +50,7 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 	}
 	if !hasAuth {
 		if judgeAuth.Private {
-			if judgeAuth.AuthorId != userId {
+			if judgeAuth.Inserter != userId {
 				return userId, false, false, nil, nil
 			}
 		}
@@ -72,8 +71,8 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 			hasStatusAuth, hasDetailAuth, hasTaskAuth := s.isContestJudgeHasViewAuth(
 				contest, userId,
 				nowTime,
-				judgeAuth.AuthorId,
-				&judgeAuth.ApproveTime,
+				judgeAuth.Inserter,
+				&judgeAuth.InsertTime,
 			)
 			if !hasStatusAuth || !hasDetailAuth {
 				return userId, false, hasTaskAuth, contest, nil
@@ -92,7 +91,7 @@ func (s *JudgeService) GetJudgeCode(ctx context.Context, id int) (
 	*string,
 	error,
 ) {
-	return foundationdaomongo.GetJudgeJobDao().GetJudgeCode(ctx, id)
+	return foundationdao.GetJudgeJobDao().GetJudgeCode(ctx, id)
 }
 
 func (s *JudgeService) GetJudgeList(
@@ -109,7 +108,7 @@ func (s *JudgeService) GetJudgeList(
 	var err error
 	searchUserId := -1
 	if username != "" {
-		searchUserId, err = foundationdaomongo.GetUserDao().GetUserIdByUsername(ctx, username)
+		searchUserId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
 		if err != nil {
 			return nil, err
 		}
@@ -281,7 +280,7 @@ func (s *JudgeService) GetRankAcProblem(
 }
 
 func (s *JudgeService) GetUserAcProblemIds(ctx context.Context, userId int) ([]string, error) {
-	problemIds, err := foundationdaomongo.GetJudgeJobDao().GetUserAcProblemIds(ctx, userId)
+	problemIds, err := foundationdao.GetJudgeJobDao().GetUserAcProblemIds(ctx, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +291,7 @@ func (s *JudgeService) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 	[]*foundationview.JudgeJobCountStatics,
 	error,
 ) {
-	return foundationdaomongo.GetJudgeJobDao().GetJudgeJobCountStaticsRecently(ctx)
+	return foundationdao.GetJudgeJobDao().GetJudgeJobCountStaticsRecently(ctx)
 }
 
 func (s *JudgeService) GetProblemAttemptStatus(
@@ -310,7 +309,7 @@ func (s *JudgeService) GetProblemAttemptStatus(
 }
 
 func (s *JudgeService) GetJudgeJobCountNotFinish(ctx context.Context) (int, error) {
-	return foundationdaomongo.GetJudgeJobDao().GetJudgeJobCountNotFinish(ctx)
+	return foundationdao.GetJudgeJobDao().GetJudgeJobCountNotFinish(ctx)
 }
 
 func (s *JudgeService) InsertJudgeJob(ctx context.Context, judgeJob *foundationmodel.JudgeJob) error {
@@ -323,17 +322,17 @@ func (s *JudgeService) RejudgeJob(ctx context.Context, id int) error {
 
 func (s *JudgeService) PostRejudgeSearch(
 	ctx context.Context,
-	id string,
+	problemId int,
 	language foundationjudge.JudgeLanguage,
 	status foundationjudge.JudgeStatus,
 ) error {
-	return foundationdaomongo.GetJudgeJobDao().RejudgeSearch(ctx, id, language, status)
+	return foundationdao.GetJudgeJobDao().RejudgeSearch(ctx, problemId, language, status)
 }
 
 func (s *JudgeService) RejudgeRecently(ctx context.Context) error {
-	return foundationdaomongo.GetJudgeJobDao().RejudgeRecently(ctx)
+	return foundationdao.GetJudgeJobDao().RejudgeRecently(ctx)
 }
 
 func (s *JudgeService) RejudgeAll(ctx context.Context) error {
-	return foundationdaomongo.GetJudgeJobDao().RejudgeAll(ctx)
+	return foundationdao.GetJudgeJobDao().RejudgeAll(ctx)
 }
