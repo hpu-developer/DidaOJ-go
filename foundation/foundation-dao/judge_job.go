@@ -39,7 +39,7 @@ func GetJudgeJobDao() *JudgeJobDao {
 func (d *JudgeJobDao) GetJudgeJobViewAuth(ctx context.Context, id int) (*foundationview.JudgeJobViewAuth, error) {
 	var auth foundationview.JudgeJobViewAuth
 	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
-		Select("id, contest_id, problem_id, inserter, private, author_id").
+		Select("id, contest_id, problem_id, inserter, private, inserter").
 		Where("id = ?", id).
 		First(&auth).Error
 	if err != nil {
@@ -48,7 +48,7 @@ func (d *JudgeJobDao) GetJudgeJobViewAuth(ctx context.Context, id int) (*foundat
 		}
 		return nil, metaerror.Wrap(err, "failed to query judge job view auth")
 	}
-	return nil, nil
+	return &auth, nil
 }
 
 func (d *JudgeJobDao) GetJudgeCode(ctx context.Context, id int) (foundationjudge.JudgeLanguage, *string, error) {
@@ -182,7 +182,7 @@ func (d *JudgeJobDao) GetJudgeTaskList(ctx *gin.Context, id int) ([]*foundationm
 }
 
 func (d *JudgeJobDao) GetProblemAttemptStatus(
-	ctx context.Context, authorId int, problemIds []int,
+	ctx context.Context, inserter int, problemIds []int,
 	contestId int, startTime *time.Time, endTime *time.Time,
 ) (map[int]foundationenum.ProblemAttemptStatus, error) {
 	if len(problemIds) == 0 {
@@ -198,7 +198,7 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(
 			"problem_id, MAX(CASE WHEN status = ? THEN 1 ELSE 0 END) AS has_ac, MAX(CASE WHEN status != ? THEN 1 ELSE 0 END) AS has_attempt",
 			foundationjudge.JudgeStatusAC, foundationjudge.JudgeStatusAC,
 		).
-		Where("inserter = ?", authorId).
+		Where("inserter = ?", inserter).
 		Where("problem_id IN ?", problemIds)
 	if contestId > 0 {
 		db = db.Where("contest_id = ?", contestId)

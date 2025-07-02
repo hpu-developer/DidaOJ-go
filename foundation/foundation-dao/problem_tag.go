@@ -46,7 +46,7 @@ func (d *ProblemTagDao) GetProblemTagMap(ctx context.Context, problemIds []int) 
 		ProblemId int             `json:"id" gorm:"column:id"`
 		TagIdsRaw json.RawMessage `json:"tag_ids" gorm:"column:tag_ids"`
 	}
-	var results []ProblemTagsResult
+	var results []*ProblemTagsResult
 	err := d.db.WithContext(ctx).
 		Raw(
 			"SELECT id, JSON_ARRAYAGG(tag_id) AS tag_ids "+

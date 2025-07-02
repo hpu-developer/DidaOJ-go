@@ -50,10 +50,17 @@ func (d *ProblemDao) GetProblemList(
 	if !hasAuth {
 		if userId > 0 {
 			db = db.Where(
-				"private = 0 OR inserter = ? OR id IN (?) OR id IN (?)",
-				userId,
-				d.db.Model(&foundationmodel.ProblemMember{}).Select("id").Where("user_id = ?", userId),
-				d.db.Model(&foundationmodel.ProblemMemberAuth{}).Select("id").Where("user_id = ?", userId),
+				gorm.Expr(
+					`private = 0
+		OR inserter = ?
+		OR EXISTS (
+			SELECT 1 FROM problem_member pm WHERE pm.id = problem.id AND pm.user_id = ?
+		)
+		OR EXISTS (
+			SELECT 1 FROM problem_member_auth pma WHERE pma.id = problem.id AND pma.user_id = ?
+		)
+	`, userId, userId, userId,
+				),
 			)
 		} else {
 			db = db.Where("private = 0")
@@ -118,10 +125,10 @@ func (d *ProblemDao) GetProblemView(
 				p.private = 0 OR
 				p.inserter = ? OR
 				EXISTS (
-					SELECT 1 FROM problem_member pm WHERE pm.problem_id = p.id AND pm.user_id = ?
+					SELECT 1 FROM problem_member pm WHERE pm.id = p.id AND pm.user_id = ?
 				) OR
 				EXISTS (
-					SELECT 1 FROM problem_auth_member pam WHERE pam.problem_id = p.id AND pam.user_id = ?
+					SELECT 1 FROM problem_member_auth pam WHERE pam.id = p.id AND pam.user_id = ?
 				)
 			`, userId, userId, userId,
 			)
@@ -331,7 +338,7 @@ func (d *ProblemDao) GetProblemTitles(
 					WHERE pm.problem_id = problems.id AND pm.user_id = ?
 				) OR
 				EXISTS (
-					SELECT 1 FROM problem_auth_member pam
+					SELECT 1 FROM problem_member_auth pam
 					WHERE pam.problem_id = problems.id AND pam.user_id = ?
 				)
 			`, userId, userId, userId,
@@ -421,9 +428,10 @@ func (d *ProblemDao) GetProblemViewApproveJudge(
 	id int,
 ) (*foundationview.ProblemViewApproveJudge, error) {
 	db := d.db.WithContext(ctx).
-		Model(&foundationview.ProblemViewApproveJudge{}).
-		Select("id", "origin_oj", "origin_id").
-		Where("problem_id = ?", id)
+		Table("problem as p").
+		Select("p.id", "pr.origin_oj", "pr.origin_id").
+		Joins("LEFT JOIN problem_remote as pr ON p.id = pr.problem_id").
+		Where("p.id = ?", id)
 	var problem foundationview.ProblemViewApproveJudge
 	err := db.First(&problem).Error
 	if err != nil {
@@ -432,7 +440,7 @@ func (d *ProblemDao) GetProblemViewApproveJudge(
 		}
 		return nil, metaerror.Wrap(err, "find problem approve judge error")
 	}
-	return nil, nil
+	return &problem, nil
 }
 
 func (d *ProblemDao) GetProblemJudgeMd5(ctx context.Context, id string) (*string, error) {
