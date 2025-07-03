@@ -250,7 +250,6 @@ func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 		foundationauth.AuthTypeManageProblem,
 	)
 	if err != nil {
-		metapanic.ProcessError(err)
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}

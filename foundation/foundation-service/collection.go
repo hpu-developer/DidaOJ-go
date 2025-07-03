@@ -105,16 +105,16 @@ func (s *CollectionService) GetCollection(ctx context.Context, id int, userId in
 	if len(collectionProblemIds) == 0 {
 		return
 	}
-	problemMap := make(map[int]*foundationview.ProblemViewList, len(collectionProblemIds))
-	for _, problem := range collectionProblems {
-		problemMap[problem.Id] = problem
-	}
 	collectionProblems, err = foundationdao.GetProblemDao().SelectProblemViewList(ctx, collectionProblemIds, false)
 	if err != nil {
 		return
 	}
 	var problemTags map[int][]int
 	problemTags, err = foundationdao.GetProblemTagDao().GetProblemTagMap(ctx, collectionProblemIds)
+	problemMap := make(map[int]*foundationview.ProblemViewList, len(collectionProblemIds))
+	for _, problem := range collectionProblems {
+		problemMap[problem.Id] = problem
+	}
 	var problemTagIds []int
 	for problemId, tag := range problemTags {
 		problemTagIds = append(problemTagIds, tag...)
@@ -177,7 +177,7 @@ func (s *CollectionService) GetCollectionList(
 func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
 	startTime *time.Time,
 	endTime *time.Time,
-	problems []int,
+	problems int,
 	ranks []*foundationview.CollectionRank,
 	err error,
 ) {
@@ -197,6 +197,7 @@ func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
 	if err != nil {
 		return
 	}
+	problems = len(collection.Problems)
 	return
 }
 

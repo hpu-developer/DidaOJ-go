@@ -6,7 +6,7 @@ import (
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationcontest "foundation/foundation-contest"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
 	"github.com/aws/aws-sdk-go/aws"

@@ -29,7 +29,7 @@ func (d *CollectionProblemDao) GetCollectionProblems(ctx context.Context, id int
 	var problems []int
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.CollectionProblem{}).
-		Where("collection_id = ?", id).
+		Where("id = ?", id).
 		Order("`index` ASC"). // 加反引号防止关键词冲突
 		Pluck("problem_id", &problems).Error
 	if err != nil {

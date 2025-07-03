@@ -3,8 +3,8 @@ package foundationservice
 import (
 	"context"
 	foundationauth "foundation/foundation-auth"
-	"foundation/foundation-dao-mongo"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationdao "foundation/foundation-dao-mongo"
+	foundationmodel "foundation/foundation-model"
 	"github.com/gin-gonic/gin"
 	"meta/singleton"
 	"time"
@@ -36,7 +36,7 @@ func (s *DiscussService) CheckEditAuth(ctx *gin.Context, id int) (
 		return userId, false, nil
 	}
 	if !hasAuth {
-		ownerId, err := foundationdaomongo.GetDiscussDao().GetAuthorId(ctx, id)
+		ownerId, err := foundationdao.GetDiscussDao().GetAuthorId(ctx, id)
 		if err != nil {
 			return userId, false, err
 		}
@@ -60,7 +60,7 @@ func (s *DiscussService) CheckViewAuth(ctx *gin.Context, id int) (
 		return userId, false, nil
 	}
 	if !hasAuth {
-		isBanned, err := foundationdaomongo.GetDiscussDao().IsDiscussBannedOrNotExist(ctx, id)
+		isBanned, err := foundationdao.GetDiscussDao().IsDiscussBannedOrNotExist(ctx, id)
 		if err != nil {
 			return userId, false, err
 		}
@@ -77,7 +77,7 @@ func (s *DiscussService) CheckEditCommentAuth(ctx *gin.Context, commentId int) (
 	*foundationmodel.DiscussCommentViewEdit,
 	error,
 ) {
-	discussComment, err := foundationdaomongo.GetDiscussCommentDao().GetCommentEditView(ctx, commentId)
+	discussComment, err := foundationdao.GetDiscussCommentDao().GetCommentEditView(ctx, commentId)
 	if err != nil {
 		return 0, false, nil, err
 	}
@@ -92,7 +92,7 @@ func (s *DiscussService) CheckEditCommentAuth(ctx *gin.Context, commentId int) (
 		return userId, false, discussComment, nil
 	}
 	if !hasAuth {
-		isBanned, err := foundationdaomongo.GetDiscussDao().IsDiscussBannedOrNotExist(ctx, discussComment.DiscussId)
+		isBanned, err := foundationdao.GetDiscussDao().IsDiscussBannedOrNotExist(ctx, discussComment.DiscussId)
 		if err != nil {
 			return userId, false, discussComment, err
 		}
@@ -107,11 +107,11 @@ func (s *DiscussService) CheckEditCommentAuth(ctx *gin.Context, commentId int) (
 }
 
 func (s *DiscussService) GetContent(ctx *gin.Context, id int) (*string, error) {
-	return foundationdaomongo.GetDiscussDao().GetContent(ctx, id)
+	return foundationdao.GetDiscussDao().GetContent(ctx, id)
 }
 
 func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmodel.Discuss, error) {
-	discuss, err := foundationdaomongo.GetDiscussDao().GetDiscuss(ctx, id)
+	discuss, err := foundationdao.GetDiscussDao().GetDiscuss(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmod
 		return nil, nil
 	}
 	if discuss.AuthorId > 0 {
-		user, err := foundationdaomongo.GetUserDao().GetUserAccountInfo(ctx, discuss.AuthorId)
+		user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, discuss.AuthorId)
 		if err != nil {
 			return nil, err
 		}
@@ -132,18 +132,18 @@ func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmod
 	if discuss.ContestId > 0 {
 		// 校验权限
 
-		contestTitle, err := foundationdaomongo.GetContestDao().GetContestTitle(ctx, discuss.ContestId)
+		contestTitle, err := foundationdao.GetContestDao().GetContestTitle(ctx, discuss.ContestId)
 		if err != nil {
 			return nil, err
 		}
 		discuss.ContestTitle = contestTitle
 		if discuss.ProblemId != nil {
-			problemTitle, err := foundationdaomongo.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
+			problemTitle, err := foundationdao.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
 			if err != nil {
 				return nil, err
 			}
 			discuss.ProblemTitle = problemTitle
-			discuss.ContestProblemIndex, err = foundationdaomongo.GetContestDao().GetProblemIndex(
+			discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(
 				ctx,
 				discuss.ContestId,
 				*discuss.ProblemId,
@@ -157,7 +157,7 @@ func (s *DiscussService) GetDiscuss(ctx context.Context, id int) (*foundationmod
 	} else if discuss.ProblemId != nil {
 		// 校验权限
 
-		title, err := foundationdaomongo.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
+		title, err := foundationdao.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +184,7 @@ func (s *DiscussService) GetDiscussList(
 	var err error
 	userId := -1
 	if username != "" {
-		userId, err = foundationdaomongo.GetUserDao().GetUserIdByUsername(ctx, username)
+		userId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -195,7 +195,7 @@ func (s *DiscussService) GetDiscussList(
 	if contestId > 0 {
 		// 计算ProblemId
 		if contestProblemIndex > 0 {
-			problemIdPtr, err := foundationdaomongo.GetContestDao().GetProblemIdByContest(
+			problemIdPtr, err := foundationdao.GetContestDao().GetProblemIdByContest(
 				ctx,
 				contestId,
 				contestProblemIndex,
@@ -210,7 +210,7 @@ func (s *DiscussService) GetDiscussList(
 		}
 	}
 
-	discusses, totalCount, err := foundationdaomongo.GetDiscussDao().GetDiscussList(
+	discusses, totalCount, err := foundationdao.GetDiscussDao().GetDiscussList(
 		ctx, onlyProblem, contestId, problemId, title, userId,
 		page, pageSize,
 	)
@@ -222,7 +222,7 @@ func (s *DiscussService) GetDiscussList(
 		for _, discuss := range discusses {
 			userIds = append(userIds, discuss.AuthorId)
 		}
-		users, err := foundationdaomongo.GetUserDao().GetUsersAccountInfo(ctx, userIds)
+		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -240,12 +240,12 @@ func (s *DiscussService) GetDiscussList(
 		if contestId > 0 {
 			for _, discuss := range discusses {
 				if discuss.ProblemId != nil {
-					problemTitle, err := foundationdaomongo.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
+					problemTitle, err := foundationdao.GetProblemDao().GetProblemTitle(ctx, discuss.ProblemId)
 					if err != nil {
 						return nil, 0, err
 					}
 					discuss.ProblemTitle = problemTitle
-					discuss.ContestProblemIndex, err = foundationdaomongo.GetContestDao().GetProblemIndex(
+					discuss.ContestProblemIndex, err = foundationdao.GetContestDao().GetProblemIndex(
 						ctx,
 						contestId,
 						*discuss.ProblemId,
@@ -263,15 +263,15 @@ func (s *DiscussService) GetDiscussList(
 }
 
 func (s *DiscussService) GetDiscussTagByIds(ctx *gin.Context, tags []int) ([]*foundationmodel.DiscussTag, error) {
-	return foundationdaomongo.GetDiscussTagDao().GetDiscussTagByIds(ctx, tags)
+	return foundationdao.GetDiscussTagDao().GetDiscussTagByIds(ctx, tags)
 }
 
 func (s *DiscussService) InsertDiscuss(ctx context.Context, discuss *foundationmodel.Discuss) error {
-	return foundationdaomongo.GetDiscussDao().InsertDiscuss(ctx, discuss)
+	return foundationdao.GetDiscussDao().InsertDiscuss(ctx, discuss)
 }
 
 func (s *DiscussService) InsertDiscussComment(ctx context.Context, discuss *foundationmodel.DiscussComment) error {
-	return foundationdaomongo.GetDiscussCommentDao().InsertDiscussComment(ctx, discuss)
+	return foundationdao.GetDiscussCommentDao().InsertDiscussComment(ctx, discuss)
 }
 
 func (s *DiscussService) GetDiscussCommentList(
@@ -280,7 +280,7 @@ func (s *DiscussService) GetDiscussCommentList(
 	page int,
 	pageSize int,
 ) ([]*foundationmodel.DiscussComment, int, error) {
-	discussComments, totalCount, err := foundationdaomongo.GetDiscussCommentDao().GetDiscussCommentList(
+	discussComments, totalCount, err := foundationdao.GetDiscussCommentDao().GetDiscussCommentList(
 		ctx,
 		discussComment,
 		page,
@@ -294,7 +294,7 @@ func (s *DiscussService) GetDiscussCommentList(
 		for _, discussComment := range discussComments {
 			userIds = append(userIds, discussComment.AuthorId)
 		}
-		users, err := foundationdaomongo.GetUserDao().GetUsersAccountInfo(ctx, userIds)
+		users, err := foundationdao.GetUserDao().GetUsersAccountInfo(ctx, userIds)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -313,11 +313,11 @@ func (s *DiscussService) GetDiscussCommentList(
 }
 
 func (s *DiscussService) UpdateContent(ctx *gin.Context, id int, content string) error {
-	return foundationdaomongo.GetDiscussDao().UpdateContent(ctx, id, content)
+	return foundationdao.GetDiscussDao().UpdateContent(ctx, id, content)
 }
 
 func (s *DiscussService) PostEdit(ctx *gin.Context, id int, discuss *foundationmodel.Discuss) error {
-	return foundationdaomongo.GetDiscussDao().UpdateDiscuss(ctx, id, discuss)
+	return foundationdao.GetDiscussDao().UpdateDiscuss(ctx, id, discuss)
 }
 
 func (s *DiscussService) UpdateCommentContent(
@@ -325,5 +325,5 @@ func (s *DiscussService) UpdateCommentContent(
 	commentId int, discussId int, content string,
 	updateTime time.Time,
 ) error {
-	return foundationdaomongo.GetDiscussCommentDao().UpdateContent(ctx, commentId, discussId, content, updateTime)
+	return foundationdao.GetDiscussCommentDao().UpdateContent(ctx, commentId, discussId, content, updateTime)
 }

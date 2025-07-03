@@ -3,6 +3,7 @@ package foundationdao
 import (
 	"context"
 	"errors"
+	"fmt"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
@@ -90,10 +91,10 @@ func (d *CollectionDao) GetCollectionList(
 	if err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Collection{}).
 		Count(&total).Error; err != nil {
-		return nil, 0, metaerror.Wrap(err, "failed to count collections")
+		return nil, 0, metaerror.Wrap(err, "failed to count collection")
 	}
 	err := d.db.WithContext(ctx).
-		Table("collections AS c").
+		Table("collection AS c").
 		Select(
 			`
 			c.id,
@@ -111,7 +112,7 @@ func (d *CollectionDao) GetCollectionList(
 		Offset(offset).
 		Scan(&list).Error
 	if err != nil {
-		return nil, 0, metaerror.Wrap(err, "failed to list collections")
+		return nil, 0, metaerror.Wrap(err, "failed to list collection")
 	}
 	return list, int(total), nil
 }
@@ -170,25 +171,30 @@ func (d *CollectionDao) GetProblemAttemptInfo(
 	startTime *time.Time,
 	endTime *time.Time,
 ) ([]*foundationview.ProblemAttemptInfo, error) {
+	// 子查询：集合中的成员 user_id
 	subMember := d.db.
 		Model(&foundationmodel.CollectionMember{}).
 		Select("user_id").
-		Where("collection_id = ?", collectionId)
+		Where("id = ?", collectionId)
+
+	// 主查询：统计每题的 attempt / accept
 	db := d.db.WithContext(ctx).
 		Model(&foundationmodel.JudgeJob{}).
 		Select(
 			"problem_id AS id",
 			"COUNT(*) AS attempt",
-			"SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS accept", foundationjudge.JudgeStatusAC,
+			fmt.Sprintf("SUM(CASE WHEN status = %d THEN 1 ELSE 0 END) AS accept", foundationjudge.JudgeStatusAC),
 		).
 		Where("inserter IN (?)", subMember).
 		Where("problem_id IN ?", problemIds)
+
 	if startTime != nil {
 		db = db.Where("insert_time >= ?", *startTime)
 	}
 	if endTime != nil {
 		db = db.Where("insert_time <= ?", *endTime)
 	}
+
 	var results []*foundationview.ProblemAttemptInfo
 	if err := db.Group("problem_id").Scan(&results).Error; err != nil {
 		return nil, err

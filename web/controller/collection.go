@@ -163,7 +163,7 @@ func (c *CollectionController) GetRank(ctx *gin.Context) {
 	responseData := struct {
 		StartTime *time.Time                       `json:"start_time"`
 		EndTime   *time.Time                       `json:"end_time"` // 结束时间
-		Problems  []int                            `json:"problem"`  // 题目数量
+		Problems  int                              `json:"problem"`  // 题目数量
 		Ranks     []*foundationview.CollectionRank `json:"ranks"`
 	}{
 		StartTime: startTime,

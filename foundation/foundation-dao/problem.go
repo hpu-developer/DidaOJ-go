@@ -513,7 +513,7 @@ func (d *ProblemDao) SelectProblemViewList(ctx context.Context, ids []int, needA
 		return nil, nil
 	}
 	var list []*foundationview.ProblemViewList
-	fields := []string{"id", "key", "title"}
+	fields := []string{"id", "`key`", "title"}
 	if needAttempt {
 		fields = append(fields, "accept", "attempt")
 	}

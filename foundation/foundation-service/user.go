@@ -165,11 +165,11 @@ func (s *UserService) GetTokenByUserId(userId int, secret []byte) (*string, erro
 func (s *UserService) CheckUserAuth(ctx *gin.Context, auth foundationauth.AuthType) (int, bool, error) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
-		return 0, false, nil
+		return userId, false, nil
 	}
 	ok, err := s.CheckUserAuthByUserId(ctx, userId, auth)
 	if err != nil {
-		return 0, false, err
+		return userId, false, err
 	}
 	if !ok {
 		return userId, false, nil

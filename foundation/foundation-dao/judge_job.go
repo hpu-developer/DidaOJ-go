@@ -276,14 +276,15 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 		Count     int
 	}
 	var recResults []Result
-	recQuery := d.db.WithContext(ctx).Table("judge_job AS jj").
+	recQuery := d.db.WithContext(ctx).Debug().Table("judge_job AS jj").
 		Select("jj.problem_id, COUNT(*) AS count").
 		Joins("JOIN problem p ON p.id = jj.problem_id").
 		Where("jj.status = ?", foundationjudge.JudgeStatusAC).
-		Where("jj.insert_time IS NOT NULL").
-		Where("jj.inserter IN ?", acUserIDs).
-		Where("jj.problem_id NOT IN ?", userAcProblems)
+		Where("jj.inserter IN ?", acUserIDs)
 
+	if len(userAcProblems) > 0 {
+		recQuery = recQuery.Where("jj.problem_id NOT IN ?", userAcProblems)
+	}
 	if problemId > 0 {
 		recQuery = recQuery.Where("jj.problem_id != ?", problemId)
 	}
