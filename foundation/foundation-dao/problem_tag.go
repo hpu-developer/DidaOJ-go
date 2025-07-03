@@ -54,7 +54,7 @@ func (d *ProblemTagDao) GetProblemTagMap(ctx context.Context, problemIds []int) 
 				"GROUP BY id",
 			problemIds,
 		).
-		Scan(&results).Error
+		Find(&results).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to aggregate tag_ids")
 	}

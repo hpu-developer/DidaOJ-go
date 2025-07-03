@@ -6,6 +6,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
+	"meta/set"
 	"meta/singleton"
 )
 
@@ -75,10 +76,11 @@ func (s *ProblemDailyService) GetDailyList(
 	if len(dailyList) == 0 {
 		return
 	}
-	problemIds := make([]int, len(dailyList))
+	problemIdSet := set.New[int]()
 	for _, daily := range dailyList {
-		problemIds = append(problemIds, daily.ProblemId)
+		problemIdSet.Add(daily.ProblemId)
 	}
+	problemIds := problemIdSet.ToSlice()
 	var problemTagMap map[int][]int
 	problemTagMap, err = foundationdao.GetProblemTagDao().GetProblemTagMap(ctx, problemIds)
 	if err != nil {

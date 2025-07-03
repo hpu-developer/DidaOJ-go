@@ -4,7 +4,6 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
-	foundationdao "foundation/foundation-dao-mongo"
 	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
 	foundationr2 "foundation/foundation-r2"
@@ -30,7 +29,7 @@ import (
 )
 
 func (c *ProblemController) GetDailyImageToken(ctx *gin.Context) {
-	id := ctx.Query("id")
+	key := ctx.Query("key")
 	_, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblemDaily)
 	if err != nil {
 		metapanic.ProcessError(err)
@@ -52,7 +51,7 @@ func (c *ProblemController) GetDailyImageToken(ctx *gin.Context) {
 	bucketName := "didapipa-oj"
 	objectKey := metahttp.UrlJoin(
 		"uploading/problem-daily",
-		id,
+		key,
 		fmt.Sprintf("%d_%s", time.Now().Unix(), uuid.New().String()),
 	)
 
@@ -82,8 +81,8 @@ func (c *ProblemController) GetDailyImageToken(ctx *gin.Context) {
 }
 
 func (c *ProblemController) GetDaily(ctx *gin.Context) {
-	id := ctx.Query("id")
-	if id == "" {
+	key := ctx.Query("key")
+	if key == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -92,7 +91,7 @@ func (c *ProblemController) GetDaily(ctx *gin.Context) {
 		ctx,
 		foundationauth.AuthTypeManageProblemDaily,
 	)
-	problemDaily, err := problemDailyService.GetProblemDaily(ctx, id, hasAuth)
+	problemDaily, err := problemDailyService.GetProblemDaily(ctx, key, hasAuth)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -112,8 +111,8 @@ func (c *ProblemController) GetDaily(ctx *gin.Context) {
 }
 
 func (c *ProblemController) GetDailyEdit(ctx *gin.Context) {
-	id := ctx.Query("id")
-	if id == "" {
+	key := ctx.Query("key")
+	if key == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -128,7 +127,7 @@ func (c *ProblemController) GetDailyEdit(ctx *gin.Context) {
 		return
 	}
 	problemDailyService := foundationservice.GetProblemDailyService()
-	problemDaily, err := problemDailyService.GetProblemDailyEdit(ctx, id)
+	problemDaily, err := problemDailyService.GetProblemDailyEdit(ctx, key)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -364,9 +363,9 @@ func (c *ProblemController) PostDailyEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	id := requestData.Id
+	key := requestData.Id
 	const layout = "2006-01-02"
-	t, err := time.Parse(layout, id)
+	t, err := time.Parse(layout, key)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
@@ -405,7 +404,7 @@ func (c *ProblemController) PostDailyEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
 		return
 	}
-	oldDaily, err := foundationservice.GetProblemDailyService().GetProblemDailyEdit(ctx, id)
+	oldDaily, err := foundationservice.GetProblemDailyService().GetProblemDailyEdit(ctx, key)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -414,8 +413,8 @@ func (c *ProblemController) PostDailyEdit(ctx *gin.Context) {
 	requestData.Solution, finalNeedUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
 		requestData.Solution,
 		&oldDaily.Solution,
-		metahttp.UrlJoin("problem-daily", id),
-		metahttp.UrlJoin("problem-daily", id),
+		metahttp.UrlJoin("problem-daily", key),
+		metahttp.UrlJoin("problem-daily", key),
 	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
@@ -425,8 +424,8 @@ func (c *ProblemController) PostDailyEdit(ctx *gin.Context) {
 	requestData.Code, codeNeedUpdateUrls, err = service.GetR2ImageService().ProcessContentFromMarkdown(
 		requestData.Code,
 		&oldDaily.Code,
-		metahttp.UrlJoin("problem-daily", id),
-		metahttp.UrlJoin("problem-daily", id),
+		metahttp.UrlJoin("problem-daily", key),
+		metahttp.UrlJoin("problem-daily", key),
 	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
@@ -442,7 +441,7 @@ func (c *ProblemController) PostDailyEdit(ctx *gin.Context) {
 		Modifier(userId).
 		ModifyTime(nowTime).
 		Build()
-	err = foundationservice.GetProblemDailyService().PostDailyEdit(ctx, id, problemDaily)
+	err = foundationservice.GetProblemDailyService().PostDailyEdit(ctx, key, problemDaily)
 	if err != nil {
 		metaresponse.NewResponse(ctx, weberrorcode.ProblemDailyProblemAlreadyExists, nil)
 		return
@@ -458,7 +457,7 @@ func (c *ProblemController) PostDailyEdit(ctx *gin.Context) {
 	problemDailyView := &foundationview.ProblemDailyEdit{ProblemDaily: *problemDaily}
 
 	if problemDailyView.Inserter > 0 {
-		user, err := foundationdao.GetUserDao().GetUserAccountInfo(ctx, problemDailyView.Inserter)
+		user, err := foundationservice.GetUserService().GetUserAccountInfo(ctx, problemDailyView.Inserter)
 		if err == nil && user != nil {
 			problemDailyView.InserterUsername = user.Username
 			problemDailyView.InserterNickname = user.Nickname
