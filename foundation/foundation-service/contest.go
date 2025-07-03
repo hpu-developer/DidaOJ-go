@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	foundationauth "foundation/foundation-auth"
+	foundationcontest "foundation/foundation-contest"
 	foundationdao "foundation/foundation-dao"
 	"foundation/foundation-dao-mongo"
 	foundationenum "foundation/foundation-enum"
@@ -293,6 +294,11 @@ func (s *ContestService) GetContestList(
 
 func (s *ContestService) GetProblemIdByContestIndex(ctx context.Context, id int, problemIndex int) (int, error) {
 	return foundationdao.GetContestProblemDao().GetProblemId(ctx, id, problemIndex)
+}
+
+func (s *ContestService) GetProblemIdByContestIndexKey(ctx context.Context, id int, problemKey string) (int, error) {
+	constProblemIndex := foundationcontest.GetContestProblemIndex(problemKey)
+	return s.GetProblemIdByContestIndex(ctx, id, constProblemIndex)
 }
 
 func (s *ContestService) GetContestProblemIndexById(ctx context.Context, id int, problemId int) (int, error) {

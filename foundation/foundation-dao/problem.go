@@ -305,7 +305,7 @@ func (d *ProblemDao) GetProblemIdsByKey(ctx context.Context, problemKeys []strin
 	return ids, nil
 }
 
-func (d *ProblemDao) GetProblemTitle(ctx context.Context, id string) (*string, error) {
+func (d *ProblemDao) GetProblemTitle(ctx context.Context, id int) (*string, error) {
 	var problem foundationmodel.Problem
 	err := d.db.WithContext(ctx).
 		Select("title").

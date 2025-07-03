@@ -198,6 +198,24 @@ func (d *ContestDao) GetContestList(
 	return list, int(total), nil
 }
 
+func (d *ContestDao) GetContestTitle(ctx context.Context, id int) (*string, error) {
+	var title string
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Contest{}).
+		Where("id = ?", id).
+		Pluck("title", &title).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest title error")
+	}
+	if title == "" {
+		return nil, nil
+	}
+	return &title, nil
+}
+
 func (d *ContestDao) UpdateContest(
 	ctx context.Context,
 	contest *foundationmodel.Contest,

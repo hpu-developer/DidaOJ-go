@@ -110,3 +110,19 @@ func (d *ContestProblemDao) GetProblemsDetail(ctx context.Context, contestId int
 	}
 	return results, nil
 }
+
+func (d *ContestProblemDao) GetProblemIdByContest(ctx context.Context, id int, index int) (*int, error) {
+	var problemId int
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.ContestProblem{}).
+		Where("id = ? AND `index` = ?", id, index).
+		Pluck("problem_id", &problemId).Error // index 是保留字，建议加反引号
+	if err != nil {
+		return nil, err
+	}
+	if problemId == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &problemId, nil
+
+}

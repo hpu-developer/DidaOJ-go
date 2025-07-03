@@ -5,10 +5,10 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
-	foundationcontest "foundation/foundation-contest"
 	foundationmodel "foundation/foundation-model"
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
+	foundationview "foundation/foundation-view"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
@@ -45,7 +45,7 @@ func (c *DiscussController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	discuss, err := discussService.GetDiscuss(ctx, id)
+	discuss, err := discussService.GetDiscussView(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -54,20 +54,15 @@ func (c *DiscussController) Get(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	var tags []*foundationmodel.DiscussTag
-	if discuss.Tags != nil {
-		tags, err = discussService.GetDiscussTagByIds(ctx, discuss.Tags)
-		if err != nil {
-			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-			return
-		}
+	discuss.Tags, err = discussService.GetDiscussTags(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
 	}
 	responseData := struct {
-		Discuss *foundationmodel.Discuss      `json:"discuss"`
-		Tags    []*foundationmodel.DiscussTag `json:"tags,omitempty"`
+		Discuss *foundationview.DiscussDetail `json:"discuss"`
 	}{
 		Discuss: discuss,
-		Tags:    tags,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
@@ -93,7 +88,7 @@ func (c *DiscussController) GetEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	discuss, err := discussService.GetDiscuss(ctx, id)
+	discuss, err := discussService.GetDiscussView(ctx, id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -102,20 +97,15 @@ func (c *DiscussController) GetEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	var tags []*foundationmodel.DiscussTag
-	if discuss.Tags != nil {
-		tags, err = discussService.GetDiscussTagByIds(ctx, discuss.Tags)
-		if err != nil {
-			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-			return
-		}
+	discuss.Tags, err = discussService.GetDiscussTags(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
 	}
 	responseData := struct {
-		Discuss *foundationmodel.Discuss      `json:"discuss"`
-		Tags    []*foundationmodel.DiscussTag `json:"tags,omitempty"`
+		Discuss *foundationview.DiscussDetail `json:"discuss"`
 	}{
 		Discuss: discuss,
-		Tags:    tags,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
@@ -272,9 +262,10 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 	if onlyProblemStr == "1" {
 		onlyProblem = true
 	}
-	problemId := ctx.Query("problem_id")
-	var contestId, constProblemIndex int
+	problemKey := ctx.Query("problem_key")
 	contestIdStr := ctx.Query("contest_id")
+	var contestId int
+	var problemId int
 	if contestIdStr != "" {
 		contestId, err = strconv.Atoi(contestIdStr)
 		_, hasAuth, err := foundationservice.GetContestService().CheckViewAuth(ctx, contestId)
@@ -291,17 +282,36 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 			return
 		}
-		constProblemIndex = foundationcontest.GetContestProblemIndex(problemId)
+	}
+
+	if problemKey != "" {
+		if contestId > 0 {
+			problemId, err = foundationservice.GetContestService().GetProblemIdByContestIndexKey(
+				ctx,
+				contestId,
+				problemKey,
+			)
+		} else {
+			problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, problemKey)
+			if err != nil {
+				metaresponse.NewResponseError(ctx, err)
+				return
+			}
+			if problemId <= 0 {
+				metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+				return
+			}
+		}
 	}
 	title := ctx.Query("title")
 	username := ctx.Query("username")
 
-	var list []*foundationmodel.Discuss
+	var list []*foundationview.DiscussList
 	var totalCount int
 	list, totalCount, err = discussService.GetDiscussList(
 		ctx,
 		onlyProblem,
-		contestId, constProblemIndex, problemId,
+		contestId, problemId,
 		title, username,
 		page, pageSize,
 	)
@@ -310,10 +320,10 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		HasAuth    bool                       `json:"has_auth"`
-		Time       time.Time                  `json:"time"`
-		TotalCount int                        `json:"total_count"`
-		List       []*foundationmodel.Discuss `json:"list"`
+		HasAuth    bool                          `json:"has_auth"`
+		Time       time.Time                     `json:"time"`
+		TotalCount int                           `json:"total_count"`
+		List       []*foundationview.DiscussList `json:"list"`
 	}{
 		HasAuth:    true,
 		TotalCount: totalCount,
@@ -350,7 +360,7 @@ func (c *DiscussController) GetCommentList(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	var list []*foundationmodel.DiscussComment
+	var list []*foundationview.DiscussCommentList
 	var totalCount int
 	list, totalCount, err = discussService.GetDiscussCommentList(ctx, discussId, page, pageSize)
 	if err != nil {
@@ -358,9 +368,9 @@ func (c *DiscussController) GetCommentList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time       time.Time                         `json:"time"`
-		TotalCount int                               `json:"total_count"`
-		List       []*foundationmodel.DiscussComment `json:"list"`
+		Time       time.Time                            `json:"time"`
+		TotalCount int                                  `json:"total_count"`
+		List       []*foundationview.DiscussCommentList `json:"list"`
 	}{
 		Time:       metatime.GetTimeNow(),
 		TotalCount: totalCount,
@@ -386,8 +396,8 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 		return
 	}
 
-	if requestData.ProblemId > 0 {
-		ok, err := foundationservice.GetProblemService().HasProblem(ctx, requestData.ProblemId)
+	if requestData.ProblemId != nil {
+		ok, err := foundationservice.GetProblemService().HasProblem(ctx, *requestData.ProblemId)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
@@ -405,9 +415,12 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 	discuss := foundationmodel.NewDiscussBuilder().
 		Title(requestData.Title).
 		Content(requestData.Content).
-		AuthorId(userId).
+		ProblemId(requestData.ProblemId).
+		Inserter(userId).
 		InsertTime(timeNow).
+		Modifier(userId).
 		ModifyTime(timeNow).
+		Updater(userId).
 		UpdateTime(timeNow).
 		Build()
 
@@ -456,7 +469,7 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 
 	discussService := foundationservice.GetDiscussService()
 
-	_, hasAuth, err := discussService.CheckEditAuth(ctx, requestData.Id)
+	userId, hasAuth, err := discussService.CheckEditAuth(ctx, requestData.Id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
@@ -465,8 +478,8 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	if requestData.ProblemId > 0 {
-		ok, err := foundationservice.GetProblemService().HasProblem(ctx, requestData.ProblemId)
+	if requestData.ProblemId != nil {
+		ok, err := foundationservice.GetProblemService().HasProblem(ctx, *requestData.ProblemId)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
@@ -509,9 +522,11 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 	discuss := foundationmodel.NewDiscussBuilder().
 		Id(discussId).
 		Title(requestData.Title).
-		//ProblemId(requestData.ProblemId).
+		ProblemId(requestData.ProblemId).
 		Content(requestData.Content).
+		Modifier(userId).
 		ModifyTime(nowTime).
+		Updater(userId).
 		UpdateTime(nowTime).
 		Build()
 
@@ -565,9 +580,10 @@ func (c *DiscussController) PostCommentCreate(ctx *gin.Context) {
 	discussComment := foundationmodel.NewDiscussCommentBuilder().
 		DiscussId(discussId).
 		Content(requestData.Content).
-		AuthorId(userId).
+		Inserter(userId).
 		InsertTime(timeNow).
-		UpdateTime(timeNow).
+		Modifier(userId).
+		ModifyTime(timeNow).
 		Build()
 
 	err = discussService.InsertDiscussComment(ctx, discussComment)
@@ -616,7 +632,7 @@ func (c *DiscussController) PostCommentEdit(ctx *gin.Context) {
 	discussService := foundationservice.GetDiscussService()
 
 	// 校验是否有编辑权限（对评论）
-	_, hasAuth, discussComment, err := discussService.CheckEditCommentAuth(ctx, requestData.Id)
+	userId, hasAuth, discussComment, err := discussService.CheckEditCommentAuth(ctx, requestData.Id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
@@ -647,7 +663,14 @@ func (c *DiscussController) PostCommentEdit(ctx *gin.Context) {
 
 	nowTime := metatime.GetTimeNow()
 
-	err = discussService.UpdateCommentContent(ctx, requestData.Id, discussComment.DiscussId, content, nowTime)
+	err = discussService.UpdateCommentContentAndTime(
+		ctx,
+		userId,
+		requestData.Id,
+		discussComment.DiscussId,
+		content,
+		nowTime,
+	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
