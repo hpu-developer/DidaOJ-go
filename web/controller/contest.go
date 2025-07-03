@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
@@ -14,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/mongo"
 	"log"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
@@ -430,8 +428,8 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).                   // 题目描述Id，默认为nil
-				Score(0).                      // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(uint8(len(problems)+1)). // 索引从1开始
 				Build(),
 		)
@@ -572,10 +570,6 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 
 	oldDescription, err := contestService.GetContestDescription(ctx, contestId)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
-			return
-		}
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -608,8 +602,8 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil).                   // 题目描述Id，默认为nil
-				Score(0).                      // 分数默认为0
+				ViewId(nil). // 题目描述Id，默认为nil
+				Score(0). // 分数默认为0
 				Index(uint8(len(problems)+1)). // 索引从1开始
 				Build(),
 		)

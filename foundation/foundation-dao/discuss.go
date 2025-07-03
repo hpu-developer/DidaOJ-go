@@ -51,11 +51,13 @@ func (d *DiscussDao) GetDiscussDetail(ctx context.Context, id int) (*foundationv
 			d.id, d.title, d.content, d.view_count, d.problem_id, d.contest_id, d.judge_id,
 			d.inserter, d.modifier, d.insert_time, d.modify_time, d.banned,
 			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
-			u2.username AS modifier_username, u2.nickname AS modifier_nickname
+			u2.username AS modifier_username, u2.nickname AS modifier_nickname,
+			p.key AS problem_key
 		`,
 		).
 		Joins("LEFT JOIN user AS u1 ON d.inserter = u1.id").
 		Joins("LEFT JOIN user AS u2 ON d.modifier = u2.id").
+		Joins("LEFT JOIN problem AS p ON d.problem_id = p.id").
 		Where("d.id = ?", id).
 		Scan(&discuss).Error
 	if err != nil {

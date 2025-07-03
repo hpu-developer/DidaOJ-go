@@ -396,13 +396,14 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 		return
 	}
 
-	if requestData.ProblemId != nil {
-		ok, err := foundationservice.GetProblemService().HasProblem(ctx, *requestData.ProblemId)
+	problemId := 0
+	if requestData.ProblemKey != nil {
+		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, *requestData.ProblemKey)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
 		}
-		if !ok {
+		if problemId <= 0 {
 			metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
 			return
 		}
@@ -415,7 +416,6 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 	discuss := foundationmodel.NewDiscussBuilder().
 		Title(requestData.Title).
 		Content(requestData.Content).
-		ProblemId(requestData.ProblemId).
 		Inserter(userId).
 		InsertTime(timeNow).
 		Modifier(userId).
@@ -423,6 +423,10 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 		Updater(userId).
 		UpdateTime(timeNow).
 		Build()
+
+	if problemId > 0 {
+		discuss.ProblemId = &problemId
+	}
 
 	err = discussService.InsertDiscuss(ctx, discuss)
 	if err != nil {
@@ -478,13 +482,15 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	if requestData.ProblemId != nil {
-		ok, err := foundationservice.GetProblemService().HasProblem(ctx, *requestData.ProblemId)
+
+	problemId := 0
+	if requestData.ProblemKey != nil {
+		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, *requestData.ProblemKey)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
 		}
-		if !ok {
+		if problemId <= 0 {
 			metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
 			return
 		}
@@ -522,13 +528,16 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 	discuss := foundationmodel.NewDiscussBuilder().
 		Id(discussId).
 		Title(requestData.Title).
-		ProblemId(requestData.ProblemId).
 		Content(requestData.Content).
 		Modifier(userId).
 		ModifyTime(nowTime).
 		Updater(userId).
 		UpdateTime(nowTime).
 		Build()
+
+	if problemId > 0 {
+		discuss.ProblemId = &problemId
+	}
 
 	err = discussService.PostEdit(ctx, discussId, discuss)
 	if err != nil {

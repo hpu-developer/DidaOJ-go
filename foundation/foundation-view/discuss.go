@@ -8,6 +8,7 @@ import (
 type DiscussDetail struct {
 	foundationmodel.Discuss
 
+	ProblemKey   *string `json:"problem_key,omitempty"`   // 题目Key
 	ProblemTitle *string `json:"problem_title,omitempty"` // 题目标题
 
 	ContestTitle        *string `json:"contest_title,omitempty"`         // 比赛标题
