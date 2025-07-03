@@ -6,6 +6,7 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
@@ -134,6 +135,20 @@ func (d *ContestDao) GetContestViewRank(ctx context.Context, id int) (*foundatio
 		return nil, err
 	}
 	return &contest, nil
+}
+
+func (d *ContestDao) GetContestInserter(ctx context.Context, id int) (int, error) {
+	var inserter int
+	if err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Contest{}).
+		Where("id = ?", id).
+		Pluck("inserter", &inserter).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, metaerror.New("contest not found")
+		}
+		return 0, metaerror.Wrap(err, "get contest owner id failed")
+	}
+	return inserter, nil
 }
 
 func (d *ContestDao) GetProblemAttemptInfo(

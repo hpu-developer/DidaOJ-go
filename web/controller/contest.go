@@ -428,8 +428,8 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil). // 题目描述Id，默认为nil
-				Score(0). // 分数默认为0
+				ViewId(nil).                   // 题目描述Id，默认为nil
+				Score(0).                      // 分数默认为0
 				Index(uint8(len(problems)+1)). // 索引从1开始
 				Build(),
 		)
@@ -602,8 +602,8 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		problems = append(
 			problems, foundationmodel.NewContestProblemBuilder().
 				ProblemId(problemId).
-				ViewId(nil). // 题目描述Id，默认为nil
-				Score(0). // 分数默认为0
+				ViewId(nil).                   // 题目描述Id，默认为nil
+				Score(0).                      // 分数默认为0
 				Index(uint8(len(problems)+1)). // 索引从1开始
 				Build(),
 		)
