@@ -195,7 +195,7 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 
 func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundationview.ContestDetailEdit, error) {
 	contest, err := foundationdao.GetContestDao().GetContestEdit(ctx, id)
-	contest.Problems, err = foundationdao.GetContestProblemDao().GetProblems(ctx, id)
+	contest.Problems, err = foundationdao.GetContestProblemDao().GetProblemIds(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func (s *ContestService) GetContestProblems(ctx *gin.Context, id int) (
 	[]int,
 	error,
 ) {
-	problems, err := foundationdao.GetContestDao().GetProblems(ctx, id)
+	problems, err := foundationdao.GetContestProblemDao().GetProblems(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ func (s *ContestService) GetContestProblems(ctx *gin.Context, id int) (
 	}
 	var problemIndexes []int
 	for _, problem := range problems {
-		problemIndexes = append(problemIndexes, problem.Index)
+		problemIndexes = append(problemIndexes, int(problem.Index))
 	}
 	return problemIndexes, nil
 }
@@ -229,7 +229,7 @@ func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, i
 	map[int]foundationenum.ProblemAttemptStatus,
 	error,
 ) {
-	problems, err := foundationdao.GetContestDao().GetProblems(ctx, id)
+	problems, err := foundationdao.GetContestProblemDao().GetProblems(ctx, id)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -238,14 +238,14 @@ func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, i
 	}
 	var attemptStatusesMap map[int]foundationenum.ProblemAttemptStatus
 	if userId > 0 {
-		var problemIds []string
+		var problemIds []int
 		for _, problem := range problems {
 			problemIds = append(problemIds, problem.ProblemId)
 		}
 		attemptStatuses, err := foundationdao.GetJudgeJobDao().GetProblemAttemptStatus(
 			ctx,
-			problemIds,
 			userId,
+			problemIds,
 			id,
 			nil,
 			nil,
@@ -253,9 +253,9 @@ func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, i
 		if err != nil {
 			return nil, nil, err
 		}
-		problemIdMap := make(map[string]int)
+		problemIdMap := make(map[int]int)
 		for _, problem := range problems {
-			problemIdMap[problem.ProblemId] = problem.Index
+			problemIdMap[problem.ProblemId] = int(problem.Index)
 		}
 		for problemId, attemptStatus := range attemptStatuses {
 			if index, ok := problemIdMap[problemId]; ok {
@@ -268,7 +268,7 @@ func (s *ContestService) GetContestProblemsWithAttemptStatus(ctx *gin.Context, i
 	}
 	var problemIndexes []int
 	for _, problem := range problems {
-		problemIndexes = append(problemIndexes, problem.Index)
+		problemIndexes = append(problemIndexes, int(problem.Index))
 	}
 	return problemIndexes, attemptStatusesMap, nil
 }

@@ -6,11 +6,11 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
+	metatime "meta/meta-time"
 	"meta/singleton"
 	"time"
 )
@@ -50,6 +50,110 @@ func (d *ContestDao) CheckContestEditAuth(ctx context.Context, id int, userId in
 		return false, err
 	}
 	return dummy == 1, nil
+}
+
+func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int) (bool, error) {
+	now := metatime.GetTimeNow()
+	var exists int
+	err := d.db.WithContext(ctx).
+		Table("contest").
+		Select("1").
+		Where("id = ?", id).
+		Where("start_time <= ?", now).
+		Where(
+			d.db.
+				Where("inserter = ?", userId).
+				Or("`private` IS NULL").
+				Or("? IN (SELECT user_id FROM contest_member WHERE contest_id = contest.id)", userId).
+				Or("? IN (SELECT user_id FROM contest_member_auth WHERE contest_id = contest.id)", userId),
+		).
+		Limit(1).
+		Scan(&exists).Error
+
+	if err != nil {
+		return false, err
+	}
+	return exists == 1, nil
+}
+
+func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId int) (bool, error) {
+	now := metatime.GetTimeNow()
+	var exists int
+	err := d.db.WithContext(ctx).
+		Table("contest").
+		Select("1").
+		Where("id = ?", id).
+		Where("start_time <= ?", now).
+		Where(
+			d.db.
+				Where("inserter = ?", userId).
+				Or("`private` IS NULL").
+				Or("? IN (SELECT user_id FROM contest_member WHERE id = contest.id)", userId).
+				Or("? IN (SELECT user_id FROM contest_member_auth WHERE id = contest.id)", userId),
+		).
+		Where(
+			d.db.
+				Where("submit_anytime = ?", true).
+				Or("end_time >= ?", now),
+		).
+		Limit(1).
+		Scan(&exists).Error
+	if err != nil {
+		return false, err
+	}
+	return exists == 1, nil
+}
+
+func (d *ContestDao) HasContestTitle(ctx context.Context, inserter int, title string) (bool, error) {
+	var exists int
+	err := d.db.WithContext(ctx).
+		Table("contest").
+		Select("1").
+		Where("title = ?", title).
+		Where("inserter != ?", inserter).
+		Limit(1).
+		Scan(&exists).Error
+
+	if err != nil {
+		return false, metaerror.Wrap(err, "failed to query contest title existence")
+	}
+	return exists == 1, nil
+}
+
+func (d *ContestDao) GetContestStartTime(ctx context.Context, id int) (*time.Time, error) {
+	var startTime time.Time
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Contest{}).
+		Where("id = ?", id).
+		Pluck("start_time", &startTime).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest start time error")
+	}
+	if startTime.IsZero() {
+		return nil, nil
+	}
+	return &startTime, nil
+}
+
+func (d *ContestDao) GetContestDescription(ctx context.Context, id int) (*string, error) {
+	var description string
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Contest{}).
+		Where("id = ?", id).
+		Pluck("description", &description).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find contest description error")
+	}
+	if description == "" {
+		return nil, nil
+	}
+	return &description, nil
 }
 
 func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundationview.ContestViewLock, error) {
@@ -229,6 +333,34 @@ func (d *ContestDao) GetContestTitle(ctx context.Context, id int) (*string, erro
 		return nil, nil
 	}
 	return &title, nil
+}
+
+func (d *ContestDao) UpdateDescription(ctx context.Context, id int, description string) error {
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Contest{}).
+		Where("id = ?", id).
+		Update("description", description).Error
+	if err != nil {
+		return metaerror.Wrap(err, "update contest description error")
+	}
+	return nil
+}
+
+func (d *ContestDao) PostPassword(ctx context.Context, userId int, contestId int, password string) (bool, error) {
+	sql := `
+		INSERT INTO contest_member (id, user_id)
+		SELECT id, ? FROM contest
+		WHERE id = ? AND password = ?
+		ON DUPLICATE KEY UPDATE id = id
+	`
+	res := d.db.WithContext(ctx).Exec(sql, userId, contestId, password)
+	if res.Error != nil {
+		return false, metaerror.Wrap(res.Error, "failed to insert contest member")
+	}
+	if res.RowsAffected == 0 {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (d *ContestDao) UpdateContest(

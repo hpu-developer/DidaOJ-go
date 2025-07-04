@@ -5,11 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
@@ -556,6 +559,54 @@ func (d *JudgeJobDao) GetJudgeJobCountNotFinish(ctx context.Context) (int, error
 		return 0, metaerror.Wrap(err, "failed to count judge jobs")
 	}
 	return int(count), nil
+}
+
+func (d *JudgeJobDao) ForeachContestAcCodes(
+	ctx context.Context,
+	contestId int,
+	handleCode func(judgeId int, code string, problemId string, createTime time.Time, authorId int) error,
+) error {
+	filter := bson.M{
+		"contest_id": contestId,
+		"status":     foundationjudge.JudgeStatusAC,
+	}
+	cursor, err := d.collection.Find(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to find submissions: %w", err)
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+		}
+	}(cursor, ctx)
+
+	for cursor.Next(ctx) {
+		var submission struct {
+			Id          int       `bson:"_id"`
+			Code        string    `bson:"code"`
+			ProblemId   string    `bson:"problem_id"`
+			AuthorId    int       `bson:"author_id"`
+			ApproveTime time.Time `bson:"approve_time"`
+		}
+		if err := cursor.Decode(&submission); err != nil {
+			return metaerror.Wrap(err, "failed to decode submission")
+		}
+		// 调用传入的处理函数
+		if err := handleCode(
+			submission.Id,
+			submission.Code,
+			submission.ProblemId,
+			submission.ApproveTime,
+			submission.AuthorId,
+		); err != nil {
+			return metaerror.Wrap(err, "failed to handle code")
+		}
+	}
+	if err := cursor.Err(); err != nil {
+		return metaerror.Wrap(err, "cursor error")
+	}
+	return nil
 }
 
 // RequestJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的

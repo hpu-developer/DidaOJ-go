@@ -57,6 +57,20 @@ func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problem
 }
 
 func (d *ContestProblemDao) GetProblems(ctx context.Context, contestId int) (
+	[]*foundationmodel.ContestProblem,
+	error,
+) {
+	var results []*foundationmodel.ContestProblem
+	err := d.db.WithContext(ctx).
+		Where("id = ?", contestId).
+		Find(&results).Error
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find contest problems error")
+	}
+	return results, nil
+}
+
+func (d *ContestProblemDao) GetProblemIds(ctx context.Context, contestId int) (
 	[]int,
 	error,
 ) {
