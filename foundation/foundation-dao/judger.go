@@ -42,3 +42,13 @@ func (d *JudgerDao) UpdateJudger(ctx context.Context, judger *foundationmodel.Ju
 	}
 	return nil
 }
+
+func (d *JudgerDao) GetJudgers(ctx context.Context) ([]*foundationmodel.Judger, error) {
+	var judgers []*foundationmodel.Judger
+	err := d.db.WithContext(ctx).
+		Find(&judgers).Error
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to get judgers")
+	}
+	return judgers, nil
+}

@@ -11,8 +11,6 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
@@ -566,45 +564,33 @@ func (d *JudgeJobDao) ForeachContestAcCodes(
 	contestId int,
 	handleCode func(judgeId int, code string, problemId string, createTime time.Time, authorId int) error,
 ) error {
-	filter := bson.M{
-		"contest_id": contestId,
-		"status":     foundationjudge.JudgeStatusAC,
-	}
-	cursor, err := d.collection.Find(ctx, filter)
+	rows, err := d.db.WithContext(ctx).
+		Table("judge_job").
+		Select("id, code, problem_id, insert_time, inserter").
+		Where("contest_id = ? AND status = ?", contestId, foundationjudge.JudgeStatusAC).
+		Rows()
 	if err != nil {
-		return fmt.Errorf("failed to find submissions: %w", err)
+		return fmt.Errorf("failed to query submissions: %w", err)
 	}
-	defer func(cursor *mongo.Cursor, ctx context.Context) {
-		err := cursor.Close(ctx)
-		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err, "failed to close cursor"))
+	defer func() {
+		if err := rows.Close(); err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close rows"))
 		}
-	}(cursor, ctx)
-
-	for cursor.Next(ctx) {
-		var submission struct {
-			Id          int       `bson:"_id"`
-			Code        string    `bson:"code"`
-			ProblemId   string    `bson:"problem_id"`
-			AuthorId    int       `bson:"author_id"`
-			ApproveTime time.Time `bson:"approve_time"`
+	}()
+	for rows.Next() {
+		var (
+			id         int
+			code       string
+			problemId  string
+			insertTime time.Time
+			inserter   int
+		)
+		if err := rows.Scan(&id, &code, &problemId, &insertTime, &inserter); err != nil {
+			return metaerror.Wrap(err, "failed to scan row")
 		}
-		if err := cursor.Decode(&submission); err != nil {
-			return metaerror.Wrap(err, "failed to decode submission")
-		}
-		// 调用传入的处理函数
-		if err := handleCode(
-			submission.Id,
-			submission.Code,
-			submission.ProblemId,
-			submission.ApproveTime,
-			submission.AuthorId,
-		); err != nil {
+		if err := handleCode(id, code, problemId, insertTime, inserter); err != nil {
 			return metaerror.Wrap(err, "failed to handle code")
 		}
-	}
-	if err := cursor.Err(); err != nil {
-		return metaerror.Wrap(err, "cursor error")
 	}
 	return nil
 }

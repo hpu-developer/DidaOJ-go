@@ -6,8 +6,9 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
+	foundationview "foundation/foundation-view"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
@@ -63,7 +64,7 @@ func (c *SystemController) GetStatus(ctx *gin.Context) {
 		return
 	}
 
-	webStatus := foundationmodel.NewWebStatusBuilder().
+	webStatus := foundationview.NewWebStatusBuilder().
 		Name("DidaOJ").
 		CpuUsage(cpuUsage).
 		MemUsage(memoryUsed).
@@ -73,9 +74,9 @@ func (c *SystemController) GetStatus(ctx *gin.Context) {
 		Build()
 
 	responseData := struct {
-		Web      *foundationmodel.WebStatus `json:"web"`
-		Judger   []*foundationmodel.Judger  `json:"judger,omitempty"`
-		JudgeJob int                        `json:"judge_job"`
+		Web      *foundationview.WebStatus `json:"web"`
+		Judger   []*foundationmodel.Judger `json:"judger,omitempty"`
+		JudgeJob int                       `json:"judge_job"`
 	}{
 		Web:      webStatus,
 		Judger:   judgers,

@@ -2,8 +2,8 @@ package foundationservice
 
 import (
 	"context"
-	"foundation/foundation-dao-mongo"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationdao "foundation/foundation-dao"
+	foundationmodel "foundation/foundation-model"
 	"meta/singleton"
 )
 
@@ -21,5 +21,5 @@ func GetJudgerService() *JudgerService {
 }
 
 func (s *JudgerService) GetJudgerList(ctx context.Context) ([]*foundationmodel.Judger, error) {
-	return foundationdaomongo.GetJudgerDao().GetJudgers(ctx)
+	return foundationdao.GetJudgerDao().GetJudgers(ctx)
 }
