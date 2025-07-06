@@ -145,8 +145,8 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 	var problemIds []int
 	contestProblemMap := make(map[int]*foundationview.ContestProblemDetail, len(contest.Problems))
 	for _, problem := range contest.Problems {
-		problemIds = append(problemIds, problem.Id)
-		contestProblemMap[problem.Id] = problem
+		problemIds = append(problemIds, problem.ProblemId)
+		contestProblemMap[problem.ProblemId] = problem
 	}
 
 	attemptInfos, err := foundationdao.GetContestDao().GetProblemAttemptInfo(

@@ -8,7 +8,8 @@ import (
 type JudgeJob struct {
 	foundationmodel.JudgeJob
 
-	ContestProblemIndex int `json:"contest_problem_index,omitempty"`
+	ProblemKey          string `json:"problem_key,omitempty"`           // 题目Key
+	ContestProblemIndex int    `json:"contest_problem_index,omitempty"` // 比赛题目索引
 
 	JudgerName       string `json:"judger_name,omitempty"`
 	InserterUsername string `json:"inserter_username,omitempty"`

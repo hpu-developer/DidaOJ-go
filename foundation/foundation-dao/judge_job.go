@@ -130,6 +130,8 @@ func (d *JudgeJobDao) GetJudgeJobList(
 			j.time, j.memory, j.problem_id, j.inserter, j.code_length,
 			u.username AS inserter_username, u.nickname AS inserter_nickname`
 
+	selectSql += ", p.`key` as problem_key"
+
 	if contestId > 0 {
 		selectSql += ", cp.`index` AS contest_problem_index"
 	}
@@ -138,7 +140,8 @@ func (d *JudgeJobDao) GetJudgeJobList(
 		Select(
 			selectSql,
 		).
-		Joins("LEFT JOIN user AS u ON u.id = j.inserter")
+		Joins("LEFT JOIN user AS u ON u.id = j.inserter").
+		Joins("LEFT JOIN problem AS p ON p.id = j.problem_id")
 	if contestId > 0 {
 		db = db.Joins(
 			`

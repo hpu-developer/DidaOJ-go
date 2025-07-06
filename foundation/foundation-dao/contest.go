@@ -3,6 +3,7 @@ package foundationdao
 import (
 	"context"
 	"errors"
+	"fmt"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
@@ -25,8 +26,7 @@ func GetContestDao() *ContestDao {
 	return singletonContestDao.GetInstance(
 		func() *ContestDao {
 			dao := &ContestDao{}
-			db := metamysql.GetSubsystem().GetClient("didaoj")
-			dao.db = db.Model(&foundationmodel.Contest{})
+			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -61,11 +61,11 @@ func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int)
 		Where("id = ?", id).
 		Where("start_time <= ?", now).
 		Where(
-			d.db.
+			d.db.Table("contest").
 				Where("inserter = ?", userId).
-				Or("`private` IS NULL").
-				Or("? IN (SELECT user_id FROM contest_member WHERE contest_id = contest.id)", userId).
-				Or("? IN (SELECT user_id FROM contest_member_auth WHERE contest_id = contest.id)", userId),
+				Or("`private` = 0").
+				Or("? IN (SELECT user_id FROM contest_member WHERE id = contest.id)", userId).
+				Or("? IN (SELECT user_id FROM contest_member_auth WHERE id = contest.id)", userId),
 		).
 		Limit(1).
 		Scan(&exists).Error
@@ -86,13 +86,15 @@ func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId in
 		Where("start_time <= ?", now).
 		Where(
 			d.db.
+				Table("contest").
 				Where("inserter = ?", userId).
-				Or("`private` IS NULL").
+				Or("`private` = 0").
 				Or("? IN (SELECT user_id FROM contest_member WHERE id = contest.id)", userId).
 				Or("? IN (SELECT user_id FROM contest_member_auth WHERE id = contest.id)", userId),
 		).
 		Where(
 			d.db.
+				Table("contest").
 				Where("submit_anytime = ?", true).
 				Or("end_time >= ?", now),
 		).
@@ -159,6 +161,7 @@ func (d *ContestDao) GetContestDescription(ctx context.Context, id int) (*string
 func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundationview.ContestViewLock, error) {
 	var contest foundationview.ContestViewLock
 	err := d.db.WithContext(ctx).
+		Table("contest").
 		Select("id, inserter, start_time, end_time, type, always_lock, lock_rank_duration").
 		Where("id = ?", id).
 		Take(&contest).Error
@@ -265,9 +268,13 @@ func (d *ContestDao) GetProblemAttemptInfo(
 	db := d.db.WithContext(ctx).
 		Model(&foundationmodel.JudgeJob{}).
 		Select(
-			"problem_id AS id",
-			"COUNT(*) AS attempt",
-			"SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS accept", foundationjudge.JudgeStatusAC,
+			fmt.Sprintf(
+				`
+	problem_id AS id,
+	COUNT(1) AS attempt,
+	SUM(IF(status = %d, 1, 0)) AS accept
+`, foundationjudge.JudgeStatusAC,
+			),
 		).
 		Where("problem_id IN ?", problemIds).
 		Where("contest_id = ?", contestId)
@@ -303,7 +310,7 @@ func (d *ContestDao) GetContestList(
 		db = db.Where("inserter = ?", userId)
 	}
 	if err := db.Count(&total).Error; err != nil {
-		return nil, 0, metaerror.Wrap(err, "failed to count contes")
+		return nil, 0, metaerror.Wrap(err, "failed to count contest")
 	}
 	err := db.
 		Select("id", "title", "start_time", "end_time", "inserter", "private").

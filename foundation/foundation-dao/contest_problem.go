@@ -20,8 +20,7 @@ func GetContestProblemDao() *ContestProblemDao {
 	return singletonContestProblemDao.GetInstance(
 		func() *ContestProblemDao {
 			dao := &ContestProblemDao{}
-			db := metamysql.GetSubsystem().GetClient("didaoj")
-			dao.db = db.Model(&foundationmodel.ContestProblem{})
+			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -31,7 +30,7 @@ func (d *ContestProblemDao) GetProblemId(ctx context.Context, id int, index int)
 	var problemId int
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.ContestProblem{}).
-		Where("contest_id = ? AND `index` = ?", id, index).
+		Where("id = ? AND `index` = ?", id, index).
 		Pluck("problem_id", &problemId).Error // index 是保留字，建议加反引号
 	if err != nil {
 		return 0, err
@@ -44,7 +43,7 @@ func (d *ContestProblemDao) GetProblemId(ctx context.Context, id int, index int)
 
 func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problemId int) (int, error) {
 	var index int
-	err := d.db.WithContext(ctx).
+	err := d.db.WithContext(ctx).Model(&foundationmodel.ContestProblem{}).
 		Where("contest_id = ? AND problem_id = ?", id, problemId).
 		Pluck("`index`", &index).Error // index 是保留字，建议加反引号
 	if err != nil {
@@ -61,7 +60,7 @@ func (d *ContestProblemDao) GetProblems(ctx context.Context, contestId int) (
 	error,
 ) {
 	var results []*foundationmodel.ContestProblem
-	err := d.db.WithContext(ctx).
+	err := d.db.WithContext(ctx).Model(&foundationmodel.ContestProblem{}).
 		Where("id = ?", contestId).
 		Find(&results).Error
 	if err != nil {
@@ -87,7 +86,7 @@ func (d *ContestProblemDao) GetProblemIds(ctx context.Context, contestId int) (
 
 func (d *ContestProblemDao) GetProblemsRank(ctx context.Context, id int) ([]*foundationview.ContestProblemRank, error) {
 	var results []*foundationview.ContestProblemRank
-	err := d.db.WithContext(ctx).
+	err := d.db.WithContext(ctx).Model(&foundationmodel.ContestProblem{}).
 		Select("problem_id,`index`,score").
 		Where("id = ?", id).
 		Scan(&results).Error
@@ -138,5 +137,4 @@ func (d *ContestProblemDao) GetProblemIdByContest(ctx context.Context, id int, i
 		return nil, gorm.ErrRecordNotFound
 	}
 	return &problemId, nil
-
 }

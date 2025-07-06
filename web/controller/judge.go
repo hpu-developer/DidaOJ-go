@@ -200,9 +200,8 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 			return
 		}
-	} else {
-		problemKey = ctx.Query("problem_key")
 	}
+	problemKey = ctx.Query("problem_key")
 	username := ctx.Query("username")
 	languageStr := ctx.Query("language")
 	language := foundationjudge.JudgeLanguageUnknown

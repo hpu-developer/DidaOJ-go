@@ -172,6 +172,7 @@ func (s *JudgeService) GetJudgeList(
 			if !hasAuth {
 				for _, judgeJob := range judgeJobs {
 					judgeJob.ProblemId = 0
+					judgeJob.ProblemKey = ""
 				}
 			}
 			// 隐藏部分信息
