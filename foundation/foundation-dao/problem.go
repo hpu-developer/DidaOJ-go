@@ -17,8 +17,7 @@ import (
 )
 
 type ProblemDao struct {
-	db      *gorm.DB
-	dbLocal *gorm.DB
+	db *gorm.DB
 }
 
 var singletonProblemDao = singleton.Singleton[ProblemDao]{}
@@ -27,9 +26,7 @@ func GetProblemDao() *ProblemDao {
 	return singletonProblemDao.GetInstance(
 		func() *ProblemDao {
 			dao := &ProblemDao{}
-			db := metamysql.GetSubsystem().GetClient("didaoj")
-			dao.db = db.Model(&foundationmodel.Problem{})
-			dao.dbLocal = db.Model(&foundationmodel.ProblemLocal{})
+			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -447,7 +444,7 @@ func (d *ProblemDao) GetProblemJudgeMd5(ctx context.Context, id string) (*string
 	var result struct {
 		JudgeMd5 *string
 	}
-	err := d.dbLocal.WithContext(ctx).
+	err := d.db.WithContext(ctx).Model(&foundationmodel.ProblemLocal{}).
 		Select("judge_md5").
 		Where("id = ?", id).
 		Take(&result).Error
@@ -461,7 +458,7 @@ func (d *ProblemDao) GetProblemDescription(ctx context.Context, id int) (*string
 	var result struct {
 		Description string `gorm:"column:description"`
 	}
-	err := d.dbLocal.WithContext(ctx).
+	err := d.db.WithContext(ctx).Model(&foundationmodel.ProblemLocal{}).
 		Select("description").
 		Where("id = ?", id).
 		Take(&result).Error
@@ -601,7 +598,7 @@ func (d *ProblemDao) UpdateProblemJudgeInfo(
 	md5 string,
 ) error {
 	nowTime := metatime.GetTimeNow()
-	err := d.db.Transaction(
+	err := d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			err := tx.Model(&foundationmodel.Problem{}).
 				Where("id = ?", id).
@@ -639,7 +636,7 @@ func (d *ProblemDao) UpdateProblemCrawl(
 	problem *foundationmodel.Problem,
 	problemRemote *foundationmodel.ProblemRemote,
 ) error {
-	err := d.db.Transaction(
+	err := d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			if err := tx.Model(&foundationmodel.Problem{}).
 				Where("id = ?", id).
@@ -678,6 +675,14 @@ func (d *ProblemDao) InsertProblemLocal(
 	db := d.db.WithContext(ctx)
 	err := db.Transaction(
 		func(tx *gorm.DB) error {
+			var tagIds []int
+			for _, tagName := range tags {
+				id, err := GetTagDao().InsertTagWithDb(tx, tagName)
+				if err != nil {
+					return err
+				}
+				tagIds = append(tagIds, id)
+			}
 			if err := tx.Create(problem).Error; err != nil {
 				return metaerror.Wrap(err, "insert problem")
 			}
@@ -691,6 +696,9 @@ func (d *ProblemDao) InsertProblemLocal(
 			problem.Key = strconv.Itoa(problemLocal.Id)
 			if err := tx.Save(problem).Error; err != nil {
 				return metaerror.Wrap(err, "update problem key")
+			}
+			if err := GetProblemTagDao().UpdateProblemTagsByDb(tx, problem.Id, tagIds); err != nil {
+				return metaerror.Wrap(err, "update problem tags")
 			}
 			return nil
 		},
