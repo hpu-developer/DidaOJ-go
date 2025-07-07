@@ -88,6 +88,7 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int, fields []str
 			"u.nickname AS inserter_nickname",
 			"judger.name AS judger_name",
 			"jc.message AS compile_message",
+			"p.`key` AS problem_key",
 		)
 	} else {
 		selectFields = []string{
@@ -96,13 +97,16 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int, fields []str
 			"u.nickname AS inserter_nickname",
 			"judger.name AS judger_name",
 			"jc.message AS compile_message",
+			"p.`key` AS problem_key",
 		}
 	}
+
 	err := d.db.WithContext(ctx).Table("judge_job AS j").
 		Select(strings.Join(selectFields, ", ")).
 		Joins("LEFT JOIN user AS u ON u.id = j.inserter").
 		Joins("LEFT JOIN judger AS judger ON judger.key = j.judger").
 		Joins("LEFT JOIN judge_job_compile AS jc ON jc.id = j.id").
+		Joins("LEFT JOIN problem AS p ON p.id = j.problem_id").
 		Where("j.id = ?", judgeId).
 		Scan(&view).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -988,7 +992,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 				Select("j.id, j.problem_id, j.inserter, j.status").
 				Where(
 					"EXISTS (?)",
-					tx.Table("problem_remote AS pr").
+					tx.Table("problem_local AS pr").
 						Select("1").
 						Where("pr.problem_id = j.problem_id"),
 				).Order("id desc").Limit(100)
