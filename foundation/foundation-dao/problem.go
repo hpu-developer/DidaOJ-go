@@ -66,9 +66,9 @@ func (d *ProblemDao) GetProblemList(
 		db = db.Where("private = 1")
 	}
 	if oj == "didaoj" {
-		db = db.Where("origin_oj IS NULL")
+		db = db.Where("r.origin_oj IS NULL")
 	} else if oj != "" {
-		db = db.Where("origin_oj = ?", oj)
+		db = db.Where("r.origin_oj = ?", oj)
 	}
 	if title != "" {
 		db = db.Where("LOWER(title) LIKE ?", "%"+strings.ToLower(title)+"%")
