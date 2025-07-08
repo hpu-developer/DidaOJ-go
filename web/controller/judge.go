@@ -425,10 +425,6 @@ func (c *JudgeController) PostRejudgeSearch(ctx *gin.Context) {
 			metaresponse.NewResponseError(ctx, err)
 			return
 		}
-		if problemId <= 0 {
-			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
-			return
-		}
 	}
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
