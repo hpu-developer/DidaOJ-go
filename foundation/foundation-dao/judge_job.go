@@ -889,7 +889,7 @@ func (d *JudgeJobDao) RejudgeSearch(
 				Select("j.id, j.problem_id, j.inserter, j.status").
 				Where(
 					"EXISTS (?)",
-					tx.Table("problem_remote AS pr").
+					tx.Table("problem_local AS pr").
 						Select("1").
 						Where("pr.problem_id = j.problem_id"),
 				)
@@ -1085,7 +1085,7 @@ func (d *JudgeJobDao) RejudgeAll(ctx context.Context) error {
 				Select("j.id, j.problem_id, j.inserter, j.status").
 				Where(
 					"EXISTS (?)",
-					tx.Table("problem_remote AS pr").
+					tx.Table("problem_local AS pr").
 						Select("1").
 						Where("pr.problem_id = j.problem_id"),
 				)
