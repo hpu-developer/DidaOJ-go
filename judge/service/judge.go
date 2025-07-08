@@ -285,7 +285,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 		return metaerror.New("problem not found: %s", job.ProblemId)
 	}
 	if problem.JudgeMd5 == nil {
-		return metaerror.New("problem judge md5 is nil: %s", job.ProblemId)
+		return metaerror.New("problem judge md5 is nil: %d", job.ProblemId)
 	}
 	err = s.updateJudgeData(ctx, problem.Id, *problem.JudgeMd5)
 	if err != nil {

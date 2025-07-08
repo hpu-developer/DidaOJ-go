@@ -266,7 +266,7 @@ func (d *ProblemDao) HasProblemTitle(ctx context.Context, title string) (bool, e
 		}
 		return false, metaerror.Wrap(err, "check problem title error")
 	}
-	return true, nil
+	return dummy == 1, nil
 }
 
 func (d *ProblemDao) GetProblemIdByKey(ctx context.Context, key string) (int, error) {
