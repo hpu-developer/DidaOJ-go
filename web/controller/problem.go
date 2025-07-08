@@ -707,7 +707,7 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		false,
 	)
 	if err != nil {
-		metaresponse.NewResponseError(ctx, err)
+		metaresponse.NewResponse(ctx, metaerror.GetErrorCodeFromError(err), nil)
 		return
 	}
 
