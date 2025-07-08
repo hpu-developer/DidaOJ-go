@@ -165,13 +165,6 @@ func (s *ProblemService) GetProblemViewJudgeData(ctx context.Context, id int) (
 	return foundationdao.GetProblemDao().GetProblemViewJudgeData(ctx, id)
 }
 
-func (s *ProblemService) GetProblemViewJudgeDataByKey(ctx context.Context, key string) (
-	*foundationview.ProblemJudgeData,
-	error,
-) {
-	return foundationdao.GetProblemDao().GetProblemViewJudgeDataByKey(ctx, key)
-}
-
 func (s *ProblemService) GetProblemViewApproveJudge(ctx context.Context, id int) (
 	*foundationview.ProblemViewApproveJudge,
 	error,
@@ -387,7 +380,7 @@ func (s *ProblemService) UpdateProblem(
 
 func (s *ProblemService) PostJudgeData(
 	ctx context.Context,
-	problemId string,
+	problemId int,
 	unzipDir string,
 	oldMd5 *string,
 	goJudgeUrl string,
@@ -678,7 +671,7 @@ func (s *ProblemService) PostJudgeData(
 			var oldKeys []string
 			input := &s3.ListObjectsV2Input{
 				Bucket: aws.String("didaoj-judge"),
-				Prefix: aws.String(path.Join(problemId, *oldMd5)),
+				Prefix: aws.String(path.Join(strconv.Itoa(problemId), *oldMd5)),
 			}
 			err = r2Client.ListObjectsV2PagesWithContext(
 				ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
@@ -731,7 +724,7 @@ func (s *ProblemService) PostJudgeData(
 				return
 			}
 
-			key := filepath.ToSlash(filepath.Join(problemId, judgeDataMd5, relativePath))
+			key := filepath.ToSlash(filepath.Join(strconv.Itoa(problemId), judgeDataMd5, relativePath))
 
 			// 多次尝试打开文件（理论上文件打开失败重试意义不大，但为防止临时FS问题）
 			var file *os.File
@@ -802,7 +795,7 @@ func (s *ProblemService) PostJudgeData(
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
 	}
 
-	zipFileName := fmt.Sprintf("%s-%s.zip", problemId, judgeDataMd5)
+	zipFileName := fmt.Sprintf("%d-%s.zip", problemId, judgeDataMd5)
 	err = metazip.PackagePath(unzipDir, zipFileName)
 	if err != nil {
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
@@ -813,7 +806,7 @@ func (s *ProblemService) PostJudgeData(
 			metapanic.ProcessError(metaerror.Wrap(err, "close zip file error"))
 		}
 	}()
-	zipKey := filepath.ToSlash(filepath.Join(problemId, judgeDataMd5, zipFileName))
+	zipKey := filepath.ToSlash(filepath.Join(strconv.Itoa(problemId), judgeDataMd5, zipFileName))
 	_, err = r2Client.PutObjectWithContext(
 		ctx, &s3.PutObjectInput{
 			Bucket: aws.String("didaoj-judge"),
@@ -831,10 +824,10 @@ func (s *ProblemService) PostJudgeData(
 	}
 
 	// 删除旧的路径
-	putPrefix := filepath.ToSlash(path.Join(problemId, judgeDataMd5))
+	putPrefix := filepath.ToSlash(path.Join(strconv.Itoa(problemId), judgeDataMd5))
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String("didaoj-judge"),
-		Prefix: aws.String(problemId),
+		Prefix: aws.String(strconv.Itoa(problemId)),
 	}
 	var deleteKeys []string
 	err = r2Client.ListObjectsV2PagesWithContext(
@@ -927,7 +920,7 @@ func (s *ProblemService) UpdateProblemDescription(
 
 func (s *ProblemService) UpdateProblemJudgeInfo(
 	ctx context.Context,
-	id string,
+	id int,
 	judgeType foundationjudge.JudgeType,
 	md5 string,
 ) error {

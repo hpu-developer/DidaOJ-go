@@ -458,7 +458,7 @@ func (d *ProblemDao) GetProblemDescription(ctx context.Context, id int) (*string
 	var result struct {
 		Description string `gorm:"column:description"`
 	}
-	err := d.db.WithContext(ctx).Model(&foundationmodel.ProblemLocal{}).
+	err := d.db.WithContext(ctx).Model(&foundationmodel.Problem{}).
 		Select("description").
 		Where("id = ?", id).
 		Take(&result).Error
@@ -593,7 +593,7 @@ func (d *ProblemDao) UpdateProblemDescription(
 
 func (d *ProblemDao) UpdateProblemJudgeInfo(
 	ctx context.Context,
-	id string,
+	id int,
 	judgeType foundationjudge.JudgeType,
 	md5 string,
 ) error {

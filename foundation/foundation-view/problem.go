@@ -70,6 +70,10 @@ type ProblemViewList struct {
 	Tags []int `json:"tags,omitempty" gorm:"-"` // 题目标签列表
 }
 
+func (p *ProblemViewList) TableName() string {
+	return "problem"
+}
+
 type ProblemViewTitle struct {
 	Id    int    `json:"id"`
 	Key   string `json:"key"`
