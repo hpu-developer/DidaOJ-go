@@ -44,6 +44,7 @@ func (d *ProblemDao) GetProblemList(
 	error,
 ) {
 	db := d.db.WithContext(ctx).Model(&foundationmodel.Problem{})
+	db = db.Select("problem.id as id", "`key`", "title", "accept", "attempt")
 	if !hasAuth {
 		if userId > 0 {
 			db = db.Where(
@@ -78,6 +79,7 @@ func (d *ProblemDao) GetProblemList(
 			Where("pt.tag_id IN ?", tags).
 			Group("problem.id") // 防止重复行
 	}
+	db = db.Joins("LEFT JOIN problem_remote r ON r.problem_id = problem.id")
 	if page < 1 {
 		page = 1
 	}
@@ -87,9 +89,7 @@ func (d *ProblemDao) GetProblemList(
 		return nil, 0, metaerror.Wrap(err, "count failed")
 	}
 	var list []*foundationview.ProblemViewList
-	if err := db.
-		Select("id", "key", "title", "accept", "attempt").
-		Order("id ASC").
+	if err := db.Order("problem.id ASC").
 		Offset(offset).
 		Limit(pageSize).
 		Find(&list).Error; err != nil {
