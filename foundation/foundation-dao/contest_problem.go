@@ -42,17 +42,19 @@ func (d *ContestProblemDao) GetProblemId(ctx context.Context, id int, index int)
 }
 
 func (d *ContestProblemDao) GetProblemKey(ctx context.Context, id int, index int) (string, error) {
-	var problemKey string
+	var problem struct {
+		Key string `json:"problem_key"`
+	}
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.ContestProblem{}).
-		Select("problem.`key`").
+		Select("p.`key` as problem_key").
 		Where("id = ? AND `index` = ?", id, index).
-		Joins("JOIN problem ON contest_problem.problem_id = problem.id").
-		Pluck("problem.`key`", &problemKey).Error // index 是保留字，建议加反引号
+		Joins("JOIN problem as p ON contest_problem.problem_id = p.id").
+		Scan(&problem).Error
 	if err != nil {
 		return "", err
 	}
-	return problemKey, nil
+	return problem.Key, nil
 }
 
 func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problemId int) (int, error) {
