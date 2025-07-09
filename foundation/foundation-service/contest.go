@@ -291,13 +291,17 @@ func (s *ContestService) GetContestList(
 	return foundationdao.GetContestDao().GetContestList(ctx, title, userId, page, pageSize)
 }
 
+func (s *ContestService) GetProblemKeyByContestIndex(ctx context.Context, id int, problemIndex int) (string, error) {
+	return foundationdao.GetContestProblemDao().GetProblemKey(ctx, id, problemIndex)
+}
+
 func (s *ContestService) GetProblemIdByContestIndex(ctx context.Context, id int, problemIndex int) (int, error) {
 	return foundationdao.GetContestProblemDao().GetProblemId(ctx, id, problemIndex)
 }
 
 func (s *ContestService) GetProblemIdByContestIndexKey(ctx context.Context, id int, problemKey string) (int, error) {
 	constProblemIndex := foundationcontest.GetContestProblemIndex(problemKey)
-	return s.GetProblemIdByContestIndex(ctx, id, constProblemIndex)
+	return foundationdao.GetContestProblemDao().GetProblemId(ctx, id, constProblemIndex)
 }
 
 func (s *ContestService) GetContestProblemIndexById(ctx context.Context, id int, problemId int) (int, error) {

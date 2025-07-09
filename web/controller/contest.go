@@ -181,7 +181,7 @@ func (c *ContestController) GetProblem(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	problemId, err := foundationservice.GetContestService().GetProblemIdByContestIndex(ctx, contestId, problemIndex)
+	problemId, err := foundationservice.GetContestService().GetProblemKeyByContestIndex(ctx, contestId, problemIndex)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return

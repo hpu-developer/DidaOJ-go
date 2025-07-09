@@ -41,6 +41,20 @@ func (d *ContestProblemDao) GetProblemId(ctx context.Context, id int, index int)
 	return problemId, nil
 }
 
+func (d *ContestProblemDao) GetProblemKey(ctx context.Context, id int, index int) (string, error) {
+	var problemKey string
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.ContestProblem{}).
+		Select("problem.`key`").
+		Where("id = ? AND `index` = ?", id, index).
+		Joins("JOIN problem ON contest_problem.problem_id = problem.id").
+		Pluck("problem.`key`", &problemKey).Error // index 是保留字，建议加反引号
+	if err != nil {
+		return "", err
+	}
+	return problemKey, nil
+}
+
 func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problemId int) (int, error) {
 	var index int
 	err := d.db.WithContext(ctx).Model(&foundationmodel.ContestProblem{}).
