@@ -42,19 +42,19 @@ func (d *ContestProblemDao) GetProblemId(ctx context.Context, id int, index int)
 }
 
 func (d *ContestProblemDao) GetProblemKey(ctx context.Context, id int, index int) (string, error) {
-	var problem struct {
-		Key string `json:"problem_key"`
+	var result struct {
+		Key string
 	}
 	err := d.db.WithContext(ctx).
-		Model(&foundationmodel.ContestProblem{}).
-		Select("p.`key` as problem_key").
-		Where("id = ? AND `index` = ?", id, index).
-		Joins("JOIN problem as p ON contest_problem.problem_id = p.id").
-		Scan(&problem).Error
+		Table("contest_problem").
+		Select("problem.`key`").
+		Joins("JOIN problem ON contest_problem.problem_id = problem.id").
+		Where("contest_problem.id = ? AND contest_problem.`index` = ?", id, index).
+		Take(&result).Error
 	if err != nil {
 		return "", err
 	}
-	return problem.Key, nil
+	return result.Key, nil
 }
 
 func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problemId int) (int, error) {
