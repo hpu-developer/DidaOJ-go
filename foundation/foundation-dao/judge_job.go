@@ -1168,11 +1168,42 @@ func (d *JudgeJobDao) InsertJudgeJob(
 	ctx context.Context,
 	judgeJob *foundationmodel.JudgeJob,
 ) error {
-	if judgeJob == nil {
-		return metaerror.New("judgeJob is nil")
-	}
-	if err := d.db.WithContext(ctx).Create(judgeJob).Error; err != nil {
-		return metaerror.Wrap(err, "insert judgeJob")
-	}
-	return nil
+	return d.db.WithContext(ctx).Transaction(
+		func(tx *gorm.DB) error {
+			if judgeJob == nil {
+				return metaerror.New("judgeJob is nil")
+			}
+			if err := tx.Create(judgeJob).Error; err != nil {
+				return metaerror.Wrap(err, "insert judgeJob")
+			}
+			// 标记用户attempt
+			if err := tx.Model(&foundationmodel.User{}).
+				Where("id = ?", judgeJob.Inserter).
+				UpdateColumn("attempt", gorm.Expr("attempt + ?", 1)).Error; err != nil {
+				return metaerror.Wrap(err, "update user attempt count")
+			}
+			// 标记问题attempt
+			if err := tx.Model(&foundationmodel.Problem{}).
+				Where("id = ?", judgeJob.ProblemId).
+				UpdateColumn("attempt", gorm.Expr("attempt + ?", 1)).Error; err != nil {
+				return metaerror.Wrap(err, "update problem attempt count")
+			}
+			// 做个保底判断，如果是 AC 状态，更新相关的 accept 计数
+			if judgeJob.Status == foundationjudge.JudgeStatusAC {
+				// 更新 problem accept 计数
+				if err := tx.Model(&foundationmodel.Problem{}).
+					Where("id = ?", judgeJob.ProblemId).
+					UpdateColumn("accept", gorm.Expr("accept + ?", 1)).Error; err != nil {
+					return metaerror.Wrap(err, "update problem accept count")
+				}
+				// 更新 user accept 计数
+				if err := tx.Model(&foundationmodel.User{}).
+					Where("id = ?", judgeJob.Inserter).
+					UpdateColumn("accept", gorm.Expr("accept + ?", 1)).Error; err != nil {
+					return metaerror.Wrap(err, "update user accept count")
+				}
+			}
+			return nil
+		},
+	)
 }

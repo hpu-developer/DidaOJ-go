@@ -397,8 +397,8 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 	}
 
 	problemId := 0
-	if requestData.ProblemKey != nil {
-		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, *requestData.ProblemKey)
+	if requestData.ProblemKey != "" {
+		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, requestData.ProblemKey)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
@@ -484,8 +484,8 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 	}
 
 	problemId := 0
-	if requestData.ProblemKey != nil {
-		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, *requestData.ProblemKey)
+	if requestData.ProblemKey != "" {
+		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, requestData.ProblemKey)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
