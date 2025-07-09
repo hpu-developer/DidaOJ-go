@@ -407,6 +407,33 @@ func (s *ProblemService) PostJudgeData(
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataCannotDir)
 	}
 
+	err = filepath.Walk(
+		unzipDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			if strings.HasSuffix(info.Name(), ".in") {
+				return nil
+			}
+			if strings.HasSuffix(info.Name(), ".out") {
+				return nil
+			}
+			if info.Name() == "rule.yaml" {
+				return nil
+			}
+			if info.Name() == "spj.c" || info.Name() == "spj.cc" || info.Name() == "spj.cpp" {
+				return nil
+			}
+			return metaerror.New("<UNK>: " + path + " is not a valid judge data file")
+		},
+	)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataHasNotValid)
+	}
+
 	judgeType := foundationjudge.JudgeTypeNormal
 
 	var jobConfig foundationjudge.JudgeJobConfig
