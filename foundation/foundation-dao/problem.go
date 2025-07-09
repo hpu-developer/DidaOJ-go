@@ -612,7 +612,7 @@ func (d *ProblemDao) UpdateProblemJudgeInfo(
 				return metaerror.Wrap(err, "failed to update problem description")
 			}
 			err = tx.Model(&foundationmodel.ProblemLocal{}).
-				Where("id = ?", id).
+				Where("problem_id = ?", id).
 				Update("judge_md5", md5).
 				Error
 			if err != nil {
