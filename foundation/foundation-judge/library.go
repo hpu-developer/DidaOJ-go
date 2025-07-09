@@ -85,7 +85,7 @@ func CompileCode(
 	var copyIns map[string]interface{}
 	var copyOutCached []string
 
-	cpuLimit := 10000000000      // 10秒
+	cpuLimit := 20000000000      // 20秒
 	memoryLimit := 1048576 * 256 // 256MB
 
 	env := []string{"PATH=/usr/bin:/usr/local/bin:/bin"}
