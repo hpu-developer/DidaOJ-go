@@ -451,7 +451,7 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 }
 
 func (c *ProblemController) GetImageToken(ctx *gin.Context) {
-	id := ctx.Query("id")
+	idStr := ctx.Query("id")
 	_, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
 	if err != nil {
 		metapanic.ProcessError(err)
@@ -468,12 +468,16 @@ func (c *ProblemController) GetImageToken(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-
+	problemIdStr := ""
+	problemId, err := strconv.Atoi(idStr)
+	if err == nil && problemId > 0 {
+		problemIdStr = strconv.Itoa(problemId)
+	}
 	// 配置参数
 	bucketName := "didapipa-oj"
 	objectKey := metahttp.UrlJoin(
 		"uploading/problem",
-		id,
+		problemIdStr,
 		fmt.Sprintf("%d_%s", time.Now().Unix(), uuid.New().String()),
 	)
 
@@ -781,8 +785,9 @@ func (c *ProblemController) PostCreate(ctx *gin.Context) {
 		return
 	}
 	if len(needUpdateUrls) > 0 {
-		err := foundationservice.GetProblemService().UpdateProblemDescription(ctx, problemId, description)
+		err = foundationservice.GetProblemService().UpdateProblemDescription(ctx, problemId, description)
 		if err != nil {
+			metaresponse.NewResponseError(ctx, err)
 			return
 		}
 		err = service.GetR2ImageService().MoveImageAfterSave(needUpdateUrls)
@@ -791,7 +796,7 @@ func (c *ProblemController) PostCreate(ctx *gin.Context) {
 		}
 	}
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemId)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, problem.Key)
 }
 
 func (c *ProblemController) PostEdit(ctx *gin.Context) {

@@ -578,6 +578,7 @@ func (d *ProblemDao) UpdateProblemDescription(
 ) error {
 	nowTime := metatime.GetTimeNow()
 	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Problem{}).
 		Where("id = ?", id).
 		Update("description", description).
 		Update("modify_time", nowTime).
