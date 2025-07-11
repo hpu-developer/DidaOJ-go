@@ -558,7 +558,7 @@ func (d *ProblemDao) UpdateProblem(
 			if txRes.RowsAffected == 0 {
 				return metaerror.New("problem not found")
 			}
-			err := GetProblemTagDao().UpdateProblemTagsByDb(tx, problem.Id, tagIds)
+			err := GetProblemTagDao().UpdateProblemTagsByDb(tx, problemId, tagIds)
 			if err != nil {
 				return err
 			}

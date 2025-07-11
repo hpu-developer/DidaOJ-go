@@ -75,27 +75,22 @@ func (d *TagDao) InsertTag(ctx context.Context, name string) (int, error) {
 	}
 	return tag.Id, nil
 }
-
 func (d *TagDao) InsertTagWithDb(tx *gorm.DB, name string) (int, error) {
 	if name == "" {
 		return 0, metaerror.New("tag name is empty")
 	}
-	tag := &foundationmodel.Tag{
-		Name: name,
-	}
-	db := tx.Model(&foundationmodel.Tag{})
-	err := db.Clauses(
-		clause.OnConflict{
-			Columns: []clause.Column{{Name: "name"}},
-			DoUpdates: clause.Assignments(
-				map[string]interface{}{
-					"id": gorm.Expr("LAST_INSERT_ID(id)"),
-				},
-			),
-		},
-	).Create(tag).Error
-	if err != nil {
+
+	sql := `
+		INSERT INTO tag (name)
+		VALUES (?)
+		ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)
+	`
+	if err := tx.Exec(sql, name).Error; err != nil {
 		return 0, err
 	}
-	return tag.Id, nil
+	var id int
+	if err := tx.Raw("SELECT LAST_INSERT_ID()").Scan(&id).Error; err != nil {
+		return 0, err
+	}
+	return id, nil
 }
