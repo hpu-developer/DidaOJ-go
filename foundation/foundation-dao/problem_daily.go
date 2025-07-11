@@ -71,17 +71,19 @@ func (d *ProblemDailyDao) GetProblemDaily(
 	ctx *gin.Context,
 	dailyId string,
 	hasAuth bool,
-) (*foundationmodel.ProblemDaily, error) {
+) (*foundationview.ProblemDaily, error) {
 	nowId := metatime.GetTimeNowBeijing().Format("2006-01-02")
 	if !hasAuth {
 		if dailyId > nowId {
 			return nil, nil
 		}
 	}
-	var record *foundationmodel.ProblemDaily
+	var record *foundationview.ProblemDaily
 	err := d.db.WithContext(ctx).
-		Select("problem_id,solution,code").
-		Where("`key` = ?", dailyId).
+		Table("problem_daily as pd").
+		Select("pd.problem_id,pd.solution,pd.code,problem.`key` as problem_key").
+		Joins("JOIN problem ON problem.id = pd.problem_id").
+		Where("pd.`key` = ?", dailyId).
 		Take(&record).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

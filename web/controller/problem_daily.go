@@ -101,8 +101,8 @@ func (c *ProblemController) GetDaily(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		Time         time.Time                     `json:"time"`
-		ProblemDaily *foundationmodel.ProblemDaily `json:"problem_daily"`
+		Time         time.Time                    `json:"time"`
+		ProblemDaily *foundationview.ProblemDaily `json:"problem_daily"`
 	}{
 		Time:         metatime.GetTimeNow(),
 		ProblemDaily: problemDaily,
@@ -176,7 +176,7 @@ func (c *ProblemController) GetDailyList(ctx *gin.Context) {
 	}
 
 	problemDailyService := foundationservice.GetProblemDailyService()
-	problemId := ctx.Query("problem_id")
+	problemKey := ctx.Query("problem_key")
 
 	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
 		ctx,
@@ -189,7 +189,7 @@ func (c *ProblemController) GetDailyList(ctx *gin.Context) {
 		hasAuth,
 		startDate,
 		endDate,
-		problemId,
+		problemKey,
 		page,
 		pageSize,
 	)
@@ -253,8 +253,12 @@ func (c *ProblemController) PostDailyCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	problemIdStr := requestData.ProblemId
-	problemId, err := strconv.Atoi(problemIdStr)
+	problemKey := requestData.ProblemKey
+	if problemKey == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	problemId, err := foundationservice.GetProblemService().GetProblemIdByKey(ctx, problemKey)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
@@ -375,8 +379,12 @@ func (c *ProblemController) PostDailyEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	problemIdStr := requestData.ProblemId
-	problemId, err := strconv.Atoi(problemIdStr)
+	problemKey := requestData.ProblemKey
+	if problemKey == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	problemId, err := foundationservice.GetProblemService().GetProblemIdByKey(ctx, problemKey)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return

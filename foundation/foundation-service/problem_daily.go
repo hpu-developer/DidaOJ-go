@@ -32,7 +32,7 @@ func (s *ProblemDailyService) HasProblemDailyProblem(ctx *gin.Context, problemId
 }
 
 func (s *ProblemDailyService) GetProblemDaily(ctx *gin.Context, dailyId string, hasAuth bool) (
-	*foundationmodel.ProblemDaily,
+	*foundationview.ProblemDaily,
 	error,
 ) {
 	return foundationdao.GetProblemDailyDao().GetProblemDaily(ctx, dailyId, hasAuth)
