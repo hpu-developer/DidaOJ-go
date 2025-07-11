@@ -8,6 +8,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	metatime "meta/meta-time"
@@ -633,35 +634,62 @@ func (d *ProblemDao) UpdateProblemJudgeInfo(
 
 func (d *ProblemDao) UpdateProblemCrawl(
 	ctx context.Context,
-	id string,
+	problemKey string,
 	problem *foundationmodel.Problem,
 	problemRemote *foundationmodel.ProblemRemote,
 ) error {
-	err := d.db.WithContext(ctx).Transaction(
+	return d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
-			if err := tx.Model(&foundationmodel.Problem{}).
-				Where("id = ?", id).
-				Save(problem).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return metaerror.New("problem not found")
+			var existing foundationmodel.Problem
+			// 查找是否已存在该 problemKey，尝试加锁避免并发写入
+			err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("`key` = ?", problemKey).
+				First(&existing).Error
+			var problemID int
+			if err == nil {
+				// 已存在，执行更新
+				problem.Id = existing.Id // 保留 ID
+				if err := tx.Model(&foundationmodel.Problem{}).
+					Where("id = ?", existing.Id).
+					Updates(problem).Error; err != nil {
+					return err
 				}
-				return metaerror.Wrap(err, "failed to update problem crawl")
+				problemID = existing.ID
+			} else if errors.Is(err, gorm.ErrRecordNotFound) {
+				// 不存在，插入
+				problem.Key = problemKey // 确保 key 被写入
+				if err := tx.Create(problem).Error; err != nil {
+					return err
+				}
+				problemID = problem.ID
+			} else {
+				// 其他错误
+				return err
 			}
-			if err := tx.Model(&foundationmodel.ProblemRemote{}).
-				Where("problem_id = ?", id).
-				Save(problemRemote).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return metaerror.New("problem remote not found")
+			// 处理 problem_remote
+			var remoteExisting foundationmodel.ProblemRemote
+			err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("problem_id = ?", problemID).
+				First(&remoteExisting).Error
+			problemRemote.ProblemID = problemID // 设置关联 ID
+			if err == nil {
+				// 已存在，更新
+				if err := tx.Model(&foundationmodel.ProblemRemote{}).
+					Where("problem_id = ?", problemID).
+					Updates(problemRemote).Error; err != nil {
+					return err
 				}
-				return metaerror.Wrap(err, "failed to update problem remote crawl")
+			} else if errors.Is(err, gorm.ErrRecordNotFound) {
+				// 不存在，插入
+				if err := tx.Create(problemRemote).Error; err != nil {
+					return err
+				}
+			} else {
+				return err
 			}
 			return nil
 		},
 	)
-	if err != nil {
-		return metaerror.Wrap(err, "transaction failed to update problem crawl")
-	}
-	return nil
 }
 
 func (d *ProblemDao) InsertProblemLocal(

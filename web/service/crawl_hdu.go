@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	foundationdao "foundation/foundation-dao-mongo"
-	foundationmodel "foundation/foundation-model-mongo"
+	foundationdao "foundation/foundation-dao"
+	foundationmodel "foundation/foundation-model"
 	foundationrender "foundation/foundation-render"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
@@ -144,22 +144,23 @@ func (s *CrawlHduService) PostCrawlProblem(ctx context.Context, id string) (*str
 	originUrl := fmt.Sprintf("https://acm.hdu.edu.cn/showproblem.php?pid=%s", id)
 
 	problem := foundationmodel.NewProblemBuilder().
-		Id(newProblemId).
-		Sort(len(newProblemId)).
 		Title(title).
 		Description(description).
 		TimeLimit(timeLimit).
 		MemoryLimit(memoryLimit).
-		CreatorNickname(author).
 		Source(&source).
+		InsertTime(nowTime).
+		ModifyTime(nowTime).
+		Build()
+
+	problemRemote := foundationmodel.NewProblemRemoteBuilder().
 		OriginOj("HDU").
 		OriginId(id).
 		OriginUrl(originUrl).
-		InsertTime(nowTime).
-		UpdateTime(nowTime).
+		OriginAuthor(&author).
 		Build()
 
-	err = foundationdao.GetProblemDao().UpdateProblemCrawl(ctx, newProblemId, problem)
+	err = foundationdao.GetProblemDao().UpdateProblemCrawl(ctx, newProblemId, problem, problemRemote)
 	if err != nil {
 		return nil, err
 	}
