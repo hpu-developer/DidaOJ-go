@@ -877,10 +877,10 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 
 	responseData := struct {
 		Description string    `json:"description"`
-		UpdateTime  time.Time `json:"update_time"`
+		ModifyTime  time.Time `json:"modify_time"`
 	}{
 		Description: description,
-		UpdateTime:  nowTime,
+		ModifyTime:  nowTime,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }

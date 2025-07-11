@@ -868,7 +868,13 @@ func (s *JudgeService) runJudgeTask(
 			},
 		}
 	case foundationjudge.JudgeLanguageJava:
-		args = []string{"java", "-Dfile.encoding=UTF-8", "-cp", "Main.jar", "Main"}
+		args = []string{
+			"java",
+			"-Dfile.encoding=UTF-8",
+			"-cp",
+			"Main.jar",
+			"Main",
+		}
 		fileId, ok := execFileIds["Main.jar"]
 		if !ok {
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
@@ -937,12 +943,12 @@ func (s *JudgeService) runJudgeTask(
 					{"name": "stdout", "max": taskConfig.OutLimit},
 					{"name": "stderr", "max": 10240},
 				},
-				"cpuLimit":          cpuLimit,
-				"memoryLimit":       memoryLimit,
-				"procLimit":         1,
-				"dataSegmentLimit":  true,
-				"addressSpaceLimit": true,
-				"copyIn":            copyIns,
+				"cpuLimit":    cpuLimit,
+				"memoryLimit": memoryLimit,
+				//"procLimit":   1,
+				//"dataSegmentLimit":  true,
+				//"addressSpaceLimit": true,
+				"copyIn": copyIns,
 			},
 		},
 	}
@@ -980,8 +986,9 @@ func (s *JudgeService) runJudgeTask(
 			Stderr string `json:"stderr"`
 			Stdout string `json:"stdout"`
 		} `json:"files"`
-		Time   int `json:"time"`
-		Memory int `json:"memory"`
+		Error  string `json:"error"`
+		Time   int    `json:"time"`
+		Memory int    `json:"memory"`
 	}
 	err = json.Unmarshal(respBody, &responseDataList)
 	if err != nil {
