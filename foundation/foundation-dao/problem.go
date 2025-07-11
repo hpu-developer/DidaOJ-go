@@ -645,23 +645,35 @@ func (d *ProblemDao) UpdateProblemCrawl(
 			err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 				Where("`key` = ?", problemKey).
 				First(&existing).Error
-			var problemID int
+			var problemId int
 			if err == nil {
 				// 已存在，执行更新
 				problem.Id = existing.Id // 保留 ID
+				updates := map[string]interface{}{
+					"title":        problem.Title,
+					"description":  problem.Description,
+					"source":       problem.Source,
+					"time_limit":   problem.TimeLimit,
+					"memory_limit": problem.MemoryLimit,
+					"judge_type":   problem.JudgeType,
+					"inserter":     problem.Inserter,
+					"insert_time":  problem.InsertTime,
+					"modifier":     problem.Modifier,
+					"modify_time":  problem.ModifyTime,
+				}
 				if err := tx.Model(&foundationmodel.Problem{}).
 					Where("id = ?", existing.Id).
-					Updates(problem).Error; err != nil {
+					Updates(updates).Error; err != nil {
 					return err
 				}
-				problemID = existing.ID
+				problemId = existing.Id
 			} else if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 不存在，插入
 				problem.Key = problemKey // 确保 key 被写入
 				if err := tx.Create(problem).Error; err != nil {
 					return err
 				}
-				problemID = problem.ID
+				problemId = problem.Id
 			} else {
 				// 其他错误
 				return err
@@ -669,13 +681,13 @@ func (d *ProblemDao) UpdateProblemCrawl(
 			// 处理 problem_remote
 			var remoteExisting foundationmodel.ProblemRemote
 			err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where("problem_id = ?", problemID).
+				Where("problem_id = ?", problemId).
 				First(&remoteExisting).Error
-			problemRemote.ProblemID = problemID // 设置关联 ID
+			problemRemote.ProblemId = problemId // 设置关联 ID
 			if err == nil {
 				// 已存在，更新
 				if err := tx.Model(&foundationmodel.ProblemRemote{}).
-					Where("problem_id = ?", problemID).
+					Where("problem_id = ?", problemId).
 					Updates(problemRemote).Error; err != nil {
 					return err
 				}
