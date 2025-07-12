@@ -1066,7 +1066,7 @@ func (s *JudgeService) runJudgeTask(
 					markErr,
 					"failed to add judge job task current:%d task:%s",
 					job.Id,
-					task.Id,
+					task.TaskId,
 				),
 			)
 		}

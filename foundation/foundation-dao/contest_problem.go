@@ -60,7 +60,7 @@ func (d *ContestProblemDao) GetProblemKey(ctx context.Context, id int, index int
 func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problemId int) (int, error) {
 	var index int
 	err := d.db.WithContext(ctx).Model(&foundationmodel.ContestProblem{}).
-		Where("contest_id = ? AND problem_id = ?", id, problemId).
+		Where("id = ? AND problem_id = ?", id, problemId).
 		Pluck("`index`", &index).Error // index 是保留字，建议加反引号
 	if err != nil {
 		return 0, err
