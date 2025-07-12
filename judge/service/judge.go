@@ -1061,7 +1061,14 @@ func (s *JudgeService) runJudgeTask(
 			task,
 		)
 		if markErr != nil {
-			metapanic.ProcessError(markErr)
+			metapanic.ProcessError(
+				metaerror.Wrap(
+					markErr,
+					"failed to add judge job task current:%d task:%s",
+					job.Id,
+					task.Id,
+				),
+			)
 		}
 		return finalStatus, sumTime, sumMemory, finalScore, nil
 	}
