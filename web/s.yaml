@@ -1,0 +1,52 @@
+edition: 3.0.0
+name: didaoj-web
+access: 'aliyun'
+vars:
+  region: 'cn-beijing'
+  functionName: 'didaoj-web'
+resources:
+  start_gin:
+    component: fc3
+    actions:
+      pre-deploy:
+        - run: go mod tidy
+          path: ./
+        - run: build-fc.bat
+          path: ./
+    props:
+      region: ${vars.region}
+      description: Serverless Devs Web Framework Gin Function
+      runtime: custom.debian10
+      memorySize: 1024
+      timeout: 30
+      instanceConcurrency: 100
+      customRuntimeConfig:
+        command:
+          - ./run.sh
+        port: 80
+      logConfig: auto
+      vpcConfig: auto
+      functionName: ${vars.functionName}
+      code: ./fc
+      triggers:
+        - triggerName: httpTrigger
+          triggerType: http
+          triggerConfig:
+            authType: anonymous
+            methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - HEAD
+              - OPTIONS
+  fc3_domain_0:
+    component: fc3-domain
+    props:
+      region: ${vars.region}
+      domainName: auto
+      protocol: HTTP
+      routeConfig:
+        routes:
+          - path: /*
+            functionName: ${vars.functionName}
