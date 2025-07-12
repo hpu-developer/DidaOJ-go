@@ -1112,8 +1112,8 @@ func (s *JudgeService) runJudgeTask(
 						{"name": "stdout", "max": 10240},
 						{"name": "stderr", "max": 10240},
 					},
-					"cpuLimit":    cpuLimit,
-					"memoryLimit": memoryLimit,
+					"cpuLimit":    30000000,          // 提供30秒给spj
+					"memoryLimit": 512 * 1024 * 1024, // 提供512MB秒给spj
 					"procLimit":   50,
 					"copyIn": map[string]interface{}{
 						"spj": map[string]interface{}{
@@ -1207,11 +1207,22 @@ func (s *JudgeService) runJudgeTask(
 			task.Hint = task.Hint + "\n"
 		}
 		task.Hint = task.Hint + specialRespData.Files.Stderr
-
 		if specialRespData.Status == gojudge.StatusAccepted {
 			task.Score = taskConfig.Score
 			finalScore += taskConfig.Score
 			task.Status = foundationjudge.JudgeStatusAC
+		} else if specialRespData.Status == gojudge.StatusTimeLimit {
+			task.Status = foundationjudge.JudgeStatusTLE
+			if task.Content != "" {
+				task.Content = task.Content + "\n"
+			}
+			task.Content = task.Content + "spj Time Limit Exceeded"
+		} else if specialRespData.Status == gojudge.StatusMemoryLimit {
+			task.Status = foundationjudge.JudgeStatusMLE
+			if task.Content != "" {
+				task.Content = task.Content + "\n"
+			}
+			task.Content = task.Content + "spj Memory Limit Exceeded"
 		} else {
 			if specialRespData.Status == gojudge.StatusNonzeroExit {
 				switch specialRespData.ExitStatus {
