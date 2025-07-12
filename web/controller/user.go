@@ -391,7 +391,7 @@ func (c *UserController) PostPasswordModify(ctx *gin.Context) {
 func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
-		metaresponse.NewResponseError(ctx, err, nil)
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
 		return
 	}
 	loginResponse, err := foundationservice.GetUserService().GetUserLoginResponse(ctx, userId)

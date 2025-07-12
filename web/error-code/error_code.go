@@ -36,4 +36,5 @@ const (
 	ProblemJudgeDataTooLarge20MB         metaerrorcode.ErrorCode = 100031
 	JudgeListTooManySkip                 metaerrorcode.ErrorCode = 100032
 	ProblemJudgeDataHasNotValid          metaerrorcode.ErrorCode = 100033
+	UserNeedLogin                        metaerrorcode.ErrorCode = 100034
 )
