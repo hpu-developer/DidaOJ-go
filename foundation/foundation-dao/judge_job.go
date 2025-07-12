@@ -608,49 +608,48 @@ func (d *JudgeJobDao) RequestJudgeJobListPendingJudge(
 	maxCount int,
 	judger string,
 ) ([]*foundationmodel.JudgeJob, error) {
+	now := time.Now()
 	var jobs []*foundationmodel.JudgeJob
-
 	err := d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
-			err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where(
-					"status IN ?", []foundationjudge.JudgeStatus{
-						foundationjudge.JudgeStatusInit,
-						foundationjudge.JudgeStatusRejudge,
-					},
-				).
-				Order("status ASC, id ASC").
-				Limit(maxCount).
-				Find(&jobs).Error
-			if err != nil {
+			// 1. SELECT ... FOR UPDATE SKIP LOCKED
+			var jobIds []struct {
+				Id int `gorm:"column:id"`
+			}
+			if err := tx.Raw(
+				`SELECT id FROM judge_job  WHERE status IN (?, ?) ORDER BY status ,id  LIMIT ? FOR UPDATE SKIP LOCKED`,
+				foundationjudge.JudgeStatusInit,
+				foundationjudge.JudgeStatusRejudge,
+				maxCount,
+			).Scan(&jobIds).Error; err != nil {
 				return err
 			}
-			if len(jobs) == 0 {
-				return gorm.ErrRecordNotFound
+			if len(jobIds) == 0 {
+				return nil // 没有任务可领取
 			}
-
-			// 批量更新每条记录的状态
-			for _, job := range jobs {
-				err := tx.Model(job).Updates(
+			// 提取出 id 列表
+			ids := make([]int, len(jobIds))
+			for i, job := range jobIds {
+				ids[i] = job.Id
+			}
+			// 2. 执行 UPDATE
+			if err := tx.Model(&foundationmodel.JudgeJob{}).
+				Where("id IN ?", ids).
+				Updates(
 					map[string]interface{}{
 						"status":     foundationjudge.JudgeStatusQueuing,
 						"judger":     judger,
-						"judge_time": time.Now(),
+						"judge_time": now,
 					},
-				).Error
-				if err != nil {
-					return err
-				}
+				).Error; err != nil {
+				return err
 			}
-
-			return nil
+			// 3. SELECT 完整任务信息返回
+			return tx.Where("id IN ?", ids).Find(&jobs).Error
 		},
 	)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // 没有待评测的任务
-		}
-		return nil, metaerror.Wrap(err, "failed to request judge job list pending judge")
+		return nil, err
 	}
 	return jobs, nil
 }
@@ -876,6 +875,8 @@ func (d *JudgeJobDao) RejudgeSearch(
 	language foundationjudge.JudgeLanguage,
 	status foundationjudge.JudgeStatus,
 ) error {
+	const batchSize = 1000
+
 	return d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			// 1. 加锁查找 judge_job（防止并发修改）
@@ -924,7 +925,7 @@ func (d *JudgeJobDao) RejudgeSearch(
 				}
 			}
 
-			// 3. 更新 judge_job
+			// 3. 分批更新 judge_job 及删除相关数据
 			updateMap := map[string]interface{}{
 				"status":       foundationjudge.JudgeStatusRejudge,
 				"score":        nil,
@@ -936,25 +937,33 @@ func (d *JudgeJobDao) RejudgeSearch(
 				"judge_time":   nil,
 			}
 
-			if err := tx.Table("judge_job").
-				Where("id IN ?", ids).
-				Updates(updateMap).Error; err != nil {
-				return metaerror.Wrap(err, "failed to update judge_job")
+			for start := 0; start < len(ids); start += batchSize {
+				end := start + batchSize
+				if end > len(ids) {
+					end = len(ids)
+				}
+				batch := ids[start:end]
+
+				if err := tx.Table("judge_job").
+					Where("id IN ?", batch).
+					Updates(updateMap).Error; err != nil {
+					return metaerror.Wrap(err, "failed to update judge_job batch")
+				}
+
+				if err := tx.Table("judge_job_compile").
+					Where("id IN ?", batch).
+					Delete(nil).Error; err != nil {
+					return metaerror.Wrap(err, "failed to delete judge_job_compile batch")
+				}
+
+				if err := tx.Table("judge_task").
+					Where("id IN ?", batch).
+					Delete(nil).Error; err != nil {
+					return metaerror.Wrap(err, "failed to delete judge_task batch")
+				}
 			}
 
-			// 4. 删除 judge_job_compile 中对应记录
-			if err := tx.Table("judge_job_compile").
-				Where("id IN ?", ids).
-				Delete(nil).Error; err != nil {
-				return metaerror.Wrap(err, "failed to delete judge_job_compile")
-			}
-
-			if err := tx.Table("judge_task").
-				Where("id IN ?", ids).
-				Delete(nil).Error; err != nil {
-				return metaerror.Wrap(err, "failed to delete judge_task")
-			}
-
+			// 4. 更新 problem 和 user 的 accept 计数
 			for pid, delta := range problemAcceptDelta {
 				if delta != 0 {
 					if err := tx.Table("problem").
@@ -1072,6 +1081,7 @@ func (d *JudgeJobDao) RejudgeRecently(ctx context.Context) error {
 }
 
 func (d *JudgeJobDao) RejudgeAll(ctx context.Context) error {
+	const batchSize = 1000
 	return d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			// 1. 加锁查找 judge_job（防止并发修改）
@@ -1110,7 +1120,7 @@ func (d *JudgeJobDao) RejudgeAll(ctx context.Context) error {
 				}
 			}
 
-			// 3. 更新 judge_job
+			// 3. 分批更新 judge_job
 			updateMap := map[string]interface{}{
 				"status":       foundationjudge.JudgeStatusRejudge,
 				"score":        nil,
@@ -1122,25 +1132,33 @@ func (d *JudgeJobDao) RejudgeAll(ctx context.Context) error {
 				"judge_time":   nil,
 			}
 
-			if err := tx.Table("judge_job").
-				Where("id IN ?", ids).
-				Updates(updateMap).Error; err != nil {
-				return metaerror.Wrap(err, "failed to update judge_job")
+			for start := 0; start < len(ids); start += batchSize {
+				end := start + batchSize
+				if end > len(ids) {
+					end = len(ids)
+				}
+				batch := ids[start:end]
+
+				if err := tx.Table("judge_job").
+					Where("id IN ?", batch).
+					Updates(updateMap).Error; err != nil {
+					return metaerror.Wrap(err, "failed to update judge_job batch")
+				}
+
+				if err := tx.Table("judge_job_compile").
+					Where("id IN ?", batch).
+					Delete(nil).Error; err != nil {
+					return metaerror.Wrap(err, "failed to delete judge_job_compile batch")
+				}
+
+				if err := tx.Table("judge_task").
+					Where("id IN ?", batch).
+					Delete(nil).Error; err != nil {
+					return metaerror.Wrap(err, "failed to delete judge_task batch")
+				}
 			}
 
-			// 4. 删除 judge_job_compile 中对应记录
-			if err := tx.Table("judge_job_compile").
-				Where("id IN ?", ids).
-				Delete(nil).Error; err != nil {
-				return metaerror.Wrap(err, "failed to delete judge_job_compile")
-			}
-
-			if err := tx.Table("judge_task").
-				Where("id IN ?", ids).
-				Delete(nil).Error; err != nil {
-				return metaerror.Wrap(err, "failed to delete judge_task")
-			}
-
+			// 4. 更新 problem 和 user 的 accept 计数
 			for pid, delta := range problemAcceptDelta {
 				if delta != 0 {
 					if err := tx.Table("problem").

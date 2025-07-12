@@ -945,7 +945,7 @@ func (s *JudgeService) runJudgeTask(
 				},
 				"cpuLimit":    cpuLimit,
 				"memoryLimit": memoryLimit,
-				//"procLimit":   1,
+				"procLimit":   50,
 				//"dataSegmentLimit":  true,
 				//"addressSpaceLimit": true,
 				"copyIn": copyIns,
