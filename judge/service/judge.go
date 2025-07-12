@@ -868,9 +868,14 @@ func (s *JudgeService) runJudgeTask(
 			},
 		}
 	case foundationjudge.JudgeLanguageJava:
-		className, err := foundationjudge.GetJavaClass(job.Code)
-		if err != nil {
+		className := foundationjudge.GetJavaClass(job.Code)
+		if className == "" {
 			return foundationjudge.JudgeStatusCE, 0, 0, 0, err
+		}
+		packageName := foundationjudge.GetJavaPackage(job.Code)
+		qualifiedName := className
+		if packageName != "" {
+			qualifiedName = packageName + "." + className
 		}
 		jarFileName := className + ".jar"
 		args = []string{
@@ -878,7 +883,7 @@ func (s *JudgeService) runJudgeTask(
 			"-Dfile.encoding=UTF-8",
 			"-cp",
 			jarFileName,
-			className,
+			qualifiedName,
 		}
 		fileId, ok := execFileIds[jarFileName]
 		if !ok {
@@ -894,7 +899,7 @@ func (s *JudgeService) runJudgeTask(
 			return finalStatus, sumTime, sumMemory, finalScore, metaerror.New("fileId not found")
 		}
 		copyIns = map[string]interface{}{
-			"Main.jar": map[string]interface{}{
+			jarFileName: map[string]interface{}{
 				"fileId": fileId,
 			},
 		}

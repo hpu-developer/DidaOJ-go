@@ -31,16 +31,26 @@ func removeComments(code string) string {
 	return code
 }
 
-func GetJavaClass(code string) (string, error) {
+func GetJavaPackage(code string) string {
+	cleanCode := removeComments(code)
+	re := regexp.MustCompile(`(?m)^package\s+([\w.]+)\s*;`)
+	match := re.FindStringSubmatch(cleanCode)
+	if len(match) >= 2 {
+		return match[1]
+	}
+	return ""
+}
+
+func GetJavaClass(code string) string {
 	// 提取 public class 类名
 	cleanCode := removeComments(code)
 	// 匹配 public class 类名
 	classRegex := regexp.MustCompile(`public\s+class\s+(\w+)`)
 	match := classRegex.FindStringSubmatch(cleanCode)
 	if len(match) >= 2 {
-		return match[1], nil
+		return match[1]
 	}
-	return "", metaerror.New("no valid public class found")
+	return ""
 }
 
 func UploadFile(client *http.Client, goJudgeUrl string, filePath string) (*string, error) {
@@ -160,14 +170,14 @@ func CompileCode(
 		copyOutCached = []string{"a"}
 		break
 	case JudgeLanguageJava:
-		className, err := GetJavaClass(code)
-		if err != nil {
+		className := GetJavaClass(code)
+		if className == "" {
 			return nil, "compile failed, get java class name error: no valid public class found", JudgeStatusCE, nil
 		}
 		codeFileName := className + ".java"
 		jarFileName := className + ".jar"
 		cmd := fmt.Sprintf(
-			"javac -J-Xms128m -J-Xmx512m -encoding UTF-8 -Xlint:unchecked %s && jar -cvf %s *.class",
+			"javac -J-Xms128m -J-Xmx512m -encoding UTF-8 -Xlint:unchecked -d . %s && jar cf %s -C . .",
 			codeFileName, jarFileName,
 		)
 		args = []string{"bash", "-c", cmd}
