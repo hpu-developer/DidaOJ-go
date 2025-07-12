@@ -16,8 +16,32 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 )
+
+// 去除所有注释（包括 // 和 /* ... */）
+func removeComments(code string) string {
+	// 移除单行注释
+	singleLine := regexp.MustCompile(`//.*`)
+	code = singleLine.ReplaceAllString(code, "")
+	// 移除多行注释
+	multiLine := regexp.MustCompile(`(?s)/\*.*?\*/`)
+	code = multiLine.ReplaceAllString(code, "")
+	return code
+}
+
+func GetJavaClass(code string) (string, error) {
+	// 提取 public class 类名
+	cleanCode := removeComments(code)
+	// 匹配 public class 类名
+	classRegex := regexp.MustCompile(`public\s+class\s+(\w+)`)
+	match := classRegex.FindStringSubmatch(cleanCode)
+	if len(match) >= 2 {
+		return match[1], nil
+	}
+	return "", metaerror.New("no valid public class found")
+}
 
 func UploadFile(client *http.Client, goJudgeUrl string, filePath string) (*string, error) {
 	file, err := os.Open(filePath)
@@ -136,14 +160,23 @@ func CompileCode(
 		copyOutCached = []string{"a"}
 		break
 	case JudgeLanguageJava:
-		cmd := "javac -J-Xms128m -J-Xmx512m -encoding UTF-8 -Xlint:unchecked Main.java && jar -cvf Main.jar *.class"
+		className, err := GetJavaClass(code)
+		if err != nil {
+			return nil, "compile failed, get java class name error: no valid public class found", JudgeStatusCE, nil
+		}
+		codeFileName := className + ".java"
+		jarFileName := className + ".jar"
+		cmd := fmt.Sprintf(
+			"javac -J-Xms128m -J-Xmx512m -encoding UTF-8 -Xlint:unchecked %s && jar -cvf %s *.class",
+			codeFileName, jarFileName,
+		)
 		args = []string{"bash", "-c", cmd}
 		copyIns = map[string]interface{}{
-			"Main.java": map[string]interface{}{
+			codeFileName: map[string]interface{}{
 				"content": code,
 			},
 		}
-		copyOutCached = []string{"Main.jar"}
+		copyOutCached = []string{jarFileName}
 		break
 	case JudgeLanguagePython:
 		args = []string{"python3", "-c", "import py_compile; py_compile.compile(r'a.py')"}

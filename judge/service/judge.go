@@ -868,14 +868,19 @@ func (s *JudgeService) runJudgeTask(
 			},
 		}
 	case foundationjudge.JudgeLanguageJava:
+		className, err := foundationjudge.GetJavaClass(job.Code)
+		if err != nil {
+			return foundationjudge.JudgeStatusCE, 0, 0, 0, err
+		}
+		jarFileName := className + ".jar"
 		args = []string{
 			"java",
 			"-Dfile.encoding=UTF-8",
 			"-cp",
-			"Main.jar",
-			"Main",
+			jarFileName,
+			className,
 		}
-		fileId, ok := execFileIds["Main.jar"]
+		fileId, ok := execFileIds[jarFileName]
 		if !ok {
 			markErr := foundationdao.GetJudgeJobDao().AddJudgeJobTaskCurrent(
 				ctx,
