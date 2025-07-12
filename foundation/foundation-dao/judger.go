@@ -46,6 +46,7 @@ func (d *JudgerDao) UpdateJudger(ctx context.Context, judger *foundationmodel.Ju
 func (d *JudgerDao) GetJudgers(ctx context.Context) ([]*foundationmodel.Judger, error) {
 	var judgers []*foundationmodel.Judger
 	err := d.db.WithContext(ctx).
+		Where("hidden is null").
 		Find(&judgers).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to get judgers")
