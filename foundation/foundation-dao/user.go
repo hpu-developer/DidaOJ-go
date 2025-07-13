@@ -188,8 +188,8 @@ func (d *UserDao) GetRankAcAll(ctx context.Context, page int, size int) ([]*foun
 	}
 	err = d.db.WithContext(ctx).
 		Model(&foundationmodel.User{}).
-		Select("id, username, nickname, accept, attempt").
-		Where("attempt > 0").
+		Select("id, username, nickname, slogan, accept, attempt").
+		Where("accept > 0").
 		Order("accept DESC, attempt ASC").
 		Offset((page - 1) * size).
 		Limit(size).
