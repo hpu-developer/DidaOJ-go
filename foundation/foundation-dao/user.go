@@ -181,7 +181,7 @@ func (d *UserDao) GetRankAcAll(ctx context.Context, page int, size int) ([]*foun
 	var total int64
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.User{}).
-		Where("attempt > 0").
+		Where("accept > 0").
 		Count(&total).Error
 	if err != nil {
 		return nil, 0, metaerror.Wrap(err, "count total users")
