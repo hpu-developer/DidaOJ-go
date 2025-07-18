@@ -47,7 +47,7 @@ func (d *ProblemDailyDao) HasProblemDaily(ctx *gin.Context, dailyId string) (boo
 		}
 		return false, metaerror.Wrap(err, "check problem title error")
 	}
-	return true, nil
+	return dummy > 0, nil
 }
 
 func (d *ProblemDailyDao) HasProblemDailyProblem(ctx *gin.Context, id int) (bool, error) {
@@ -64,7 +64,7 @@ func (d *ProblemDailyDao) HasProblemDailyProblem(ctx *gin.Context, id int) (bool
 		}
 		return false, metaerror.Wrap(err, "check problem daily error")
 	}
-	return true, nil
+	return dummy > 0, nil
 }
 
 func (d *ProblemDailyDao) GetProblemDaily(
@@ -127,7 +127,7 @@ func (d *ProblemDailyDao) GetDailyList(
 	hasAuth bool,
 	startDate *string,
 	endDate *string,
-	problemId string,
+	problemId int,
 	page int,
 	pageSize int,
 ) ([]*foundationview.ProblemDailyList, int, error) {
@@ -151,7 +151,7 @@ func (d *ProblemDailyDao) GetDailyList(
 			db = db.Where("pd.`key` <= ?", nowId)
 		}
 	}
-	if problemId != "" {
+	if problemId > 0 {
 		db = db.Where("pd.problem_id = ?", problemId)
 	}
 	var totalCount int64

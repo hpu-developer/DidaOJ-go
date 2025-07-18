@@ -177,19 +177,26 @@ func (c *ProblemController) GetDailyList(ctx *gin.Context) {
 
 	problemDailyService := foundationservice.GetProblemDailyService()
 	problemKey := ctx.Query("problem_key")
-
+	problemId, err := foundationservice.GetProblemService().GetProblemIdByKey(ctx, problemKey)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+		return
+	}
+	if problemId <= 0 {
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+		return
+	}
 	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
 		ctx,
 		foundationauth.AuthTypeManageProblemDaily,
 	)
-
 	list, totalCount, tags, problemStatus, err := problemDailyService.GetDailyList(
 		ctx,
 		userId,
 		hasAuth,
 		startDate,
 		endDate,
-		problemKey,
+		problemId,
 		page,
 		pageSize,
 	)

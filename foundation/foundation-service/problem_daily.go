@@ -51,7 +51,7 @@ func (s *ProblemDailyService) GetDailyList(
 	hasAuth bool,
 	startDate *string,
 	endDate *string,
-	problemId string,
+	problemId int,
 	page int,
 	pageSize int,
 ) (
