@@ -280,7 +280,7 @@ func (s *JudgeService) GetRankAcProblem(
 	)
 }
 
-func (s *JudgeService) GetUserAcProblemIds(ctx context.Context, userId int) ([]string, error) {
+func (s *JudgeService) GetUserAcProblemIds(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
 	problemIds, err := foundationdao.GetJudgeJobDao().GetUserAcProblemIds(ctx, userId)
 	if err != nil {
 		return nil, err

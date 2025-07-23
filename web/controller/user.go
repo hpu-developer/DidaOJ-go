@@ -52,8 +52,8 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 	}
 
 	responseData := struct {
-		User       *foundationview.UserInfo `json:"user"`
-		ProblemsAc []string                 `json:"problems_ac"`
+		User       *foundationview.UserInfo         `json:"user"`
+		ProblemsAc []*foundationview.ProblemViewKey `json:"problems_ac"`
 	}{
 		User:       userInfo,
 		ProblemsAc: acProblems,

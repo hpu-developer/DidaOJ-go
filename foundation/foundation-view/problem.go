@@ -21,6 +21,11 @@ type Problem struct {
 	OriginAuthor *string `json:"origin_author,omitempty"`
 }
 
+type ProblemViewKey struct {
+	Id  int    `json:"id"`
+	Key string `json:"key"`
+}
+
 type ProblemForJudge struct {
 	Id          int                       `json:"id"`
 	TimeLimit   int                       `json:"time_limit"`   // 毫秒

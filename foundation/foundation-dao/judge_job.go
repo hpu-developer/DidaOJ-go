@@ -234,12 +234,13 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(
 	return statusMap, nil
 }
 
-func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]string, error) {
-	var problemIds []string
+func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
+	var problemIds []*foundationview.ProblemViewKey
 	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
-		Select("DISTINCT problem_id").
+		Select("DISTINCT problem_id as id, p.`key` as `key`").
 		Where("status = ?", foundationjudge.JudgeStatusAC).
 		Where("inserter = ?", userId).
+		Joins("JOIN problem AS p ON p.id = judge_job.problem_id").
 		Pluck("problem_id", &problemIds).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to get distinct problem_ids")
