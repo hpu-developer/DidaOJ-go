@@ -93,7 +93,7 @@ func (c *UserController) PostModify(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
 		return
 	}
-	err = foundationservice.GetUserService().UpdateUserInfo(ctx, userId, &requestData)
+	err = foundationservice.GetUserService().UpdateUserInfo(ctx, userId, &requestData, metatime.GetTimeNow())
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return

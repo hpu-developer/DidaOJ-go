@@ -9,6 +9,7 @@ import (
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -250,12 +251,18 @@ func (d *UserDao) UpdatePassword(ctx context.Context, username string, encodePas
 	return nil
 }
 
-func (d *UserDao) UpdateUserInfo(ctx context.Context, userId int, request *foundationrequest.UserModifyInfo) error {
+func (d *UserDao) UpdateUserInfo(
+	ctx context.Context,
+	userId int,
+	request *foundationrequest.UserModifyInfo,
+	modifyTime time.Time,
+) error {
 	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
 	res := db.Where("id = ?", userId).
 		Updates(
 			map[string]interface{}{
-				"nickname": request.Nickname,
+				"nickname":    request.Nickname,
+				"modify_time": modifyTime,
 			},
 		)
 	if res.Error != nil {

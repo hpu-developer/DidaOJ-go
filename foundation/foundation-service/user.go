@@ -17,6 +17,7 @@ import (
 	"io"
 	metaerror "meta/meta-error"
 	"meta/singleton"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -215,6 +216,11 @@ func (s *UserService) FilterValidUserIds(ctx *gin.Context, userIds []int) ([]int
 	return foundationdao.GetUserDao().FilterValidUserIds(ctx, userIds)
 }
 
-func (s *UserService) UpdateUserInfo(ctx context.Context, userId int, r *foundationrequest.UserModifyInfo) error {
-	return foundationdao.GetUserDao().UpdateUserInfo(ctx, userId, r)
+func (s *UserService) UpdateUserInfo(
+	ctx context.Context,
+	userId int,
+	r *foundationrequest.UserModifyInfo,
+	modifyTime time.Time,
+) error {
+	return foundationdao.GetUserDao().UpdateUserInfo(ctx, userId, r, modifyTime)
 }
