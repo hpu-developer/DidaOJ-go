@@ -9,8 +9,6 @@ import (
 	foundationservice "foundation/foundation-service"
 	foundationuser "foundation/foundation-user"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	cfturnstile "meta/cf-turnstile"
 	metacontroller "meta/controller"
 	"meta/error-code"
@@ -24,6 +22,9 @@ import (
 	"web/config"
 	weberrorcode "web/error-code"
 	"web/request"
+
+	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 type UserController struct {
