@@ -12,11 +12,13 @@ import (
 	foundationconfig "foundation/foundation-config"
 	foundationdao "foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
+	"foundation/foundation-request"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
 	"io"
 	metaerror "meta/meta-error"
 	"meta/singleton"
+
+	"github.com/gin-gonic/gin"
 )
 
 type UserService struct {
@@ -30,6 +32,10 @@ func GetUserService() *UserService {
 			return &UserService{}
 		},
 	)
+}
+
+func (s *UserService) GetModifyInfo(ctx context.Context, userId int) (*foundationview.UserModifyInfo, error) {
+	return foundationdao.GetUserDao().GetModifyInfo(ctx, userId)
 }
 
 func (s *UserService) GetInfoByUsername(ctx *gin.Context, username string) (*foundationview.UserInfo, error) {
@@ -207,4 +213,8 @@ func (s *UserService) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]
 
 func (s *UserService) FilterValidUserIds(ctx *gin.Context, userIds []int) ([]int, error) {
 	return foundationdao.GetUserDao().FilterValidUserIds(ctx, userIds)
+}
+
+func (s *UserService) UpdateUserInfo(ctx context.Context, userId int, r *foundationrequest.UserModifyInfo) error {
+	return foundationdao.GetUserDao().UpdateUserInfo(ctx, userId, r)
 }

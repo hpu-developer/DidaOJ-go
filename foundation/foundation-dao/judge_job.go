@@ -238,8 +238,8 @@ func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]*f
 	var problemIds []*foundationview.ProblemViewKey
 	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
 		Select("DISTINCT problem_id as id, p.`key` as `key`").
-		Where("status = ?", foundationjudge.JudgeStatusAC).
-		Where("inserter = ?", userId).
+		Where("judge_job.status = ?", foundationjudge.JudgeStatusAC).
+		Where("judge_job.inserter = ?", userId).
 		Joins("JOIN problem AS p ON p.id = judge_job.problem_id").
 		Pluck("problem_id", &problemIds).Error
 	if err != nil {

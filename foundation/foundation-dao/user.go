@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	foundationmodel "foundation/foundation-model"
+	"foundation/foundation-request"
 	foundationview "foundation/foundation-view"
-	"gorm.io/gorm"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
+
+	"gorm.io/gorm"
 )
 
 type UserDao struct {
@@ -57,6 +59,26 @@ func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (
 		return nil, metaerror.Wrap(err, "get user login info by username")
 	}
 	return &user, nil
+}
+
+func (d *UserDao) GetModifyInfo(ctx context.Context, userId int) (*foundationview.UserModifyInfo, error) {
+	var userInfo foundationview.UserModifyInfo
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.User{}).
+		Select(
+			`id, username, nickname, real_name, 
+email, gender, number, slogan, organization, qq, 
+vjudge_id, github, codeforces`,
+		).
+		Where("id = ?", userId).
+		First(&userInfo).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // User not found
+		}
+		return nil, metaerror.Wrap(err, "get user modify info")
+	}
+	return &userInfo, nil
 }
 
 func (d *UserDao) GetInfoByUsername(ctx context.Context, username string) (*foundationview.UserInfo, error) {
@@ -221,6 +243,23 @@ func (d *UserDao) UpdatePassword(ctx context.Context, username string, encodePas
 		Update("password", encodePassword)
 	if res.Error != nil {
 		return metaerror.Wrap(res.Error, "update user password")
+	}
+	if res.RowsAffected == 0 {
+		return metaerror.New("no rows affected, user not found")
+	}
+	return nil
+}
+
+func (d *UserDao) UpdateUserInfo(ctx context.Context, userId int, request *foundationrequest.UserModifyInfo) error {
+	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
+	res := db.Where("id = ?", userId).
+		Updates(
+			map[string]interface{}{
+				"nickname": request.Nickname,
+			},
+		)
+	if res.Error != nil {
+		return metaerror.Wrap(res.Error, "update user info")
 	}
 	if res.RowsAffected == 0 {
 		return metaerror.New("no rows affected, user not found")

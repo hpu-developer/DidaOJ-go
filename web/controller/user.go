@@ -6,6 +6,7 @@ import (
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationmodel "foundation/foundation-model"
+	"foundation/foundation-request"
 	foundationservice "foundation/foundation-service"
 	foundationuser "foundation/foundation-user"
 	foundationview "foundation/foundation-view"
@@ -60,6 +61,44 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 		ProblemsAc: acProblems,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
+func (c *UserController) GetModifyInfo(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
+	userInfo, err := foundationservice.GetUserService().GetModifyInfo(ctx, userId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, userInfo)
+}
+
+func (c *UserController) PostModify(ctx *gin.Context) {
+	var requestData foundationrequest.UserModifyInfo
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	nickname := requestData.Nickname
+	if len(nickname) < 1 || len(nickname) > 30 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
+	err = foundationservice.GetUserService().UpdateUserInfo(ctx, userId, &requestData)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }
 
 func (c *UserController) PostAccountInfos(ctx *gin.Context) {
