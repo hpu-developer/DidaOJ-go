@@ -9,7 +9,6 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
 	"log/slog"
 	metacontroller "meta/controller"
 	"meta/error-code"
@@ -21,6 +20,8 @@ import (
 	"time"
 	weberrorcode "web/error-code"
 	"web/request"
+
+	"github.com/gin-gonic/gin"
 )
 
 type JudgeController struct {
@@ -441,7 +442,17 @@ func (c *JudgeController) PostRejudgeSearch(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-
+	slog.Info(
+		"Rejudge search judge jobs",
+		"userId",
+		userId,
+		"problemId",
+		problemId,
+		"language",
+		language,
+		"status",
+		status,
+	)
 	err = foundationservice.GetJudgeService().PostRejudgeSearch(ctx, problemId, language, status)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
