@@ -262,6 +262,7 @@ func (d *UserDao) UpdateUserInfo(
 		Updates(
 			map[string]interface{}{
 				"nickname":    request.Nickname,
+				"slogan":      request.Slogan,
 				"modify_time": modifyTime,
 			},
 		)

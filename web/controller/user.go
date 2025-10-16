@@ -78,6 +78,11 @@ func (c *UserController) GetModifyInfo(ctx *gin.Context) {
 }
 
 func (c *UserController) PostModify(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
 	var requestData foundationrequest.UserModifyInfo
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
@@ -88,9 +93,9 @@ func (c *UserController) PostModify(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	userId, err := foundationauth.GetUserIdFromContext(ctx)
-	if err != nil {
-		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+	slogan := requestData.Slogan
+	if len(slogan) > 100 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 	err = foundationservice.GetUserService().UpdateUserInfo(ctx, userId, &requestData, metatime.GetTimeNow())
