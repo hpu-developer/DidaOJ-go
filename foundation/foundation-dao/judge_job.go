@@ -273,6 +273,10 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 	if err != nil {
 		return nil, err
 	}
+	userAcProblemIds := make([]int, 0, len(userAcProblems))
+	for _, p := range userAcProblems {
+		userAcProblemIds = append(userAcProblemIds, p.Id)
+	}
 	acUserIDs, err := d.GetAcUserIds(ctx, problemId, 1000)
 	if err != nil {
 		return nil, err
@@ -291,8 +295,8 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 		Where("jj.status = ?", foundationjudge.JudgeStatusAC).
 		Where("jj.inserter IN ?", acUserIDs)
 
-	if len(userAcProblems) > 0 {
-		recQuery = recQuery.Where("jj.problem_id NOT IN ?", userAcProblems)
+	if len(userAcProblemIds) > 0 {
+		recQuery = recQuery.Where("jj.problem_id NOT IN ?", userAcProblemIds)
 	}
 	if problemId > 0 {
 		recQuery = recQuery.Where("jj.problem_id != ?", problemId)
