@@ -256,7 +256,7 @@ func (d *JudgeJobDao) GetAcUserIds(ctx context.Context, problemId int, limit int
 	if problemId > 0 {
 		subDb = subDb.Where("problem_id = ?", problemId)
 	}
-	subDb = subDb.Limit(1000)
+	subDb = subDb.Limit(limit)
 	if err := subDb.Pluck("inserter", &acUserIds).Error; err != nil {
 		return nil, err
 	}
@@ -273,16 +273,16 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 	if err != nil {
 		return nil, err
 	}
-	userAcProblemIds := make([]int, 0, len(userAcProblems))
-	for _, p := range userAcProblems {
-		userAcProblemIds = append(userAcProblemIds, p.Id)
-	}
 	acUserIDs, err := d.GetAcUserIds(ctx, problemId, 1000)
 	if err != nil {
 		return nil, err
 	}
 	if len(acUserIDs) == 0 {
 		return nil, nil
+	}
+	userAcProblemIds := make([]int, 0, len(userAcProblems))
+	for _, p := range userAcProblems {
+		userAcProblemIds = append(userAcProblemIds, p.Id)
 	}
 	type Result struct {
 		ProblemId int
