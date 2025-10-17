@@ -7,13 +7,14 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	metatime "meta/meta-time"
 	"meta/singleton"
 	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ContestDao struct {
@@ -301,25 +302,30 @@ func (d *ContestDao) GetContestList(
 ) ([]*foundationview.ContestList, int, error) {
 	var list []*foundationview.ContestList
 	var total int64
-
-	db := d.db.WithContext(ctx).Model(&foundationmodel.Contest{})
+	base := d.db.WithContext(ctx).Table("contest AS c")
 	if title != "" {
-		db = db.Where("title LIKE ?", "%"+title+"%")
+		base = base.Where("c.title LIKE ?", "%"+title+"%")
 	}
 	if userId > 0 {
-		db = db.Where("inserter = ?", userId)
+		base = base.Where("c.inserter = ?", userId)
 	}
-	if err := db.Count(&total).Error; err != nil {
+	if err := base.Count(&total).Error; err != nil {
 		return nil, 0, metaerror.Wrap(err, "failed to count contest")
 	}
-	err := db.
-		Select("id", "title", "start_time", "end_time", "inserter", "private").
-		Order("start_time DESC, id DESC").
+	selectCols := `
+    c.id, c.title, c.start_time, c.end_time, c.inserter, c.private,
+    u.username AS inserter_username, u.nickname AS inserter_nickname
+`
+	err := base.
+		Select(selectCols).
+		Joins("LEFT JOIN `user` AS u ON c.inserter = u.id").
+		Order("c.start_time DESC, c.id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
-		Find(&list).Error
+		Scan(&list).Error
+
 	if err != nil {
-		return nil, 0, metaerror.Wrap(err, "failed to find contes")
+		return nil, 0, metaerror.Wrap(err, "failed to find contests")
 	}
 	return list, int(total), nil
 }

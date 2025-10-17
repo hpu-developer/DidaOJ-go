@@ -9,10 +9,6 @@ import (
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"log"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
@@ -29,6 +25,11 @@ import (
 	weberrorcode "web/error-code"
 	"web/request"
 	"web/service"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type ContestController struct {
