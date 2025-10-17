@@ -207,6 +207,7 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 	)
 
 	err = metaemail.SendEmail(
+		"DidaOJ",
 		config.GetConfig().Email.Email,
 		config.GetConfig().Email.Password,
 		config.GetConfig().Email.Host,
@@ -363,6 +364,7 @@ func (c *UserController) PostForget(ctx *gin.Context) {
 	)
 
 	err = metaemail.SendEmail(
+		"DidaOJ",
 		config.GetConfig().Email.Email,
 		config.GetConfig().Email.Password,
 		config.GetConfig().Email.Host,
