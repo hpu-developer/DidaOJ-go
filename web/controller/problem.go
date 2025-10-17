@@ -12,11 +12,6 @@ import (
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/mongo"
 	"log"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
@@ -39,6 +34,12 @@ import (
 	weberrorcode "web/error-code"
 	"web/request"
 	"web/service"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type ProblemJudgeData struct {
@@ -258,12 +259,16 @@ func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 		return
 	}
 	problemService := foundationservice.GetProblemService()
-	problemIdStr := ctx.Query("problem_id")
-	problemId := 0
-	if problemIdStr != "" {
-		problemId, err = strconv.Atoi(problemIdStr)
-		if err != nil || problemId <= 0 {
-			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	problemKey := ctx.Query("problem_key")
+	var problemId int
+	if problemKey != "" {
+		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, problemKey)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+			return
+		}
+		if problemId <= 0 {
+			metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
 			return
 		}
 	}
