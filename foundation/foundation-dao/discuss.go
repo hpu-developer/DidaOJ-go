@@ -5,11 +5,12 @@ import (
 	"errors"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type DiscussDao struct {
@@ -174,7 +175,7 @@ func (d *DiscussDao) GetDiscussList(
 		Joins("LEFT JOIN `user` AS um ON um.id = discuss.modifier")
 
 	if contestId > 0 {
-		db = db.Joins("LEFT JOIN `contest_problem` AS cp ON cp.problem_id = discuss.problem_id AND cp.contest_id = discuss.contest_id")
+		db = db.Joins("LEFT JOIN `contest_problem` AS cp ON cp.problem_id = discuss.problem_id AND cp.id = discuss.contest_id")
 	} else {
 		db = db.Joins("LEFT JOIN `problem` AS p ON p.id = discuss.problem_id")
 	}

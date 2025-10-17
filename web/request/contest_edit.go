@@ -30,9 +30,9 @@ func (r *ContestEdit) CheckRequest() (bool, int) {
 		return false, int(foundationerrorcode.ParamError)
 	}
 	// 开始时间不能早于当前时间
-	if r.StartTime.Before(time.Now()) {
-		return false, int(foundationerrorcode.ParamError)
-	}
+	//if r.StartTime.Before(time.Now()) {
+	//	return false, int(foundationerrorcode.ParamError)
+	//}
 	// 判断结束时间是否在开始时间之前
 	if r.EndTime.Before(r.StartTime) {
 		return false, int(foundationerrorcode.ParamError)
