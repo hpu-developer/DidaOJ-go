@@ -51,7 +51,7 @@ func (d *DiscussDao) GetDiscussDetail(ctx context.Context, id int) (*foundationv
 			`
 			d.id, d.title, d.content, d.view_count, d.problem_id, d.contest_id, d.judge_id,
 			d.inserter, d.modifier, d.insert_time, d.modify_time, d.update_time, d.banned,
-			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
+			u1.username AS inserter_username, u1.nickname AS inserter_nickname, u1.email AS inserter_email,
 			u2.username AS modifier_username, u2.nickname AS modifier_nickname,
 			p.key AS problem_key
 		`,
@@ -159,6 +159,7 @@ func (d *DiscussDao) GetDiscussList(
 
 		"ui.username AS inserter_username",
 		"ui.nickname AS inserter_nickname",
+		"ui.email AS inserter_email",
 		"um.username AS modifier_username",
 		"um.nickname AS modifier_nickname",
 	}
