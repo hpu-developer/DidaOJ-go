@@ -11,11 +11,6 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"gopkg.in/yaml.v3"
 	"io"
 	"log/slog"
 	cfr2 "meta/cf-r2"
@@ -42,6 +37,12 @@ import (
 	"sync"
 	"time"
 	weberrorcode "web/error-code"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 )
 
 type ProblemService struct {
@@ -333,6 +334,15 @@ func (s *ProblemService) GetProblemRecommend(
 			return nil, err
 		}
 		return nil, nil
+	}
+	problemMap, err := foundationdao.GetProblemTagDao().GetProblemTagMap(ctx, problemIds)
+	if err != nil {
+		return nil, err
+	}
+	for _, problem := range problemList {
+		if tags, ok := problemMap[problem.Id]; ok {
+			problem.Tags = tags
+		}
 	}
 	jsonString, err := json.Marshal(problemList)
 	if err != nil {
