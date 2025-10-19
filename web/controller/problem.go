@@ -215,13 +215,17 @@ func (c *ProblemController) GetAttemptStatus(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	ids := strings.Split(idsStr, ",")
-	validProblemIds, err := foundationservice.GetProblemService().GetProblemIdsByKey(ctx, ids)
-	if err != nil {
-		metaresponse.NewResponseError(ctx, err)
-		return
+	idStrList := strings.Split(idsStr, ",")
+	var ids []int
+	for _, idStr := range idStrList {
+		id, err := strconv.Atoi(strings.TrimSpace(idStr))
+		if err != nil || id <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		ids = append(ids, id)
 	}
-	if len(validProblemIds) == 0 {
+	if len(ids) == 0 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
@@ -232,7 +236,7 @@ func (c *ProblemController) GetAttemptStatus(ctx *gin.Context) {
 	}
 	problemStatus, err := foundationservice.GetJudgeService().GetProblemAttemptStatus(
 		ctx,
-		validProblemIds,
+		ids,
 		userId,
 		-1,
 		nil,
