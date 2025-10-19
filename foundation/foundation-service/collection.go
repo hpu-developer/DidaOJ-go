@@ -8,9 +8,10 @@ import (
 	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
 	"meta/singleton"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type CollectionService struct {
@@ -163,7 +164,22 @@ func (s *CollectionService) GetCollectionEdit(ctx context.Context, id int) (
 	*foundationview.CollectionDetail,
 	error,
 ) {
-	return foundationdao.GetCollectionDao().GetCollectionDetail(ctx, id)
+	collection, err := foundationdao.GetCollectionDao().GetCollectionDetail(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if collection == nil {
+		return nil, nil
+	}
+	collection.Problems, err = foundationdao.GetCollectionProblemDao().GetCollectionProblems(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	collection.Members, err = foundationdao.GetCollectionDao().GetCollectionMemberIds(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return collection, nil
 }
 
 func (s *CollectionService) GetCollectionList(

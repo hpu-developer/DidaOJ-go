@@ -10,7 +10,6 @@ import (
 	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
 	"io"
 	metaerror "meta/meta-error"
 	metapanic "meta/meta-panic"
@@ -24,6 +23,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type ContestService struct {
@@ -195,6 +196,12 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 
 func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundationview.ContestDetailEdit, error) {
 	contest, err := foundationdao.GetContestDao().GetContestEdit(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if contest == nil {
+		return nil, nil
+	}
 	contest.Problems, err = foundationdao.GetContestProblemDao().GetProblemIds(ctx, id)
 	if err != nil {
 		return nil, err

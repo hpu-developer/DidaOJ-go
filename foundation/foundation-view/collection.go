@@ -22,4 +22,7 @@ type CollectionDetail struct {
 	InserterNickname string `json:"inserter_nickname"`
 	ModifierUsername string `json:"modifier_username"`
 	ModifierNickname string `json:"modifier_nickname"`
+
+	Problems []int `json:"problems"`
+	Members  []int `json:"members"`
 }
