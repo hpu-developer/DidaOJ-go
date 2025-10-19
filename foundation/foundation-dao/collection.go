@@ -7,11 +7,12 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"gorm.io/gorm"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type CollectionDao struct {
@@ -132,6 +133,19 @@ func (d *CollectionDao) GetCollectionRankDetail(
 	}
 	return &detail, nil
 }
+
+func (d *CollectionDao) GetCollectionMemberIds(ctx context.Context, id int) ([]int, error) {
+	var memberIds []int
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.CollectionMember{}).
+		Where("id = ?", id).
+		Pluck("user_id", &memberIds).Error
+	if err != nil {
+		return nil, metaerror.Wrap(err, "get collection member ids")
+	}
+	return memberIds, nil
+}
+
 func (d *CollectionDao) GetCollectionRank(
 	ctx context.Context,
 	collectionId int,
@@ -141,22 +155,25 @@ func (d *CollectionDao) GetCollectionRank(
 		Table("judge_job AS j").
 		Select(
 			`
-            j.inserter             AS inserter,
-            u.username              AS inserter_username,
-            u.nickname              AS inserter_nickname,
-            COUNT(CASE WHEN j.status = ? THEN 1 END) AS accept
-        `, foundationjudge.JudgeStatusAC,
+			j.inserter AS inserter,
+			u.username AS inserter_username,
+			u.nickname AS inserter_nickname,
+			COUNT(DISTINCT CASE WHEN j.status = ? THEN j.problem_id END) AS accept
+		`, foundationjudge.JudgeStatusAC,
 		).
 		Joins("JOIN collection_member AS cm ON cm.user_id = j.inserter AND cm.id = ?", collectionId).
-		Joins("JOIN user AS u       ON u.id = j.inserter").
+		Joins("JOIN user AS u ON u.id = j.inserter").
 		Where("j.problem_id IN ?", collection.Problems)
+
 	if collection.StartTime != nil {
 		db = db.Where("j.insert_time >= ?", *collection.StartTime)
 	}
 	if collection.EndTime != nil {
 		db = db.Where("j.insert_time <= ?", *collection.EndTime)
 	}
+
 	db = db.Group("j.inserter")
+
 	var ranks []*foundationview.CollectionRank
 	if err := db.Scan(&ranks).Error; err != nil {
 		return nil, err
