@@ -9,11 +9,12 @@ import (
 )
 
 type Config struct {
-	Judger    foundationjudge.JudgerConfig  `yaml:"judger"`     // 评测器标识
-	GoJudge   foundationjudge.GoJudgeConfig `yaml:"go-judge"`   // GoJudge 数据服务地址
-	MaxJob    int                           `yaml:"max-job"`    // 最大同时评测的job数量
-	JudgeData cfr2.Config                   `yaml:"judge-data"` // GoJudge 数据服务地址
-	Mysql     map[string]*metamysql.Config  `yaml:"mysql"`      // MySQL 数据库配置
+	Judger       foundationjudge.JudgerConfig  `yaml:"judger"`         // 评测器标识
+	GoJudge      foundationjudge.GoJudgeConfig `yaml:"go-judge"`       // GoJudge 数据服务地址
+	MaxJob       int                           `yaml:"max-job"`        // 最大同时评测的job数量
+	MaxJobRemote int                           `yaml:"max-job-remote"` // 最大同时远程评测的job数量
+	JudgeData    cfr2.Config                   `yaml:"judge-data"`     // GoJudge 数据服务地址
+	Mysql        map[string]*metamysql.Config  `yaml:"mysql"`          // MySQL 数据库配置
 
 	CfR2 map[string]*cfr2.Config `yaml:"cf-r2"` // GoJudge 数据服务地址
 

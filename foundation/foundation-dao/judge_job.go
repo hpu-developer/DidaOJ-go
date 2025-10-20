@@ -10,15 +10,16 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	metapanic "meta/meta-panic"
 	"meta/singleton"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type JudgeJobDao struct {
@@ -607,37 +608,53 @@ func (d *JudgeJobDao) ForeachContestAcCodes(
 	return nil
 }
 
-// RequestJudgeJobListPendingJudge 获取待评测的 JudgeJob 列表，优先取最小的
-func (d *JudgeJobDao) RequestJudgeJobListPendingJudge(
+// RequestLocalJudgeJobListPendingJudge 获取待本地评测的 JudgeJob 列表，优先取最小的
+func (d *JudgeJobDao) RequestLocalJudgeJobListPendingJudge(
 	ctx context.Context,
 	maxCount int,
 	judger string,
 ) ([]*foundationmodel.JudgeJob, error) {
 	now := time.Now()
 	var jobs []*foundationmodel.JudgeJob
+
 	err := d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			// 1. SELECT ... FOR UPDATE SKIP LOCKED
 			var jobIds []struct {
 				Id int `gorm:"column:id"`
 			}
+
+			sql := `
+			SELECT j.id
+			FROM judge_job AS j
+			WHERE j.status IN (?, ?)
+			  AND EXISTS (
+				  SELECT 1 FROM problem_local AS pr
+				  WHERE pr.problem_id = j.problem_id
+			  )
+			ORDER BY j.status, j.id
+			LIMIT ? FOR UPDATE SKIP LOCKED
+		`
 			if err := tx.Raw(
-				`SELECT id FROM judge_job  WHERE status IN (?, ?) ORDER BY status ,id  LIMIT ? FOR UPDATE SKIP LOCKED`,
+				sql,
 				foundationjudge.JudgeStatusInit,
 				foundationjudge.JudgeStatusRejudge,
 				maxCount,
 			).Scan(&jobIds).Error; err != nil {
 				return err
 			}
+
 			if len(jobIds) == 0 {
 				return nil // 没有任务可领取
 			}
+
 			// 提取出 id 列表
 			ids := make([]int, len(jobIds))
 			for i, job := range jobIds {
 				ids[i] = job.Id
 			}
-			// 2. 执行 UPDATE
+
+			// 2. UPDATE 任务状态
 			if err := tx.Model(&foundationmodel.JudgeJob{}).
 				Where("id IN ?", ids).
 				Updates(
@@ -649,10 +666,82 @@ func (d *JudgeJobDao) RequestJudgeJobListPendingJudge(
 				).Error; err != nil {
 				return err
 			}
-			// 3. SELECT 完整任务信息返回
+
+			// 3. 返回完整任务信息
 			return tx.Where("id IN ?", ids).Find(&jobs).Error
 		},
 	)
+
+	if err != nil {
+		return nil, err
+	}
+	return jobs, nil
+}
+
+// RequestRemoteJudgeJobListPendingJudge 获取待远程评测的 JudgeJob 列表，优先取最小的
+func (d *JudgeJobDao) RequestRemoteJudgeJobListPendingJudge(
+	ctx context.Context,
+	maxCount int,
+	judger string,
+) ([]*foundationmodel.JudgeJob, error) {
+	now := time.Now()
+	var jobs []*foundationmodel.JudgeJob
+
+	err := d.db.WithContext(ctx).Transaction(
+		func(tx *gorm.DB) error {
+			// 1. SELECT ... FOR UPDATE SKIP LOCKED
+			var jobIds []struct {
+				Id int `gorm:"column:id"`
+			}
+
+			sql := `
+			SELECT j.id
+			FROM judge_job AS j
+			WHERE j.status IN (?, ?)
+			  AND EXISTS (
+				  SELECT 1 FROM problem_remote AS pr
+				  WHERE pr.problem_id = j.problem_id
+			  )
+			ORDER BY j.status, j.id
+			LIMIT ? FOR UPDATE SKIP LOCKED
+		`
+			if err := tx.Raw(
+				sql,
+				foundationjudge.JudgeStatusInit,
+				foundationjudge.JudgeStatusRejudge,
+				maxCount,
+			).Scan(&jobIds).Error; err != nil {
+				return err
+			}
+
+			if len(jobIds) == 0 {
+				return nil // 没有任务可领取
+			}
+
+			// 提取出 id 列表
+			ids := make([]int, len(jobIds))
+			for i, job := range jobIds {
+				ids[i] = job.Id
+			}
+
+			// 2. UPDATE 任务状态
+			if err := tx.Model(&foundationmodel.JudgeJob{}).
+				Where("id IN ?", ids).
+				Updates(
+					map[string]interface{}{
+						"status":     foundationjudge.JudgeStatusQueuing,
+						"judger":     judger,
+						"judge_time": now,
+					},
+				).Error; err != nil {
+				return err
+			}
+
+			// 3. 返回完整任务信息
+			return tx.Where("id IN ?", ids).Find(&jobs).Error
+		},
+	)
+
 	if err != nil {
 		return nil, err
 	}

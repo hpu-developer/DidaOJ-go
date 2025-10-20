@@ -9,7 +9,6 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"gopkg.in/yaml.v3"
 	"io"
 	"judge/config"
 	gojudge "judge/go-judge"
@@ -35,6 +34,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -210,7 +211,7 @@ func (s *JudgeService) handleStart() error {
 		return nil
 	}
 	ctx := context.Background()
-	jobs, err := foundationdao.GetJudgeJobDao().RequestJudgeJobListPendingJudge(
+	jobs, err := foundationdao.GetJudgeJobDao().RequestLocalJudgeJobListPendingJudge(
 		ctx,
 		maxJob-runningCount,
 		config.GetConfig().Judger.Key,
