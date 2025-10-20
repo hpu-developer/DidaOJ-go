@@ -2,12 +2,14 @@ package foundationdao
 
 import (
 	"context"
+	"errors"
 	foundationmodel "foundation/foundation-model"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	"meta/singleton"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type JudgerDao struct {
@@ -25,6 +27,20 @@ func GetJudgerDao() *JudgerDao {
 			return dao
 		},
 	)
+}
+
+func (d *JudgerDao) IsEnableJudge(ctx context.Context, key string) (bool, error) {
+	var judger foundationmodel.Judger
+	err := d.db.WithContext(ctx).
+		Where("`key` = ? AND `enable` = 1", key).
+		First(&judger).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, metaerror.Wrap(err, "failed to get judger")
+	}
+	return true, nil
 }
 
 func (d *JudgerDao) UpdateJudger(ctx context.Context, judger *foundationmodel.Judger) error {

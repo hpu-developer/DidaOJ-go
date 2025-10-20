@@ -6,7 +6,6 @@ import (
 	foundationmodel "foundation/foundation-model"
 	"judge/config"
 	"log/slog"
-	cfr2 "meta/cf-r2"
 	"meta/cron"
 	metaerror "meta/meta-error"
 	metaformat "meta/meta-format"
@@ -18,6 +17,7 @@ import (
 
 type StatusService struct {
 	isReportError bool
+	isEnableJudge bool
 }
 
 var singletonStatusService = singleton.Singleton[StatusService]{}
@@ -32,6 +32,9 @@ func GetStatusService() *StatusService {
 }
 
 func (s *StatusService) Start() error {
+
+	s.isEnableJudge = false
+	s.isReportError = false
 
 	c := cron.NewWithSeconds()
 	// 每3秒运行一次任务
@@ -59,10 +62,6 @@ func (s *StatusService) handleStart() error {
 
 	slog.Info("status service start", "judger", metaformat.StringByJson(config.GetConfig().Judger))
 
-	r2Client := cfr2.GetSubsystem().GetClient("didapipa-oj")
-	if r2Client == nil {
-		return metaerror.New("r2Client is nil")
-	}
 	ctx := context.Background()
 
 	nowTime := time.Now()
@@ -96,9 +95,18 @@ func (s *StatusService) handleStart() error {
 	if err != nil {
 		return err
 	}
+
+	s.isEnableJudge, err = foundationdao.GetJudgerDao().IsEnableJudge(ctx, config.GetConfig().Judger.Key)
+	if err != nil {
+		return metaerror.Wrap(err, "get is enable judge failed")
+	}
 	return nil
 }
 
 func (s *StatusService) IsReportError() bool {
 	return s.isReportError
+}
+
+func (s *StatusService) IsEnableJudge() bool {
+	return s.isEnableJudge
 }

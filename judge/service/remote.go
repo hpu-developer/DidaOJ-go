@@ -86,6 +86,10 @@ func (s *RemoteService) Start() error {
 
 func (s *RemoteService) handleStart() error {
 
+	// 如果没开启评测，停止判题
+	if GetStatusService().IsEnableJudge() {
+		return nil
+	}
 	// 如果上报状态报错，停止判题
 	if GetStatusService().IsReportError() {
 		return nil

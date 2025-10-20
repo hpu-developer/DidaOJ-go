@@ -294,7 +294,7 @@ CREATE TABLE `judge_job` (
   KEY `idx_contest_inserter_problem_id_id` (`contest_id`,`inserter`,`problem_id`,`id`),
   KEY `idx_status_id` (`status`,`id`),
   KEY `idx_status_problem_id` (`status`,`problem_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=150841 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=150845 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -349,7 +349,9 @@ CREATE TABLE `judger` (
   `insert_time` datetime DEFAULT NULL,
   `modify_time` datetime DEFAULT NULL,
   `hidden` tinyint(1) DEFAULT NULL,
-  PRIMARY KEY (`key`)
+  `enable` tinyint(1) DEFAULT NULL COMMENT '是否启用',
+  PRIMARY KEY (`key`),
+  KEY `judger_enable_index` (`enable`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -551,4 +553,4 @@ CREATE TABLE `user_role` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-10-20 17:32:38
+-- Dump completed on 2025-10-20 18:25:18
