@@ -2,10 +2,12 @@ package foundationdao
 
 import (
 	"context"
-	"gorm.io/gorm"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
+	metautf "meta/meta-utf"
 	"meta/singleton"
+
+	"gorm.io/gorm"
 )
 
 type JudgeJobCompileDao struct {
@@ -30,6 +32,7 @@ func (d *JudgeJobCompileDao) MarkJudgeJobCompileMessage(
 	judger string,
 	message string,
 ) error {
+	message = metautf.SanitizeText(message)
 	err := d.db.WithContext(ctx).
 		Exec(
 			`

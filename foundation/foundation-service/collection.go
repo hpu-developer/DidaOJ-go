@@ -4,7 +4,6 @@ import (
 	"context"
 	foundationauth "foundation/foundation-auth"
 	foundationdao "foundation/foundation-dao"
-	foundationdaomongo "foundation/foundation-dao-mongo"
 	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
@@ -40,7 +39,7 @@ func (s *CollectionService) CheckEditAuth(ctx *gin.Context, collectionId int) (
 		return userId, false, nil
 	}
 	if !hasAuth {
-		ownerId, err := foundationdaomongo.GetCollectionDao().GetCollectionOwnerId(ctx, collectionId)
+		ownerId, err := foundationdao.GetCollectionDao().GetCollectionInserter(ctx, collectionId)
 		if err != nil {
 			return userId, false, err
 		}
@@ -64,7 +63,7 @@ func (s *CollectionService) CheckJoinAuth(ctx *gin.Context, collectionId int) (
 		return userId, false, nil
 	}
 	if !hasAuth {
-		hasAuth, err = foundationdaomongo.GetCollectionDao().CheckJoinAuth(ctx, collectionId, userId)
+		hasAuth, err = foundationdao.GetCollectionDao().CheckUserJoin(ctx, collectionId, userId)
 		if err != nil {
 			return userId, false, err
 		}
@@ -73,7 +72,7 @@ func (s *CollectionService) CheckJoinAuth(ctx *gin.Context, collectionId int) (
 }
 
 func (s *CollectionService) HasCollectionTitle(ctx *gin.Context, id int, title string) (bool, error) {
-	return foundationdaomongo.GetCollectionDao().HasCollectionTitle(ctx, id, title)
+	return foundationdao.GetCollectionDao().HasCollectionTitle(ctx, id, title)
 }
 
 func (s *CollectionService) GetCollection(ctx context.Context, id int, userId int) (
@@ -218,11 +217,11 @@ func (s *CollectionService) GetCollectionRanks(ctx context.Context, id int) (
 }
 
 func (s *CollectionService) PostJoin(ctx *gin.Context, collectionId int, userId int) error {
-	return foundationdaomongo.GetCollectionDao().PostJoin(ctx, collectionId, userId)
+	return foundationdao.GetCollectionDao().PostJoin(ctx, collectionId, userId)
 }
 
 func (s *CollectionService) PostQuit(ctx *gin.Context, collectionId int, userId int) error {
-	return foundationdaomongo.GetCollectionDao().PostQuit(ctx, collectionId, userId)
+	return foundationdao.GetCollectionDao().PostQuit(ctx, collectionId, userId)
 }
 
 func (s *CollectionService) InsertCollection(

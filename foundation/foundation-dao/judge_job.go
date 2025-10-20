@@ -729,7 +729,7 @@ func (d *JudgeJobDao) RequestRemoteJudgeJobListPendingJudge(
 				Where("id IN ?", ids).
 				Updates(
 					map[string]interface{}{
-						"status":     foundationjudge.JudgeStatusQueuing,
+						"status":     foundationjudge.JudgeStatusSubmitting,
 						"judger":     judger,
 						"judge_time": now,
 					},
@@ -773,6 +773,26 @@ func (d *JudgeJobDao) MarkJudgeJobJudgeStatus(
 		Model(&foundationmodel.JudgeJob{}).
 		Where("id = ? AND judger = ?", id, judger).
 		Update("status", status).Error
+	if err != nil {
+		return metaerror.Wrap(err, "failed to mark judge job status")
+	}
+	return nil
+}
+
+func (d *JudgeJobDao) MarkJudgeJobRemoteSubmit(
+	ctx context.Context,
+	id int,
+	judger string,
+	remoteJudgeId string,
+	remoteAccountId string,
+) error {
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.JudgeJob{}).
+		Where("id = ? AND judger = ?", id, judger).
+		Update("status", foundationjudge.JudgeStatusQueuing).
+		Update("remote_judge_id", remoteJudgeId).
+		Update("remote_account_id", remoteAccountId).
+		Error
 	if err != nil {
 		return metaerror.Wrap(err, "failed to mark judge job status")
 	}
@@ -916,10 +936,12 @@ func (d *JudgeJobDao) RejudgeJob(ctx context.Context, id int) error {
 			updateMap := map[string]interface{}{
 				"status": foundationjudge.JudgeStatusRejudge,
 				"score":  nil, "time": nil, "memory": nil,
-				"task_current": nil,
-				"task_total":   nil,
-				"judger":       nil,
-				"judge_time":   nil,
+				"task_current":      nil,
+				"task_total":        nil,
+				"judger":            nil,
+				"judge_time":        nil,
+				"remote_judge_id":   nil,
+				"remote_account_id": nil,
 			}
 			if err := tx.Table("judge_job").
 				Where("id = ?", id).

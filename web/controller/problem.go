@@ -10,6 +10,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationoj "foundation/foundation-oj"
 	foundationr2 "foundation/foundation-r2"
+	"foundation/foundation-remote"
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
 	"log"
@@ -614,7 +615,11 @@ func (c *ProblemController) PostCrawl(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, metaerrorcode.Success, key)
 		return
 	}
-	newId, err := service.GetProblemCrawlService().PostCrawlProblem(ctx, oj, key)
+	agent := foundationremote.GetRemoteAgent(foundationremote.GetRemoteTypeByString(oj))
+	newId, err := agent.PostCrawlProblem(
+		ctx,
+		key,
+	)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return

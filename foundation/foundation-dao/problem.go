@@ -7,14 +7,15 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
 	metatime "meta/meta-time"
 	"meta/singleton"
 	"strconv"
 	"strings"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ProblemDao struct {
@@ -350,7 +351,10 @@ func (d *ProblemDao) GetProblemTitles(
 	return titles, err
 }
 
-func (d *ProblemDao) GetProblemViewForJudge(ctx context.Context, id int) (*foundationview.ProblemForJudge, error) {
+func (d *ProblemDao) GetProblemViewForLocalJudge(ctx context.Context, id int) (
+	*foundationview.ProblemForLocalJudge,
+	error,
+) {
 	db := d.db.WithContext(ctx).Table("problem AS p").
 		Select(
 			`
@@ -360,7 +364,30 @@ func (d *ProblemDao) GetProblemViewForJudge(ctx context.Context, id int) (*found
 		).
 		Joins(`LEFT JOIN problem_local r ON r.problem_id = p.id`).
 		Where("p.id = ?", id)
-	var problem foundationview.ProblemForJudge
+	var problem foundationview.ProblemForLocalJudge
+	if err := db.First(&problem).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "find problem with remote info error")
+	}
+	return &problem, nil
+}
+
+func (d *ProblemDao) GetProblemViewForRemoteJudge(ctx context.Context, id int) (
+	*foundationview.ProblemForRemoteJudge,
+	error,
+) {
+	db := d.db.WithContext(ctx).Table("problem AS p").
+		Select(
+			`
+			p.id,
+			r.origin_oj, r.origin_id
+		`,
+		).
+		Joins(`LEFT JOIN problem_remote r ON r.problem_id = p.id`).
+		Where("p.id = ?", id)
+	var problem foundationview.ProblemForRemoteJudge
 	if err := db.First(&problem).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

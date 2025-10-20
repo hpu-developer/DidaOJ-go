@@ -10,11 +10,12 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
 	metaerror "meta/meta-error"
 	metatime "meta/meta-time"
 	"meta/singleton"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type JudgeService struct {
@@ -262,6 +263,17 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 	}
 
 	return
+}
+
+func (s *JudgeService) IsEnableRemoteJudge(oj string, problemId string) bool {
+	if oj == "" {
+		return true
+	}
+	if oj == string(foundationenum.RemoteJudgeTypeHdu) {
+		return true
+	}
+
+	return false
 }
 
 func (s *JudgeService) GetRankAcProblem(

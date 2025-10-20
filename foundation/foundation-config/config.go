@@ -20,4 +20,11 @@ type Config struct {
 		App         map[string]metafeishu.AppConfig `yaml:"app"`
 		Chat        feishuchat.Config               `yaml:"chat"`
 	} `yaml:"feishu"`
+
+	Remote struct {
+		Hdu struct {
+			Username string `yaml:"username"`
+			Password string `yaml:"password"`
+		} `yaml:"hdu"`
+	} `yaml:"remote"`
 }

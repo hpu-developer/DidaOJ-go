@@ -194,12 +194,8 @@ func (s *JudgeService) uploadFile(filePath string) (*string, error) {
 
 func (s *JudgeService) handleStart() error {
 
-	if true {
-		return nil
-	}
-
 	// 如果没开启评测，停止判题
-	if GetStatusService().IsEnableJudge() {
+	if !GetStatusService().IsEnableJudge() {
 		return nil
 	}
 	// 如果上报状态报错，停止判题
@@ -257,7 +253,14 @@ func (s *JudgeService) handleStart() error {
 				slog.Info(fmt.Sprintf("JudgeTask_%d start", job.Id))
 				err = s.startJudgeTask(job)
 				if err != nil {
-					markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(
+					markErr := foundationdao.GetJudgeJobCompileDao().MarkJudgeJobCompileMessage(
+						ctx, job.Id, config.GetConfig().Judger.Key,
+						err.Error(),
+					)
+					if markErr != nil {
+						metapanic.ProcessError(markErr)
+					}
+					markErr = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(
 						ctx,
 						job.Id,
 						config.GetConfig().Judger.Key,
@@ -286,7 +289,7 @@ func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 		// 如果没有成功处理，可以认为是中途已经被别的判题机处理了
 		return nil
 	}
-	problem, err := foundationdao.GetProblemDao().GetProblemViewForJudge(ctx, job.ProblemId)
+	problem, err := foundationdao.GetProblemDao().GetProblemViewForLocalJudge(ctx, job.ProblemId)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to get problem")
 	}
@@ -618,7 +621,7 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (
 func (s *JudgeService) runJudgeJob(
 	ctx context.Context,
 	job *foundationmodel.JudgeJob,
-	problem *foundationview.ProblemForJudge,
+	problem *foundationview.ProblemForLocalJudge,
 	execFileIds map[string]string,
 ) error {
 	problemId := job.ProblemId

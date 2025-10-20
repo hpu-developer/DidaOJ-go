@@ -26,12 +26,18 @@ type ProblemViewKey struct {
 	Key string `json:"key"`
 }
 
-type ProblemForJudge struct {
+type ProblemForLocalJudge struct {
 	Id          int                       `json:"id"`
 	TimeLimit   int                       `json:"time_limit"`   // 毫秒
 	MemoryLimit int                       `json:"memory_limit"` // KB
 	JudgeType   foundationjudge.JudgeType `json:"judge_type"`
 	JudgeMd5    *string                   `json:"judge_md5"`
+}
+
+type ProblemForRemoteJudge struct {
+	Id       int    `json:"id"`
+	OriginOj string `json:"origin_oj"` // 题目来源的OJ
+	OriginId string `json:"origin_id"` // 题目来源的Id
 }
 
 type ProblemJudgeData struct {

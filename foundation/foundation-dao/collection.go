@@ -12,6 +12,7 @@ import (
 	"meta/singleton"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -49,6 +50,32 @@ func (d *CollectionDao) CheckUserJoin(ctx context.Context, id int, userId int) (
 		return true, nil
 	}
 	return false, nil
+}
+
+func (d *CollectionDao) GetCollectionInserter(ctx *gin.Context, id int) (int, error) {
+	var inserter int
+	if err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Collection{}).
+		Where("id = ?", id).
+		Pluck("inserter", &inserter).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, metaerror.New("contest not found")
+		}
+		return 0, metaerror.Wrap(err, "get contest owner id failed")
+	}
+	return inserter, nil
+}
+
+func (d *CollectionDao) HasCollectionTitle(ctx *gin.Context, id int, title string) (bool, error) {
+	var count int64
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Collection{}).
+		Where("title = ? AND id != ?", title, id).
+		Count(&count).Error
+	if err != nil {
+		return false, metaerror.Wrap(err, "check collection title failed")
+	}
+	return count > 0, nil
 }
 
 func (d *CollectionDao) GetCollectionDetail(ctx context.Context, id int) (*foundationview.CollectionDetail, error) {
@@ -340,6 +367,31 @@ func (d *CollectionDao) InsertCollection(
 	)
 	if err != nil {
 		return metaerror.Wrap(err, "transaction failed")
+	}
+	return nil
+}
+
+func (d *CollectionDao) PostJoin(ctx *gin.Context, collectionId int, userId int) error {
+	collectionMember := &foundationmodel.CollectionMember{
+		Id:     collectionId,
+		UserId: userId,
+	}
+	err := d.db.WithContext(ctx).Create(collectionMember).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil
+		}
+		return metaerror.Wrap(err, "failed to insert collection member")
+	}
+	return nil
+}
+
+func (d *CollectionDao) PostQuit(ctx *gin.Context, collectionId int, userId int) error {
+	err := d.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", collectionId, userId).
+		Delete(&foundationmodel.CollectionMember{}).Error
+	if err != nil {
+		return metaerror.Wrap(err, "failed to delete collection member")
 	}
 	return nil
 }

@@ -295,9 +295,18 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 			return
 		}
+		if userId <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NeedLogin, nil)
+			return
+		}
 		contestId = 0
 		problemIndex = 0
 	} else {
+		userId, err = foundationauth.GetUserIdFromContext(ctx)
+		if err != nil || userId <= 0 {
+			metaresponse.NewResponse(ctx, foundationerrorcode.NeedLogin, nil)
+			return
+		}
 		problemId, err = foundationservice.GetContestService().GetProblemIdByContestIndex(
 			ctx,
 			contestId,
@@ -335,7 +344,7 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		return
 	}
 
-	if problem.OriginId != "" {
+	if !foundationservice.GetJudgeService().IsEnableRemoteJudge(problem.OriginOj, problem.OriginId) {
 		metaresponse.NewResponse(ctx, weberrorcode.JudgeApproveCannotOriginOj, nil)
 		return
 	}

@@ -1,12 +1,14 @@
-package service
+package foundationremote
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	foundationjudge "foundation/foundation-judge"
 	"html"
 	"io"
 	"log"
+	metaerror "meta/meta-error"
 	"meta/singleton"
 	"net/http"
 	"os"
@@ -87,25 +89,43 @@ func extractBetween(s, start, end string) string {
 	return ""
 }
 
-type CrawlNyojService struct {
+type RemoteNyojAgent struct {
 }
 
-var singletonCrawlNyojService = singleton.Singleton[CrawlNyojService]{}
+var singletonRemoteNyojAgent = singleton.Singleton[RemoteNyojAgent]{}
 
-func GetCrawlNyojService() *CrawlNyojService {
-	return singletonCrawlNyojService.GetInstance(
-		func() *CrawlNyojService {
-			return &CrawlNyojService{}
+func GetRemoteNyojAgent() *RemoteNyojAgent {
+	return singletonRemoteNyojAgent.GetInstance(
+		func() *RemoteNyojAgent {
+			return &RemoteNyojAgent{}
 		},
 	)
 }
 
-func (s *CrawlNyojService) PostCrawlProblem(ctx context.Context, id string) (*string, error) {
+func (s *RemoteNyojAgent) GetJudgeJobStatus(ctx context.Context, id string) (
+	foundationjudge.JudgeStatus,
+	int,
+	int,
+	int,
+	error,
+) {
+	return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.New("HDU remote judge not support status query")
+}
+
+func (s *RemoteNyojAgent) GetJudgeJobExtraMessage(
+	ctx context.Context,
+	id string,
+	status foundationjudge.JudgeStatus,
+) (string, error) {
+	return "", metaerror.New("HDU remote judge not support extra message query")
+}
+
+func (s *RemoteNyojAgent) PostCrawlProblem(ctx context.Context, id string) (*string, error) {
 	s.RunNyoj(id)
 	return nil, nil
 }
 
-func (s *CrawlNyojService) RunNyoj(problemId string) {
+func (s *RemoteNyojAgent) RunNyoj(problemId string) {
 	url := fmt.Sprintf("https://xcpc.nyist.edu.cn/api/get-problem-detail?problemId=%s", problemId)
 
 	resp, err := http.Get(url)
@@ -135,4 +155,13 @@ func (s *CrawlNyojService) RunNyoj(problemId string) {
 	}
 
 	fmt.Printf("已保存 Markdown 文件: %s\n", filename)
+}
+
+func (s *RemoteNyojAgent) PostSubmitJudgeJob(
+	ctx context.Context,
+	problemId string,
+	language foundationjudge.JudgeLanguage,
+	code string,
+) (string, string, error) {
+	return "", "", metaerror.New("HDU remote judge not support submit")
 }

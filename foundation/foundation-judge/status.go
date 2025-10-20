@@ -36,3 +36,18 @@ func GetFinalStatus(finalStatus JudgeStatus, currentStatus JudgeStatus) JudgeSta
 func IsValidJudgeStatus(status int) bool {
 	return status >= int(JudgeStatusInit) && status < int(JudgeStatusMax)
 }
+
+func IsJudgeStatusRunning(status JudgeStatus) bool {
+	switch status {
+	case JudgeStatusInit:
+	case JudgeStatusRejudge:
+	case JudgeStatusSubmitting:
+	case JudgeStatusQueuing:
+	case JudgeStatusCompiling:
+	case JudgeStatusRunning:
+		return true
+	default:
+		return false
+	}
+	return false
+}
