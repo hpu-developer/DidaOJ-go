@@ -275,7 +275,7 @@ func (c *ProblemController) GetAttemptStatusKey(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	problemStatus, err := foundationservice.GetJudgeService().GetProblemAttemptStatus(
+	problemStatus, err := foundationservice.GetJudgeService().GetProblemAttemptStatusByKey(
 		ctx,
 		keyList,
 		userId,
