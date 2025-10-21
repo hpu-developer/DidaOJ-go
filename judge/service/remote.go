@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	foundationdao "foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
@@ -172,8 +173,12 @@ func (s *RemoteService) handleStart() error {
 }
 
 func (s *RemoteService) startRemoteTask(job *foundationmodel.JudgeJob) error {
-	ctx := context.Background()
-	ok, err := foundationdao.GetJudgeJobDao().StartProcessJudgeJob(ctx, job.Id, config.GetConfig().Judger.Key)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	judgerKey := config.GetConfig().Judger.Key
+	jobId := job.Id
+	ok, err := foundationdao.GetJudgeJobDao().StartProcessJudgeJob(ctx, jobId, judgerKey)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to start process Remote job")
 	}
@@ -181,19 +186,23 @@ func (s *RemoteService) startRemoteTask(job *foundationmodel.JudgeJob) error {
 		// 如果没有成功处理，可以认为是中途已经被别的判题机处理了
 		return nil
 	}
+	// 获取题目信息
 	problem, err := foundationdao.GetProblemDao().GetProblemViewForRemoteJudge(ctx, job.ProblemId)
 	if err != nil {
-		return metaerror.Wrap(err, "failed to get problem")
+		return metaerror.Wrap(err, "failed to get problem info")
 	}
 	if problem == nil {
-		return metaerror.New("problem not found: %s", job.ProblemId)
+		return metaerror.New("problem not found: %d", job.ProblemId)
 	}
+
 	oj := foundationremote.GetRemoteTypeByString(problem.OriginOj)
 	agent := foundationremote.GetRemoteAgent(oj)
+
+	// 提交远程判题
 	remoteId, remoteAccount, err := agent.PostSubmitJudgeJob(ctx, problem.OriginId, job.Language, job.Code)
 	if err != nil {
 		markErr := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(
-			ctx, job.Id, config.GetConfig().Judger.Key,
+			ctx, jobId, judgerKey,
 			foundationjudge.JudgeStatusSubmitFail,
 			problem.Id,
 			job.Inserter,
@@ -204,18 +213,14 @@ func (s *RemoteService) startRemoteTask(job *foundationmodel.JudgeJob) error {
 		if markErr != nil {
 			metapanic.ProcessError(markErr)
 		}
-		return nil
-	}
-	err = foundationdao.GetJudgeJobDao().MarkJudgeJobRemoteSubmit(
-		ctx, job.Id, config.GetConfig().Judger.Key,
-		remoteId,
-		remoteAccount,
-	)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to mark Remote judge job submit")
+		return metaerror.Wrap(err, "remote submit failed")
 	}
 
-	// 每隔3秒更新一次结果
+	err = foundationdao.GetJudgeJobDao().MarkJudgeJobRemoteSubmit(ctx, jobId, judgerKey, remoteId, remoteAccount)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to mark remote submit info")
+	}
+
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
@@ -223,50 +228,66 @@ func (s *RemoteService) startRemoteTask(job *foundationmodel.JudgeJob) error {
 
 	for {
 		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return metaerror.Wrap(ctx.Err(), "job=%d timeout after 30m", jobId)
+			} else {
+				return metaerror.Wrap(ctx.Err(), "job=%d cancelled", jobId)
+			}
 		case <-ticker.C:
 			status, score, finalTime, finalMemory, err := agent.GetJudgeJobStatus(ctx, remoteId)
 			if err != nil {
-				return metaerror.Wrap(err, "failed to get Remote judge job status")
+				return metaerror.Wrap(err, "failed to get job status")
 			}
+			slog.Info(
+				"refresh job status:",
+				"job",
+				job.Id,
+				"remoteId",
+				remoteId,
+				"status",
+				status,
+				"score",
+				score,
+				"time",
+				finalTime,
+				"memory",
+				finalMemory,
+			)
 			if foundationjudge.IsJudgeStatusRunning(status) {
 				if currentStatus != status {
 					currentStatus = status
-					err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(
+					if err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeStatus(
 						ctx,
-						job.Id,
-						config.GetConfig().Judger.Key,
-						currentStatus,
-					)
-					if err != nil {
-						return metaerror.Wrap(err, "failed to mark Remote judge job running status")
+						jobId,
+						judgerKey,
+						status,
+					); err != nil {
+						return metaerror.Wrap(err, "failed to mark current status to running")
 					}
 				}
-				continue
 			}
 			extraMessage, err := agent.GetJudgeJobExtraMessage(ctx, remoteId, status)
-			if err != nil {
-				return metaerror.Wrap(err, "failed to get Remote judge job extra message")
-			}
-			if extraMessage != "" {
-				markErr := foundationdao.GetJudgeJobCompileDao().MarkJudgeJobCompileMessage(
-					ctx, job.Id, config.GetConfig().Judger.Key,
+			if err == nil && extraMessage != "" {
+				if markErr := foundationdao.GetJudgeJobCompileDao().MarkJudgeJobCompileMessage(
+					ctx,
+					jobId,
+					judgerKey,
 					extraMessage,
-				)
-				if markErr != nil {
-					return metaerror.Wrap(markErr, "failed to mark Remote judge job extra message")
+				); markErr != nil {
+					metapanic.ProcessError(markErr)
 				}
 			}
-			err = foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(
-				ctx, job.Id, config.GetConfig().Judger.Key,
+			if err := foundationdao.GetJudgeJobDao().MarkJudgeJobJudgeFinalStatus(
+				ctx, jobId, judgerKey,
 				status,
 				problem.Id,
 				job.Inserter,
 				score,
 				finalTime,
 				finalMemory,
-			)
-			if err != nil {
-				return metaerror.Wrap(err, "failed to mark Remote judge job final status")
+			); err != nil {
+				return metaerror.Wrap(err, "failed to mark final status")
 			}
 			return nil
 		}
