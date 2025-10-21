@@ -683,8 +683,6 @@ func (d *ProblemDao) UpdateProblemCrawl(
 					"time_limit":   problem.TimeLimit,
 					"memory_limit": problem.MemoryLimit,
 					"judge_type":   problem.JudgeType,
-					"inserter":     problem.Inserter,
-					"insert_time":  problem.InsertTime,
 					"modifier":     problem.Modifier,
 					"modify_time":  problem.ModifyTime,
 				}
