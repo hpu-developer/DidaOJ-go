@@ -436,7 +436,7 @@ func (s *RemoteHduAgent) requestJudgeJobStatus(ctx context.Context, runId string
 		exeMemory = exeMemory * 1024
 	}
 	if status == foundationjudge.JudgeStatusAC {
-		score = 100
+		score = 1000
 	}
 	return status, score, exeTime, exeMemory, nil
 }
