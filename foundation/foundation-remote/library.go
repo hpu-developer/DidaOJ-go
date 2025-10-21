@@ -21,8 +21,8 @@ func GetRemoteAgent(remoteType foundationenum.RemoteJudgeType) RemoteAgentBase {
 	switch remoteType {
 	case foundationenum.RemoteJudgeTypeHdu:
 		return GetRemoteHduAgent()
-	case foundationenum.RemoteJudgeTypeNyoj:
-		return GetRemoteNyojAgent()
+		//case foundationenum.RemoteJudgeTypeNyoj:
+		//	return GetRemoteNyojAgent()
 	}
 	return nil
 }

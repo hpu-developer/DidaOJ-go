@@ -38,10 +38,10 @@ func (s *Subsystem) startSubSystem() error {
 		return err
 	}
 
-	err = service.GetJudgeService().Start()
-	if err != nil {
-		return err
-	}
+	//err = service.GetJudgeService().Start()
+	//if err != nil {
+	//	return err
+	//}
 
 	err = service.GetRemoteService().Start()
 	if err != nil {

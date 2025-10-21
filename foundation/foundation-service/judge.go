@@ -9,6 +9,7 @@ import (
 	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	foundationremote "foundation/foundation-remote"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
 	metatime "meta/meta-time"
@@ -265,15 +266,22 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 	return
 }
 
-func (s *JudgeService) IsEnableRemoteJudge(oj string, problemId string) bool {
+func (s *JudgeService) IsEnableRemoteJudge(oj string, problemId string, language foundationjudge.JudgeLanguage) bool {
+	if !foundationjudge.IsValidJudgeLanguage(int(language)) {
+		return false
+	}
 	if oj == "" {
 		return true
 	}
-	if oj == string(foundationenum.RemoteJudgeTypeHdu) {
-		return true
+	agent := foundationremote.GetRemoteAgent(foundationremote.GetRemoteTypeByString(oj))
+	if agent != nil {
+		return false
+	}
+	if !agent.IsSupportJudge(problemId, language) {
+		return false
 	}
 
-	return false
+	return true
 }
 
 func (s *JudgeService) GetRankAcProblem(

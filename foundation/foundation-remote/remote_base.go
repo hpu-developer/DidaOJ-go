@@ -6,6 +6,7 @@ import (
 )
 
 type RemoteAgentBase interface {
+	IsSupportJudge(problemId string, language foundationjudge.JudgeLanguage) bool
 	PostCrawlProblem(ctx context.Context, id string) (*string, error)
 	PostSubmitJudgeJob(
 		ctx context.Context,

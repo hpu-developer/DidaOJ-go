@@ -107,6 +107,10 @@ func (s *RemoteHduAgent) GetJudgeStatus(status string) foundationjudge.JudgeStat
 	}
 }
 
+func (s *RemoteHduAgent) IsSupportJudge(problemId string, language foundationjudge.JudgeLanguage) bool {
+	return s.getLanguageCode(language) != ""
+}
+
 func (s *RemoteHduAgent) PostCrawlProblem(ctx context.Context, id string) (*string, error) {
 
 	nowTime := metatime.GetTimeNow()
@@ -245,6 +249,10 @@ func optionalSection(name string, m map[string]string) string {
 		return fmt.Sprintf("\n## %s\n\n%s", name, v)
 	}
 	return ""
+}
+
+func (s *RemoteHduAgent) cleanCodeBeforeSubmit(code string, language foundationjudge.JudgeLanguage) string {
+	return code
 }
 
 func (s *RemoteHduAgent) login(ctx context.Context) error {
@@ -492,8 +500,8 @@ func (s *RemoteHduAgent) submit(
 	code string, retryCount int,
 ) (string, string, error) {
 
-	codeStr := s.getLanguageCode(language)
-	if codeStr == "" {
+	languageCode := s.getLanguageCode(language)
+	if languageCode == "" {
 		return "", "", metaerror.New("HDU remote judge not support language")
 	}
 
@@ -504,6 +512,8 @@ func (s *RemoteHduAgent) submit(
 	method := "POST"
 	payload := &bytes.Buffer{}
 	writer := multipart.NewWriter(payload)
+
+	code = s.cleanCodeBeforeSubmit(code, language)
 
 	urlEncoded := url.QueryEscape(code)
 	base64Encoded := base64.StdEncoding.EncodeToString([]byte(urlEncoded))
@@ -516,7 +526,7 @@ func (s *RemoteHduAgent) submit(
 	if err != nil {
 		return "", "", metaerror.Wrap(err, "failed to write problemid field")
 	}
-	err = writer.WriteField("language", codeStr)
+	err = writer.WriteField("language", languageCode)
 	if err != nil {
 		return "", "", metaerror.Wrap(err, "failed to write language field")
 	}
@@ -560,7 +570,7 @@ func (s *RemoteHduAgent) submit(
 		}
 		return s.submit(ctx, problemId, language, code, retryCount+1)
 	}
-	if strings.Contains(bodyStr, "<title>Submit Your Solution</title>") {
+	if !strings.Contains(bodyStr, "<title>Realtime Status</title>") {
 		return "", "", metaerror.New("HDU remote judge submit failed")
 	}
 	username := foundationconfig.GetConfig().Remote.Hdu.Username

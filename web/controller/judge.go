@@ -344,7 +344,7 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		return
 	}
 
-	if !foundationservice.GetJudgeService().IsEnableRemoteJudge(problem.OriginOj, problem.OriginId) {
+	if !foundationservice.GetJudgeService().IsEnableRemoteJudge(problem.OriginOj, problem.OriginId, language) {
 		metaresponse.NewResponse(ctx, weberrorcode.JudgeApproveCannotOriginOj, nil)
 		return
 	}
