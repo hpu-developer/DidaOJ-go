@@ -274,7 +274,7 @@ func (s *JudgeService) IsEnableRemoteJudge(oj string, problemId string, language
 		return true
 	}
 	agent := foundationremote.GetRemoteAgent(foundationremote.GetRemoteTypeByString(oj))
-	if agent != nil {
+	if agent == nil {
 		return false
 	}
 	if !agent.IsSupportJudge(problemId, language) {
