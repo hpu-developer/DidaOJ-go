@@ -329,6 +329,20 @@ func (s *JudgeService) GetProblemAttemptStatus(
 	)
 }
 
+func (s *JudgeService) GetProblemAttemptStatusByKey(
+	ctx context.Context, problemIds []int, authorId int,
+	contestId int, startTime *time.Time, endTime *time.Time,
+) (map[string]foundationenum.ProblemAttemptStatus, error) {
+	return foundationdao.GetJudgeJobDao().GetProblemAttemptStatusByKey(
+		ctx,
+		authorId,
+		problemIds,
+		contestId,
+		startTime,
+		endTime,
+	)
+}
+
 func (s *JudgeService) GetJudgeJobCountNotFinish(ctx context.Context) (int, error) {
 	return foundationdao.GetJudgeJobDao().GetJudgeJobCountNotFinish(ctx)
 }

@@ -235,6 +235,52 @@ func (d *JudgeJobDao) GetProblemAttemptStatus(
 	return statusMap, nil
 }
 
+func (d *JudgeJobDao) GetProblemAttemptStatusByKey(
+	ctx context.Context, inserter int, problemIds []int,
+	contestId int, startTime *time.Time, endTime *time.Time,
+) (map[string]foundationenum.ProblemAttemptStatus, error) {
+	if len(problemIds) == 0 {
+		return nil, nil
+	}
+	type Result struct {
+		ProblemKey string
+		HasAC      int
+		HasAttempt int
+	}
+	db := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
+		Select(
+			"p.`key` as problem_key, MAX(CASE WHEN status = ? THEN 1 ELSE 0 END) AS has_ac, MAX(CASE WHEN status != ? THEN 1 ELSE 0 END) AS has_attempt",
+			foundationjudge.JudgeStatusAC, foundationjudge.JudgeStatusAC,
+		).
+		Where("judge_job.inserter = ?", inserter).
+		Where("judge_job.problem_id IN ?", problemIds).
+		Joins("LEFT JOIN problem AS p ON p.id = judge_job.problem_id")
+	if contestId > 0 {
+		db = db.Where("contest_id = ?", contestId)
+	}
+	if startTime != nil {
+		db = db.Where("insert_time >= ?", *startTime)
+	}
+	if endTime != nil {
+		db = db.Where("insert_time <= ?", *endTime)
+	}
+	db = db.Group("problem_id")
+	var results []Result
+	if err := db.Scan(&results).Error; err != nil {
+		return nil, metaerror.Wrap(err, "failed to query judge job")
+	}
+	statusMap := make(map[string]foundationenum.ProblemAttemptStatus, len(problemIds))
+	for _, r := range results {
+		switch {
+		case r.HasAC > 0:
+			statusMap[r.ProblemKey] = foundationenum.ProblemAttemptStatusAccepted
+		case r.HasAttempt > 0:
+			statusMap[r.ProblemKey] = foundationenum.ProblemAttemptStatusAttempt
+		}
+	}
+	return statusMap, nil
+}
+
 func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
 	var problemIds []*foundationview.ProblemViewKey
 	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
@@ -624,7 +670,7 @@ func (d *JudgeJobDao) RequestLocalJudgeJobListPendingJudge(
 				Id int `gorm:"column:id"`
 			}
 
-			sql := `
+			execSql := `
 			SELECT j.id
 			FROM judge_job AS j
 			WHERE j.status IN (?, ?)
@@ -636,7 +682,7 @@ func (d *JudgeJobDao) RequestLocalJudgeJobListPendingJudge(
 			LIMIT ? FOR UPDATE SKIP LOCKED
 		`
 			if err := tx.Raw(
-				sql,
+				execSql,
 				foundationjudge.JudgeStatusInit,
 				foundationjudge.JudgeStatusRejudge,
 				maxCount,
@@ -694,7 +740,7 @@ func (d *JudgeJobDao) RequestRemoteJudgeJobListPendingJudge(
 				Id int `gorm:"column:id"`
 			}
 
-			sql := `
+			execSql := `
 			SELECT j.id
 			FROM judge_job AS j
 			WHERE j.status IN (?, ?)
@@ -706,7 +752,7 @@ func (d *JudgeJobDao) RequestRemoteJudgeJobListPendingJudge(
 			LIMIT ? FOR UPDATE SKIP LOCKED
 		`
 			if err := tx.Raw(
-				sql,
+				execSql,
 				foundationjudge.JudgeStatusInit,
 				foundationjudge.JudgeStatusRejudge,
 				maxCount,
