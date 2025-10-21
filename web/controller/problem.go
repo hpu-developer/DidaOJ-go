@@ -250,6 +250,46 @@ func (c *ProblemController) GetAttemptStatus(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemStatus)
 }
 
+func (c *ProblemController) GetAttemptStatusKey(ctx *gin.Context) {
+	keysStr := ctx.Query("keys")
+	if keysStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	keyStrList := strings.Split(keysStr, ",")
+	if len(keyStrList) == 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	keyList, err := foundationservice.GetProblemService().GetProblemIdsByKey(ctx, keyStrList)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if len(keyStrList) == 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	problemStatus, err := foundationservice.GetJudgeService().GetProblemAttemptStatus(
+		ctx,
+		keyList,
+		userId,
+		-1,
+		nil,
+		nil,
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, problemStatus)
+}
+
 func (c *ProblemController) GetRecommend(ctx *gin.Context) {
 	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
 		ctx,
