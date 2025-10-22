@@ -2,7 +2,6 @@ package foundationdao
 
 import (
 	"context"
-	"errors"
 	foundationmodel "foundation/foundation-model"
 	metaerror "meta/meta-error"
 	metamysql "meta/meta-mysql"
@@ -30,17 +29,17 @@ func GetJudgerDao() *JudgerDao {
 }
 
 func (d *JudgerDao) IsEnableJudge(ctx context.Context, key string) (bool, error) {
-	var judger foundationmodel.Judger
+	var exists bool
 	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Judger{}).
+		Select("1").
 		Where("`key` = ? AND `enable` = 1", key).
-		First(&judger).Error
+		Limit(1).
+		Scan(&exists).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, metaerror.Wrap(err, "failed to get judger")
+		return false, metaerror.Wrap(err, "failed to check judger enable state")
 	}
-	return true, nil
+	return exists, nil
 }
 
 func (d *JudgerDao) UpdateJudger(ctx context.Context, judger *foundationmodel.Judger) error {
