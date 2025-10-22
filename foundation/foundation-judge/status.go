@@ -40,14 +40,18 @@ func IsValidJudgeStatus(status int) bool {
 func IsJudgeStatusRunning(status JudgeStatus) bool {
 	switch status {
 	case JudgeStatusInit:
+		fallthrough
 	case JudgeStatusRejudge:
+		fallthrough
 	case JudgeStatusSubmitting:
+		fallthrough
 	case JudgeStatusQueuing:
+		fallthrough
 	case JudgeStatusCompiling:
+		fallthrough
 	case JudgeStatusRunning:
 		return true
 	default:
 		return false
 	}
-	return false
 }

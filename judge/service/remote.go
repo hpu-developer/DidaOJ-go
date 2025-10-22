@@ -266,6 +266,7 @@ func (s *RemoteService) startRemoteTask(job *foundationmodel.JudgeJob) error {
 						return metaerror.Wrap(err, "failed to mark current status to running")
 					}
 				}
+				continue
 			}
 			extraMessage, err := agent.GetJudgeJobExtraMessage(ctx, remoteId, status)
 			if err == nil && extraMessage != "" {
