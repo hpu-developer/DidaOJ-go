@@ -656,6 +656,10 @@ func (c *ProblemController) PostCrawl(ctx *gin.Context) {
 		return
 	}
 	agent := foundationremote.GetRemoteAgent(foundationremote.GetRemoteTypeByString(oj))
+	if agent == nil {
+		metaresponse.NewResponse(ctx, weberrorcode.ProblemCrawlCannotOriginOj, nil)
+		return
+	}
 	newId, err := agent.PostCrawlProblem(
 		ctx,
 		key,

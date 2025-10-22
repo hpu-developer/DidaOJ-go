@@ -37,4 +37,5 @@ const (
 	JudgeListTooManySkip                 metaerrorcode.ErrorCode = 100032
 	ProblemJudgeDataHasNotValid          metaerrorcode.ErrorCode = 100033
 	UserNeedLogin                        metaerrorcode.ErrorCode = 100034
+	ProblemCrawlCannotOriginOj           metaerrorcode.ErrorCode = 100035
 )

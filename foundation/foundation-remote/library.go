@@ -10,6 +10,8 @@ func GetRemoteTypeByString(oj string) foundationenum.RemoteJudgeType {
 	switch oj {
 	case "hdu":
 		return foundationenum.RemoteJudgeTypeHdu
+	case "poj":
+		return foundationenum.RemoteJudgeTypePoj
 	case "nyoj":
 		return foundationenum.RemoteJudgeTypeNyoj
 	default:
@@ -21,6 +23,8 @@ func GetRemoteAgent(remoteType foundationenum.RemoteJudgeType) RemoteAgentBase {
 	switch remoteType {
 	case foundationenum.RemoteJudgeTypeHdu:
 		return GetRemoteHduAgent()
+	case foundationenum.RemoteJudgeTypePoj:
+		return GetRemotePojAgent()
 		//case foundationenum.RemoteJudgeTypeNyoj:
 		//	return GetRemoteNyojAgent()
 	}
