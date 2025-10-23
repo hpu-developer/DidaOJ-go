@@ -794,11 +794,26 @@ func (d *JudgeJobDao) RequestRemoteJudgeJobListPendingJudge(
 	return jobs, nil
 }
 
-func (d *JudgeJobDao) StartProcessJudgeJob(ctx context.Context, id int, judger string) (bool, error) {
+func (d *JudgeJobDao) StartProcessLocalJudgeJob(ctx context.Context, id int, judger string) (bool, error) {
 	tx := d.db.WithContext(ctx).
 		Model(&foundationmodel.JudgeJob{}).
 		Where("id = ? AND judger = ?", id, judger).
 		Update("status", foundationjudge.JudgeStatusCompiling)
+	if tx.Error != nil {
+		return false, metaerror.Wrap(tx.Error, "failed to update job")
+	}
+	if tx.RowsAffected == 0 {
+		// 没有匹配到符合条件的记录
+		return false, nil
+	}
+	return true, nil
+}
+
+func (d *JudgeJobDao) StartProcessRemoteJudgeJob(ctx context.Context, id int, judger string) (bool, error) {
+	tx := d.db.WithContext(ctx).
+		Model(&foundationmodel.JudgeJob{}).
+		Where("id = ? AND judger = ?", id, judger).
+		Update("status", foundationjudge.JudgeStatusQueuing)
 	if tx.Error != nil {
 		return false, metaerror.Wrap(tx.Error, "failed to update job")
 	}
@@ -835,7 +850,7 @@ func (d *JudgeJobDao) MarkJudgeJobRemoteSubmit(
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.JudgeJob{}).
 		Where("id = ? AND judger = ?", id, judger).
-		Update("status", foundationjudge.JudgeStatusQueuing).
+		Update("status", foundationjudge.JudgeStatusCompiling).
 		Update("remote_judge_id", remoteJudgeId).
 		Update("remote_account_id", remoteAccountId).
 		Error

@@ -178,12 +178,13 @@ func (s *RemoteService) startRemoteTask(job *foundationmodel.JudgeJob) error {
 
 	judgerKey := config.GetConfig().Judger.Key
 	jobId := job.Id
-	ok, err := foundationdao.GetJudgeJobDao().StartProcessJudgeJob(ctx, jobId, judgerKey)
+	ok, err := foundationdao.GetJudgeJobDao().StartProcessRemoteJudgeJob(ctx, jobId, judgerKey)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to start process Remote job")
 	}
 	if !ok {
 		// 如果没有成功处理，可以认为是中途已经被别的判题机处理了
+		slog.Info("Remote job already being processed by other judger", "jobId", jobId)
 		return nil
 	}
 	// 获取题目信息
@@ -221,10 +222,12 @@ func (s *RemoteService) startRemoteTask(job *foundationmodel.JudgeJob) error {
 		return metaerror.Wrap(err, "failed to mark remote submit info")
 	}
 
+	slog.Info("Remote job submitted", "jobId", jobId, "remoteId", remoteId, "remoteAccount", remoteAccount)
+
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
-	currentStatus := foundationjudge.JudgeStatusQueuing
+	currentStatus := foundationjudge.JudgeStatusCompiling
 
 	for {
 		select {

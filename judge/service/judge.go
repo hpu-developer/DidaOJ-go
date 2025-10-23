@@ -281,7 +281,7 @@ func (s *JudgeService) handleStart() error {
 func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
 	ctx := context.Background()
 	jobId := job.Id
-	ok, err := foundationdao.GetJudgeJobDao().StartProcessJudgeJob(ctx, job.Id, config.GetConfig().Judger.Key)
+	ok, err := foundationdao.GetJudgeJobDao().StartProcessLocalJudgeJob(ctx, job.Id, config.GetConfig().Judger.Key)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to start process judge job")
 	}
