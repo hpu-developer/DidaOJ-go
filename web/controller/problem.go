@@ -14,6 +14,7 @@ import (
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
 	"log"
+	"log/slog"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
 	"meta/error-code"
@@ -722,7 +723,7 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 	}
 	tempDir, err := os.MkdirTemp("", "didaoj-judge-data-*")
 	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
+		metaresponse.NewResponseError(ctx, err, metaerrorcode.CommonError)
 		return
 	}
 	defer func(path string) {
@@ -731,6 +732,7 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 			metapanic.ProcessError(metaerror.Wrap(err, "<UNK>: "+path))
 		}
 	}(tempDir)
+	slog.Info("upload judge data to save", "problem_id", problemId, "filename", file.Filename, "size", file.Size)
 	uploadedPath := filepath.Join(tempDir, file.Filename)
 	if err := ctx.SaveUploadedFile(file, uploadedPath); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError)
@@ -753,7 +755,7 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 			config.GetConfig().TestlibFile,
 		)
 		if err != nil {
-			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			metaresponse.NewResponseWrapCode(ctx, err, metaerrorcode.CommonError, nil)
 			return
 		}
 		c.goJudgeConfigFiles["testlib"] = *fileId

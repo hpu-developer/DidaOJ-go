@@ -33,6 +33,7 @@ resources:
           triggerType: http
           triggerConfig:
             authType: anonymous
+            disableURLInternet: false
             methods:
               - GET
               - POST
