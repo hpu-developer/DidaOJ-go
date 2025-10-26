@@ -49,6 +49,6 @@ type DiscussList struct {
 	ModifierUsername string `json:"modifier_username"`
 	ModifierNickname string `json:"modifier_nickname"`
 
-	ProblemIndex *int    `json:"problem_index,omitempty"` // 题目索引
-	ProblemKey   *string `json:"problem_key,omitempty"`
+	ContestProblemIndex *int    `json:"contest_problem_index,omitempty"` // 题目索引
+	ProblemKey          *string `json:"problem_key,omitempty"`
 }

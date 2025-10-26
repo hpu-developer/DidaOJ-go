@@ -122,10 +122,10 @@ func (d *DiscussDao) GetDiscussList(
 
 	// problem_id 条件
 	if problemId > 0 {
-		db = db.Where("problem_id = ?", problemId)
+		db = db.Where("discuss.problem_id = ?", problemId)
 	} else if onlyProblem {
 		// Mongo 的 "$exists: true" 等价于 SQL 的 "IS NOT NULL"
-		db = db.Where("problem_id IS NOT NULL")
+		db = db.Where("discuss.problem_id IS NOT NULL")
 	}
 
 	// title 模糊匹配，等价于 Mongo 的 "$regex" + "$options: i"
@@ -164,7 +164,7 @@ func (d *DiscussDao) GetDiscussList(
 	}
 
 	if contestId > 0 {
-		selectFields = append(selectFields, "cp.`index` AS problem_index")
+		selectFields = append(selectFields, "cp.`index` AS contest_problem_index")
 	} else {
 		selectFields = append(selectFields, "p.`key` AS problem_key")
 	}
