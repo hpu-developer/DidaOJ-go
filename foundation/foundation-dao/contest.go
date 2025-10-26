@@ -183,6 +183,7 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationview.Co
 			`
 			c.id, c.title, c.description, c.notification, c.start_time, c.end_time,
 			c.inserter, c.modifier, c.insert_time, c.modify_time, c.password, c.private,
+			c.submit_anytime,
 			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
 			u2.username AS modifier_username, u2.nickname AS modifier_nickname
 		`,
@@ -208,6 +209,7 @@ func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationvie
 			`
 			c.id, c.title, c.description, c.notification, c.start_time, c.end_time,
 			c.inserter, c.modifier, c.insert_time, c.modify_time, c.password, c.private,
+			c.submit_anytime,
 			c.always_lock, c.lock_rank_duration, c.type, c.score_type, c.discuss_type,
 			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
 			u2.username AS modifier_username, u2.nickname AS modifier_nickname
