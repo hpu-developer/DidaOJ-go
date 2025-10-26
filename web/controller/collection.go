@@ -7,7 +7,6 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
 	metapanic "meta/meta-panic"
@@ -19,6 +18,8 @@ import (
 	"time"
 	weberrorcode "web/error-code"
 	"web/request"
+
+	"github.com/gin-gonic/gin"
 )
 
 type CollectionController struct {
@@ -268,16 +269,6 @@ func (c *CollectionController) PostEdit(ctx *gin.Context) {
 		return
 	}
 	collectionService := foundationservice.GetCollectionService()
-	// 控制创建时的标题唯一，一定程度上防止误重复创建
-	ok, err := collectionService.HasCollectionTitle(ctx, userId, requestData.Title)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-	if ok {
-		metaresponse.NewResponse(ctx, weberrorcode.CollectionTitleDuplicate, nil)
-		return
-	}
 	memberIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Members)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
