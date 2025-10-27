@@ -112,7 +112,7 @@ func (s *MigrateProblemService) Start() error {
 func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error {
 
 	// 初始化 GORM 客户端
-	codeojDB := metamysql.GetSubsystem().GetClient("codeoj")
+	codeojDB := metapostgresql.GetSubsystem().GetClient("codeoj")
 
 	// 查询所有唯一标签
 	var tags []CodeojProblemTag
@@ -221,7 +221,7 @@ func (s *MigrateProblemService) processCodeOjProblem(ctx context.Context) error 
 }
 
 func (s *MigrateProblemService) processVhojProblem(ctx context.Context) error {
-	vhojDB := metamysql.GetSubsystem().GetClient("vhoj")
+	vhojDB := metapostgresql.GetSubsystem().GetClient("vhoj")
 
 	var problems []VhojProblem
 	if err := vhojDB.Find(&problems).Error; err != nil {

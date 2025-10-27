@@ -51,7 +51,7 @@ func GetMigrateUserDmojService() *MigrateUserDmojService {
 func (s *MigrateUserDmojService) Start(ctx context.Context) error {
 
 	// 初始化 GORM 客户端
-	dmojDb := metamysql.GetSubsystem().GetClient("dmoj")
+	dmojDb := metapostgresql.GetSubsystem().GetClient("dmoj")
 
 	var userModels []DmojUser
 	if err := dmojDb.

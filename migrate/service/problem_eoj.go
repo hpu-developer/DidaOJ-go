@@ -142,7 +142,7 @@ func (s *MigrateProblemEojService) Start() error {
 		407: "134",
 	}
 	// 初始化 GORM 客户端
-	eojDb := metamysql.GetSubsystem().GetClient("eoj")
+	eojDb := metapostgresql.GetSubsystem().GetClient("eoj")
 
 	var problemModels []EojProblem
 	if err := eojDb.

@@ -7,7 +7,7 @@ import (
 	"foundation/foundation-request"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
 	"time"
 
@@ -24,7 +24,7 @@ func GetUserDao() *UserDao {
 	return singletonUserDao.GetInstance(
 		func() *UserDao {
 			dao := &UserDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)

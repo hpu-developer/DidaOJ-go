@@ -1,13 +1,14 @@
 package controller
 
 import (
-	"github.com/gin-gonic/gin"
 	metacontroller "meta/controller"
 	"meta/error-code"
 	metaconfig "meta/meta-config"
 	"meta/meta-response"
 	"meta/meta-time"
 	webconfig "web/config"
+
+	"github.com/gin-gonic/gin"
 )
 
 type HomeController struct {

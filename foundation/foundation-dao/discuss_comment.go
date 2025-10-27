@@ -6,7 +6,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
 	"time"
 
@@ -23,7 +23,7 @@ func GetDiscussCommentDao() *DiscussCommentDao {
 	return singletonDiscussCommentDao.GetInstance(
 		func() *DiscussCommentDao {
 			dao := &DiscussCommentDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -77,8 +77,8 @@ func (d *DiscussCommentDao) GetDiscussCommentList(
 			um.nickname AS modifier_nickname
 		`,
 		).
-		Joins("LEFT JOIN user ui ON ui.id = dc.inserter").
-		Joins("LEFT JOIN user um ON um.id = dc.modifier").
+		Joins("LEFT JOIN \"user\" ui ON ui.id = dc.inserter").
+		Joins("LEFT JOIN \"user\" um ON um.id = dc.modifier").
 		Where("dc.discuss_id = ?", discussId).
 		Order("dc.id ASC").
 		Offset((page - 1) * pageSize).

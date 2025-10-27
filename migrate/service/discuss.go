@@ -152,7 +152,7 @@ func (s *MigrateDiscussService) processJolDiscuss(ctx context.Context) (
 ) {
 	slog.Info("migrate Discuss processJolDiscuss")
 
-	db := metamysql.GetSubsystem().GetClient("jol")
+	db := metapostgresql.GetSubsystem().GetClient("jol")
 
 	var jolTopics []JolTopic
 	if err := db.Order("tid ASC").Find(&jolTopics).Error; err != nil {
@@ -207,7 +207,7 @@ func (s *MigrateDiscussService) processJolDiscuss(ctx context.Context) (
 func (s *MigrateDiscussService) processCodeojBlog(ctx context.Context) ([]*foundationmodel.Discuss, error) {
 	slog.Info("migrate Discuss processCodeojDiscuss")
 
-	db := metamysql.GetSubsystem().GetClient("codeoj")
+	db := metapostgresql.GetSubsystem().GetClient("codeoj")
 
 	var codeojBlogs []CodeojBlog
 	if err := db.Where("blog_id < 13").Order("blog_id ASC").Find(&codeojBlogs).Error; err != nil {

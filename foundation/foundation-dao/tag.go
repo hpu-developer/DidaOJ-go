@@ -3,11 +3,12 @@ package foundationdao
 import (
 	"context"
 	foundationmodel "foundation/foundation-model"
+	metaerror "meta/meta-error"
+	metapostgresql "meta/meta-postgresql"
+	"meta/singleton"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
-	"meta/singleton"
 )
 
 type TagDao struct {
@@ -20,7 +21,7 @@ func GetTagDao() *TagDao {
 	return singletonTagDao.GetInstance(
 		func() *TagDao {
 			dao := &TagDao{}
-			db := metamysql.GetSubsystem().GetClient("didaoj")
+			db := metapostgresql.GetSubsystem().GetClient("didaoj")
 			dao.db = db.Model(&foundationmodel.Tag{})
 			return dao
 		},

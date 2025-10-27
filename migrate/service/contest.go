@@ -140,7 +140,7 @@ func (s *MigrateContestService) Start() error {
 func (s *MigrateContestService) processJolContest(ctx context.Context) ([]*foundationmodel.Contest, error) {
 	slog.Info("migrate JolContest processJolContest")
 
-	db := metamysql.GetSubsystem().GetClient("jol")
+	db := metapostgresql.GetSubsystem().GetClient("jol")
 
 	var contests []JolContest
 	err := db.Raw(`select *  from contest left join (select * from privilege where rightstr like 'm%') p on concat('m',contest_id)=rightstr order by contest_id asc`).
@@ -201,7 +201,7 @@ func (s *MigrateContestService) processJolContest(ctx context.Context) ([]*found
 func (s *MigrateContestService) processVhojContest(ctx context.Context) ([]*foundationmodel.Contest, error) {
 	slog.Info("migrate JolContest processVhojContest")
 
-	db := metamysql.GetSubsystem().GetClient("vhoj")
+	db := metapostgresql.GetSubsystem().GetClient("vhoj")
 	var contests []VhojContest
 	if err := db.Order("C_ID ASC").Find(&contests).Error; err != nil {
 		return nil, metaerror.Wrap(err, "query contests failed")

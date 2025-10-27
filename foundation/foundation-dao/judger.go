@@ -4,7 +4,7 @@ import (
 	"context"
 	foundationmodel "foundation/foundation-model"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
 
 	"gorm.io/gorm"
@@ -21,7 +21,7 @@ func GetJudgerDao() *JudgerDao {
 	return singletonJudgerDao.GetInstance(
 		func() *JudgerDao {
 			dao := &JudgerDao{}
-			db := metamysql.GetSubsystem().GetClient("didaoj")
+			db := metapostgresql.GetSubsystem().GetClient("didaoj")
 			dao.db = db.Model(&foundationmodel.Judger{})
 			return dao
 		},
@@ -33,7 +33,7 @@ func (d *JudgerDao) IsEnableJudge(ctx context.Context, key string) (bool, error)
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Judger{}).
 		Select("1").
-		Where("`key` = ? AND `enable` = 1", key).
+		Where("key = ? AND enable = TRUE", key).
 		Limit(1).
 		Scan(&exists).Error
 	if err != nil {

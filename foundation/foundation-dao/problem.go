@@ -8,11 +8,10 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	metatime "meta/meta-time"
 	"meta/singleton"
 	"strconv"
-	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -28,7 +27,7 @@ func GetProblemDao() *ProblemDao {
 	return singletonProblemDao.GetInstance(
 		func() *ProblemDao {
 			dao := &ProblemDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -40,56 +39,69 @@ func (d *ProblemDao) GetProblemList(
 	userId int, hasAuth bool,
 	page int,
 	pageSize int,
-) (
-	[]*foundationview.ProblemViewList,
-	int,
-	error,
-) {
+) ([]*foundationview.ProblemViewList, int, error) {
+
 	db := d.db.WithContext(ctx).Model(&foundationmodel.Problem{})
-	db = db.Select("problem.id as id", "`key`", "title", "accept", "attempt")
+	db = db.Select("problem.id AS id, problem.key AS key, problem.title, problem.accept, problem.attempt")
+
 	if !hasAuth {
 		if userId > 0 {
 			db = db.Where(
-				gorm.Expr(
-					`private = 0
-		OR inserter = ?
-		OR EXISTS (
-			SELECT 1 FROM problem_member pm WHERE pm.id = problem.id AND pm.user_id = ?
-		)
-		OR EXISTS (
-			SELECT 1 FROM problem_member_auth pma WHERE pma.id = problem.id AND pma.user_id = ?
-		)
-	`, userId, userId, userId,
-				),
+				`
+				problem.private = FALSE
+				OR problem.inserter = ?
+				OR EXISTS (
+					SELECT 1 FROM problem_member pm
+					WHERE pm.id = problem.id AND pm.user_id = ?
+				)
+				OR EXISTS (
+					SELECT 1 FROM problem_member_auth pma
+					WHERE pma.id = problem.id AND pma.user_id = ?
+				)
+			`, userId, userId, userId,
 			)
 		} else {
-			db = db.Where("private = 0")
+			db = db.Where("problem.private = FALSE")
 		}
 	} else if private {
-		db = db.Where("private = 1")
+		db = db.Where("problem.private = TRUE")
 	}
+
+	db = db.Joins("LEFT JOIN problem_remote r ON r.problem_id = problem.id")
 	if oj == "didaoj" {
 		db = db.Where("r.origin_oj IS NULL")
 	} else if oj != "" {
 		db = db.Where("r.origin_oj = ?", oj)
 	}
+
 	if title != "" {
-		db = db.Where("LOWER(title) LIKE ?", "%"+strings.ToLower(title)+"%")
+		// ILIKE 支持不区分大小写的匹配（Postgres）
+		db = db.Where("problem.title ILIKE ?", "%"+title+"%")
 	}
+
 	if len(tags) > 0 {
 		db = db.Joins("JOIN problem_tag pt ON pt.id = problem.id").
 			Where("pt.tag_id IN ?", tags).
-			Group("problem.id") // 防止重复行
+			Group("problem.id")
 	}
-	db = db.Joins("LEFT JOIN problem_remote r ON r.problem_id = problem.id")
+
 	if page < 1 {
 		page = 1
 	}
 	offset := (page - 1) * pageSize
+
 	var total int64
-	if err := db.Count(&total).Error; err != nil {
-		return nil, 0, metaerror.Wrap(err, "count failed")
+	countDB := db.Session(&gorm.Session{})
+	if len(tags) > 0 {
+		if err := countDB.Select("COUNT(DISTINCT problem.id)").Count(&total).Error; err != nil {
+			return nil, 0, metaerror.Wrap(err, "count failed")
+		}
+	} else {
+		if err := countDB.Count(&total).Error; err != nil {
+			return nil, 0, metaerror.Wrap(err, "count failed")
+		}
 	}
+
 	var list []*foundationview.ProblemViewList
 	if err := db.Order("problem.id ASC").
 		Offset(offset).
@@ -112,8 +124,8 @@ func (d *ProblemDao) GetProblemView(
 			r.origin_oj, r.origin_id, r.origin_url, r.origin_author
 		`,
 		).
-		Joins(`LEFT JOIN user u1 ON u1.id = p.inserter`).
-		Joins(`LEFT JOIN user u2 ON u2.id = p.modifier`).
+		Joins(`LEFT JOIN "user" u1 ON u1.id = p.inserter`).
+		Joins(`LEFT JOIN "user" u2 ON u2.id = p.modifier`).
 		Joins(`LEFT JOIN problem_remote r ON r.problem_id = p.id`).
 		Where("p.id = ?", id)
 
@@ -121,7 +133,7 @@ func (d *ProblemDao) GetProblemView(
 		if userId > 0 {
 			db = db.Where(
 				`
-				p.private = 0 OR
+				p.private = FALSE OR
 				p.inserter = ? OR
 				EXISTS (
 					SELECT 1 FROM problem_member pm WHERE pm.id = p.id AND pm.user_id = ?
@@ -132,7 +144,7 @@ func (d *ProblemDao) GetProblemView(
 			`, userId, userId, userId,
 			)
 		} else {
-			db = db.Where("p.private = 0")
+			db = db.Where("p.private = FALSE")
 		}
 	}
 
@@ -146,10 +158,7 @@ func (d *ProblemDao) GetProblemView(
 	return &problem, nil
 }
 
-func (d *ProblemDao) CheckProblemEditAuth(ctx context.Context, problemId int, userId int) (
-	bool,
-	error,
-) {
+func (d *ProblemDao) CheckProblemEditAuth(ctx context.Context, problemId int, userId int) (bool, error) {
 	var exists int
 	err := d.db.WithContext(ctx).Raw(
 		`SELECT 1
@@ -166,10 +175,7 @@ func (d *ProblemDao) CheckProblemEditAuth(ctx context.Context, problemId int, us
 	return exists == 1, nil
 }
 
-func (d *ProblemDao) CheckProblemSubmitAuth(ctx context.Context, problemId int, userId int) (
-	bool,
-	error,
-) {
+func (d *ProblemDao) CheckProblemSubmitAuth(ctx context.Context, problemId int, userId int) (bool, error) {
 	var exists int
 	err := d.db.WithContext(ctx).Raw(
 		`
@@ -179,7 +185,7 @@ func (d *ProblemDao) CheckProblemSubmitAuth(ctx context.Context, problemId int, 
 		LEFT JOIN problem_member_auth a ON p.id = a.id AND a.user_id = ?
 		WHERE p.id = ?
 		  AND (
-		    p.private = false
+		    p.private = FALSE
 		    OR p.inserter = ?
 		    OR m.user_id IS NOT NULL
 		    OR a.user_id IS NOT NULL
@@ -234,7 +240,7 @@ func (d *ProblemDao) HasProblem(ctx context.Context, id int) (bool, error) {
 		}
 		return false, err
 	}
-	return true, nil
+	return dummy == 1, nil
 }
 
 func (d *ProblemDao) HasProblemByKey(ctx context.Context, key string) (bool, error) {
@@ -251,7 +257,7 @@ func (d *ProblemDao) HasProblemByKey(ctx context.Context, key string) (bool, err
 		}
 		return false, err
 	}
-	return true, nil
+	return dummy == 1, nil
 }
 
 func (d *ProblemDao) HasProblemTitle(ctx context.Context, title string) (bool, error) {
@@ -272,20 +278,21 @@ func (d *ProblemDao) HasProblemTitle(ctx context.Context, title string) (bool, e
 }
 
 func (d *ProblemDao) GetProblemIdByKey(ctx context.Context, key string) (int, error) {
-	var id int
+	var result struct {
+		Id int `gorm:"column:id"`
+	}
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Problem{}).
 		Select("id").
-		Where("`key` = ?", key).
-		Pluck("id", &id).
-		Error
+		Where(map[string]interface{}{"key": key}).
+		Take(&result).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, metaerror.New("problem not found")
 		}
 		return 0, metaerror.Wrap(err, "find problem id by key failed")
 	}
-	return id, nil
+	return result.Id, nil
 }
 
 func (d *ProblemDao) GetProblemIdsByKey(ctx context.Context, problemKeys []string) ([]int, error) {
@@ -296,8 +303,8 @@ func (d *ProblemDao) GetProblemIdsByKey(ctx context.Context, problemKeys []strin
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Problem{}).
 		Select("id").
-		Where("`key` IN ?", problemKeys).
-		Scan(&ids).Error
+		Where("key IN ?", problemKeys).
+		Pluck("id", &ids).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "find problem ids by keys failed")
 	}
@@ -330,7 +337,7 @@ func (d *ProblemDao) GetProblemTitles(
 		if userId > 0 {
 			query = query.Where(
 				`
-				private = 0 OR
+				private = FALSE OR
 				inserter = ? OR
 				EXISTS (
 					SELECT 1 FROM problem_member pm
@@ -343,7 +350,7 @@ func (d *ProblemDao) GetProblemTitles(
 			`, userId, userId, userId,
 			)
 		} else {
-			query = query.Where("private = 0")
+			query = query.Where("private = FALSE")
 		}
 	}
 	var titles []*foundationview.ProblemViewTitle
@@ -407,8 +414,8 @@ func (d *ProblemDao) GetProblemViewJudgeData(ctx context.Context, id int) (*foun
 			r.judge_md5
 		`,
 		).
-		Joins(`LEFT JOIN user u1 ON u1.id = p.inserter`).
-		Joins(`LEFT JOIN user u2 ON u2.id = p.modifier`).
+		Joins(`LEFT JOIN "user" u1 ON u1.id = p.inserter`).
+		Joins(`LEFT JOIN "user" u2 ON u2.id = p.modifier`).
 		Joins(`LEFT JOIN problem_local r ON r.problem_id = p.id`).
 		Where("p.id = ?", id)
 	var problem foundationview.ProblemJudgeData
@@ -434,10 +441,10 @@ func (d *ProblemDao) GetProblemViewJudgeDataByKey(ctx context.Context, key strin
 			r.judge_md5
 		`,
 		).
-		Joins(`LEFT JOIN user u1 ON u1.id = p.inserter`).
-		Joins(`LEFT JOIN user u2 ON u2.id = p.modifier`).
+		Joins(`LEFT JOIN "user" u1 ON u1.id = p.inserter`).
+		Joins(`LEFT JOIN "user" u2 ON u2.id = p.modifier`).
 		Joins(`LEFT JOIN problem_local r ON r.problem_id = p.id`).
-		Where("p.`key` = ?", key)
+		Where("p.key = ?", key)
 	var problem foundationview.ProblemJudgeData
 	if err := db.First(&problem).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -448,10 +455,10 @@ func (d *ProblemDao) GetProblemViewJudgeDataByKey(ctx context.Context, key strin
 	return &problem, nil
 }
 
-func (d *ProblemDao) GetProblemViewApproveJudge(
-	ctx context.Context,
-	id int,
-) (*foundationview.ProblemViewApproveJudge, error) {
+func (d *ProblemDao) GetProblemViewApproveJudge(ctx context.Context, id int) (
+	*foundationview.ProblemViewApproveJudge,
+	error,
+) {
 	db := d.db.WithContext(ctx).
 		Table("problem as p").
 		Select("p.id", "pr.origin_oj", "pr.origin_id").
@@ -470,7 +477,7 @@ func (d *ProblemDao) GetProblemViewApproveJudge(
 
 func (d *ProblemDao) GetProblemJudgeMd5(ctx context.Context, id string) (*string, error) {
 	var result struct {
-		JudgeMd5 *string
+		JudgeMd5 *string `gorm:"column:judge_md5"`
 	}
 	err := d.db.WithContext(ctx).Model(&foundationmodel.ProblemLocal{}).
 		Select("judge_md5").
@@ -530,15 +537,16 @@ func (d *ProblemDao) FilterValidProblemIds(ctx context.Context, ids []int) ([]in
 	return validIds, nil
 }
 
-func (d *ProblemDao) SelectProblemViewList(ctx context.Context, ids []int, needAttempt bool) (
-	[]*foundationview.ProblemViewList,
-	error,
-) {
+func (d *ProblemDao) SelectProblemViewList(
+	ctx context.Context,
+	ids []int,
+	needAttempt bool,
+) ([]*foundationview.ProblemViewList, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
 	var list []*foundationview.ProblemViewList
-	fields := []string{"id", "`key`", "title"}
+	fields := []string{"id", "key", "title"}
 	if needAttempt {
 		fields = append(fields, "accept", "attempt")
 	}
@@ -586,8 +594,7 @@ func (d *ProblemDao) UpdateProblem(
 			if txRes.RowsAffected == 0 {
 				return metaerror.New("problem not found")
 			}
-			err := GetProblemTagDao().UpdateProblemTagsByDb(tx, problemId, tagIds)
-			if err != nil {
+			if err := GetProblemTagDao().UpdateProblemTagsByDb(tx, problemId, tagIds); err != nil {
 				return err
 			}
 			return nil
@@ -608,9 +615,12 @@ func (d *ProblemDao) UpdateProblemDescription(
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Problem{}).
 		Where("id = ?", id).
-		Update("description", description).
-		Update("modify_time", nowTime).
-		Error
+		Updates(
+			map[string]interface{}{
+				"description": description,
+				"modify_time": nowTime,
+			},
+		).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return metaerror.New("problem not found")
@@ -631,19 +641,21 @@ func (d *ProblemDao) UpdateProblemJudgeInfo(
 		func(tx *gorm.DB) error {
 			err := tx.Model(&foundationmodel.Problem{}).
 				Where("id = ?", id).
-				Update("judge_type", judgeType).
-				Update("modify_time", nowTime).
-				Error
+				Updates(
+					map[string]interface{}{
+						"judge_type":  judgeType,
+						"modify_time": nowTime,
+					},
+				).Error
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return metaerror.New("problem not found")
 				}
-				return metaerror.Wrap(err, "failed to update problem description")
+				return metaerror.Wrap(err, "failed to update problem judge info")
 			}
 			err = tx.Model(&foundationmodel.ProblemLocal{}).
 				Where("problem_id = ?", id).
-				Update("judge_md5", md5).
-				Error
+				Update("judge_md5", md5).Error
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return metaerror.New("problem local not found")
@@ -670,7 +682,7 @@ func (d *ProblemDao) UpdateProblemCrawl(
 			var existing foundationmodel.Problem
 			// 查找是否已存在该 problemKey，尝试加锁避免并发写入
 			err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where("`key` = ?", problemKey).
+				Where("key = ?", problemKey).
 				First(&existing).Error
 			var problemId int
 			if err == nil {
@@ -703,6 +715,7 @@ func (d *ProblemDao) UpdateProblemCrawl(
 				// 其他错误
 				return err
 			}
+
 			// 处理 problem_remote
 			var remoteExisting foundationmodel.ProblemRemote
 			err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -759,6 +772,7 @@ func (d *ProblemDao) InsertProblemLocal(
 			if err := tx.Create(problemLocal).Error; err != nil {
 				return metaerror.Wrap(err, "insert problem local")
 			}
+			// key 使用 problemLocal.Id 转为字符串
 			problem.Key = strconv.Itoa(problemLocal.Id)
 			if err := tx.Save(problem).Error; err != nil {
 				return metaerror.Wrap(err, "update problem key")

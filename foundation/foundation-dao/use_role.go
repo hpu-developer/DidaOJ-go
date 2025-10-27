@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	foundationmodel "foundation/foundation-model"
-	"gorm.io/gorm"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
+
+	"gorm.io/gorm"
 )
 
 type UserRoleDao struct {
@@ -19,7 +20,7 @@ func GetUserRoleDao() *UserRoleDao {
 	return singletonUserRoleDao.GetInstance(
 		func() *UserRoleDao {
 			dao := &UserRoleDao{}
-			db := metamysql.GetSubsystem().GetClient("didaoj")
+			db := metapostgresql.GetSubsystem().GetClient("didaoj")
 			dao.db = db.Model(&foundationmodel.UserRole{})
 			return dao
 		},

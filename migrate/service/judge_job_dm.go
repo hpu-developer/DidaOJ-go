@@ -81,7 +81,7 @@ func (s *MigrateJudgeJobDmojService) Start() error {
 
 func (s *MigrateJudgeJobDmojService) processDmojJudgeJob(ctx context.Context) ([]*foundationmodel.JudgeJob, error) {
 
-	dmojDb := metamysql.GetSubsystem().GetClient("dmoj")
+	dmojDb := metapostgresql.GetSubsystem().GetClient("dmoj")
 
 	const batchSize = 1000
 	offset := 0

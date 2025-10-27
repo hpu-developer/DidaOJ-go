@@ -136,9 +136,11 @@ func (s *JudgeService) GetJudgeList(
 			}
 		}
 	} else {
-		problemId, err = GetProblemService().GetProblemIdByKey(ctx, problemKey)
-		if err != nil {
-			return nil, metaerror.Wrap(err, "get problem id by key error")
+		if problemKey != "" {
+			problemId, err = GetProblemService().GetProblemIdByKey(ctx, problemKey)
+			if err != nil {
+				return nil, metaerror.Wrap(err, "get problem id by key error")
+			}
 		}
 	}
 

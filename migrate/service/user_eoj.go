@@ -46,7 +46,7 @@ func (s *MigrateUserEojService) Start() error {
 	ctx := context.Background()
 
 	// 初始化 GORM 客户端
-	eojDb := metamysql.GetSubsystem().GetClient("eoj")
+	eojDb := metapostgresql.GetSubsystem().GetClient("eoj")
 
 	var userModels []EojUser
 	if err := eojDb.

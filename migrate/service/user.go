@@ -145,7 +145,7 @@ func (s *MigrateUserService) Start() error {
 func (s *MigrateUserService) processJolUser(ctx context.Context) ([]*foundationmodel.User, error) {
 	slog.Info("migrate User processJolUser")
 
-	db := metamysql.GetSubsystem().GetClient("jol")
+	db := metapostgresql.GetSubsystem().GetClient("jol")
 
 	var users []JolUser
 	if err := db.Order("reg_time ASC").Find(&users).Error; err != nil {
@@ -181,7 +181,7 @@ func (s *MigrateUserService) processJolUser(ctx context.Context) ([]*foundationm
 func (s *MigrateUserService) processCodeojUser(ctx context.Context) ([]*foundationmodel.User, error) {
 	slog.Info("migrate User processCodeojUser")
 
-	db := metamysql.GetSubsystem().GetClient("codeoj")
+	db := metapostgresql.GetSubsystem().GetClient("codeoj")
 
 	var users []CodeojUser
 	if err := db.Order("reg_time ASC").Find(&users).Error; err != nil {
@@ -213,7 +213,7 @@ func (s *MigrateUserService) processCodeojUser(ctx context.Context) ([]*foundati
 func (s *MigrateUserService) processVhojUser(ctx context.Context) ([]*foundationmodel.User, error) {
 	slog.Info("migrate User processVhojUser")
 
-	db := metamysql.GetSubsystem().GetClient("vhoj")
+	db := metapostgresql.GetSubsystem().GetClient("vhoj")
 
 	var users []VhojUser
 	if err := db.Order("C_ID ASC").Find(&users).Error; err != nil {

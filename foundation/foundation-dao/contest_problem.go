@@ -4,10 +4,11 @@ import (
 	"context"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"gorm.io/gorm"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
+
+	"gorm.io/gorm"
 )
 
 type ContestProblemDao struct {
@@ -20,7 +21,7 @@ func GetContestProblemDao() *ContestProblemDao {
 	return singletonContestProblemDao.GetInstance(
 		func() *ContestProblemDao {
 			dao := &ContestProblemDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -30,7 +31,7 @@ func (d *ContestProblemDao) GetProblemId(ctx context.Context, id int, index int)
 	var problemId int
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.ContestProblem{}).
-		Where("id = ? AND `index` = ?", id, index).
+		Where("id = ? AND index = ?", id, index).
 		Pluck("problem_id", &problemId).Error // index 是保留字，建议加反引号
 	if err != nil {
 		return 0, err
@@ -47,9 +48,9 @@ func (d *ContestProblemDao) GetProblemKey(ctx context.Context, id int, index int
 	}
 	err := d.db.WithContext(ctx).
 		Table("contest_problem").
-		Select("problem.`key`").
+		Select("problem.key").
 		Joins("JOIN problem ON contest_problem.problem_id = problem.id").
-		Where("contest_problem.id = ? AND contest_problem.`index` = ?", id, index).
+		Where("contest_problem.id = ? AND contest_problem.index = ?", id, index).
 		Take(&result).Error
 	if err != nil {
 		return "", err
@@ -61,7 +62,7 @@ func (d *ContestProblemDao) GetProblemIndex(ctx context.Context, id int, problem
 	var index int
 	err := d.db.WithContext(ctx).Model(&foundationmodel.ContestProblem{}).
 		Where("id = ? AND problem_id = ?", id, problemId).
-		Pluck("`index`", &index).Error // index 是保留字，建议加反引号
+		Pluck("index", &index).Error // index 是保留字，建议加反引号
 	if err != nil {
 		return 0, err
 	}
@@ -103,7 +104,7 @@ func (d *ContestProblemDao) GetProblemIds(ctx context.Context, contestId int) (
 func (d *ContestProblemDao) GetProblemsRank(ctx context.Context, id int) ([]*foundationview.ContestProblemRank, error) {
 	var results []*foundationview.ContestProblemRank
 	err := d.db.WithContext(ctx).Model(&foundationmodel.ContestProblem{}).
-		Select("problem_id,`index`,score").
+		Select("problem_id,index,score").
 		Where("id = ?", id).
 		Scan(&results).Error
 
@@ -144,7 +145,7 @@ func (d *ContestProblemDao) GetProblemIdByContest(ctx context.Context, id int, i
 	var problemId int
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.ContestProblem{}).
-		Where("id = ? AND `index` = ?", id, index).
+		Where("id = ? AND index = ?", id, index).
 		Pluck("problem_id", &problemId).Error // index 是保留字，建议加反引号
 	if err != nil {
 		return nil, err

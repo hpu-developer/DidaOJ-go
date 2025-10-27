@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	foundationmodel "foundation/foundation-model"
-	"gorm.io/gorm"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
+
+	"gorm.io/gorm"
 )
 
 type ProblemTagDao struct {
@@ -20,7 +21,7 @@ func GetProblemTagDao() *ProblemTagDao {
 	return singletonProblemTagDao.GetInstance(
 		func() *ProblemTagDao {
 			dao := &ProblemTagDao{}
-			db := metamysql.GetSubsystem().GetClient("didaoj")
+			db := metapostgresql.GetSubsystem().GetClient("didaoj")
 			dao.db = db.Model((*foundationmodel.ProblemTag)(nil))
 			return dao
 		},
@@ -33,7 +34,7 @@ func (d *ProblemTagDao) GetProblemTags(ctx context.Context, problemIds []int) ([
 		Select("tag_id").
 		Where("id IN ?", problemIds).
 		Group("tag_id").
-		Order("MIN(`index`) ASC").
+		Order("MIN(index) ASC").
 		Pluck("tag_id", &ids).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to pluck tag ids")
@@ -49,8 +50,8 @@ func (d *ProblemTagDao) GetProblemTagMap(ctx context.Context, problemIds []int) 
 	var results []*ProblemTagsResult
 	err := d.db.WithContext(ctx).
 		Raw(
-			"SELECT id, JSON_ARRAYAGG(tag_id) AS tag_ids "+
-				"FROM (SELECT id, tag_id FROM problem_tag WHERE id IN (?) ORDER BY id, `index`) AS sorted_tags "+
+			"SELECT id, JSON_AGG(tag_id) AS tag_ids "+
+				"FROM (SELECT id, tag_id FROM problem_tag WHERE id IN (?) ORDER BY id, index) AS sorted_tags "+
 				"GROUP BY id",
 			problemIds,
 		).

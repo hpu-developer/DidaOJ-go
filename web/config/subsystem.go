@@ -7,7 +7,7 @@ import (
 	metaconfig "meta/meta-config"
 	metaemail "meta/meta-email"
 	metamogo "meta/meta-mongo"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	metaredis "meta/meta-redis"
 	metastring "meta/meta-string"
 )
@@ -21,8 +21,8 @@ type Config struct {
 
 	Mongo metamogo.Config `yaml:"mongo"`
 
-	Redis metaredis.Config             `yaml:"redis"`
-	Mysql map[string]*metamysql.Config `yaml:"mysql"`
+	Redis      metaredis.Config                  `yaml:"redis"`
+	PostgreSql map[string]*metapostgresql.Config `yaml:"postgresql"`
 
 	GoJudge foundationjudge.GoJudgeConfig `yaml:"go-judge"` // GoJudge 数据服务地址
 
@@ -117,7 +117,7 @@ func GetRedisConfig() *metaredis.Config {
 	return &configSubsystem.config.Redis
 }
 
-func GetMysqlConfig() map[string]*metamysql.Config {
+func GetPostgreSqlConfig() map[string]*metapostgresql.Config {
 	configSubsystem := GetSubsystem()
 	if configSubsystem == nil {
 		return nil
@@ -125,7 +125,7 @@ func GetMysqlConfig() map[string]*metamysql.Config {
 	if configSubsystem.config == nil {
 		return nil
 	}
-	return configSubsystem.config.Mysql
+	return configSubsystem.config.PostgreSql
 }
 
 func GetOjTemplateContent(oj string) string {

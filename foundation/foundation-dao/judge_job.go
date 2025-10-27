@@ -11,8 +11,8 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
 	metapanic "meta/meta-panic"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
 	"strings"
 	"time"
@@ -32,7 +32,7 @@ func GetJudgeJobDao() *JudgeJobDao {
 	return singletonJudgeJobDao.GetInstance(
 		func() *JudgeJobDao {
 			dao := &JudgeJobDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -89,7 +89,7 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int, fields []str
 			"u.nickname AS inserter_nickname",
 			"judger.name AS judger_name",
 			"jc.message AS compile_message",
-			"p.`key` AS problem_key",
+			"p.key AS problem_key",
 		)
 	} else {
 		selectFields = []string{
@@ -98,13 +98,13 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int, fields []str
 			"u.nickname AS inserter_nickname",
 			"judger.name AS judger_name",
 			"jc.message AS compile_message",
-			"p.`key` AS problem_key",
+			"p.key AS problem_key",
 		}
 	}
 
 	err := d.db.WithContext(ctx).Table("judge_job AS j").
 		Select(strings.Join(selectFields, ", ")).
-		Joins("LEFT JOIN user AS u ON u.id = j.inserter").
+		Joins("LEFT JOIN \"user\" AS u ON u.id = j.inserter").
 		Joins("LEFT JOIN judger AS judger ON judger.key = j.judger").
 		Joins("LEFT JOIN judge_job_compile AS jc ON jc.id = j.id").
 		Joins("LEFT JOIN problem AS p ON p.id = j.problem_id").
@@ -135,17 +135,17 @@ func (d *JudgeJobDao) GetJudgeJobList(
 			j.time, j.memory, j.problem_id, j.inserter, j.code_length,
 			u.username AS inserter_username, u.nickname AS inserter_nickname`
 
-	selectSql += ", p.`key` as problem_key"
+	selectSql += ", p.key as problem_key"
 
 	if contestId > 0 {
-		selectSql += ", cp.`index` AS contest_problem_index"
+		selectSql += ", cp.index AS contest_problem_index"
 	}
 
 	db := d.db.WithContext(ctx).Table("judge_job AS j").
 		Select(
 			selectSql,
 		).
-		Joins("LEFT JOIN user AS u ON u.id = j.inserter").
+		Joins("LEFT JOIN \"user\" AS u ON u.id = j.inserter").
 		Joins("LEFT JOIN problem AS p ON p.id = j.problem_id")
 	if contestId > 0 {
 		db = db.Joins(
@@ -249,7 +249,7 @@ func (d *JudgeJobDao) GetProblemAttemptStatusByKey(
 	}
 	db := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
 		Select(
-			"p.`key` as problem_key, MAX(CASE WHEN status = ? THEN 1 ELSE 0 END) AS has_ac, MAX(CASE WHEN status != ? THEN 1 ELSE 0 END) AS has_attempt",
+			"p.key as problem_key, MAX(CASE WHEN status = ? THEN 1 ELSE 0 END) AS has_ac, MAX(CASE WHEN status != ? THEN 1 ELSE 0 END) AS has_attempt",
 			foundationjudge.JudgeStatusAC, foundationjudge.JudgeStatusAC,
 		).
 		Where("judge_job.inserter = ?", inserter).
@@ -284,7 +284,7 @@ func (d *JudgeJobDao) GetProblemAttemptStatusByKey(
 func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
 	var problemIds []*foundationview.ProblemViewKey
 	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
-		Select("DISTINCT problem_id as id, p.`key` as `key`").
+		Select("DISTINCT problem_id as id, p.key as key").
 		Where("judge_job.status = ?", foundationjudge.JudgeStatusAC).
 		Where("judge_job.inserter = ?", userId).
 		Joins("JOIN problem AS p ON p.id = judge_job.problem_id").
@@ -403,7 +403,7 @@ func (d *JudgeJobDao) GetRankAcProblem(
 	var result []*foundationview.UserRank
 	err := d.db.Table("(?) AS t", subQuery).
 		Select("t.id, t.problem_count, u.username, u.nickname, u.slogan").
-		Joins("LEFT JOIN user u ON u.id = t.id").
+		Joins("LEFT JOIN \"user\" u ON u.id = t.id").
 		Order("t.problem_count DESC, t.id ASC").
 		Limit(pageSize).
 		Offset((page - 1) * pageSize).
@@ -500,70 +500,98 @@ func (d *JudgeJobDao) GetContestRanks(
 	var err error
 
 	if lockTime == nil {
-		execSql = `
-SELECT inserter,
-       u.username AS username,
-       u.nickname AS nickname,
-       JSON_ARRAYAGG(
-               JSON_OBJECT(
-                       'id', problem_id,
-                       'attempt', count,
-                       'ac', ac
-               )
-       )          AS problems
-FROM (SELECT j.inserter,
-             j.problem_id,
-             SUM(fa.ac_id is null OR j.id < fa.ac_id) AS count,
-             ac.insert_time                           AS ac
-      FROM judge_job j
-               LEFT JOIN (SELECT inserter, problem_id, MIN(id) AS ac_id
-                          FROM judge_job
-                          WHERE contest_id = ?
-                            AND status = ?
-                          GROUP BY inserter, problem_id) fa
-                            ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
-               LEFT JOIN judge_job ac ON ac.id = fa.ac_id
-      WHERE j.contest_id = ?
-      GROUP BY j.inserter, j.problem_id) AS flat
-         LEFT JOIN user as u ON flat.inserter = u.id
-GROUP BY inserter
-`
+		execSql = `SELECT 
+    flat.inserter,
+    u.username,
+    u.nickname,
+    JSON_AGG(
+        JSON_BUILD_OBJECT(
+            'id', flat.problem_id,
+            'attempt', flat.count,
+            'ac', flat.ac
+        )
+    ) AS problems
+FROM (
+    SELECT 
+        j.inserter,
+        j.problem_id,
+        SUM(
+            CASE
+                WHEN fa.ac_id IS NULL OR j.id < fa.ac_id THEN 1
+                ELSE 0
+            END
+        ) AS count,
+        MIN(ac.insert_time) AS ac
+    FROM judge_job j
+    LEFT JOIN (
+        SELECT 
+            inserter, 
+            problem_id, 
+            MIN(id) AS ac_id
+        FROM judge_job
+        WHERE contest_id = $1
+          AND status = $2
+        GROUP BY inserter, problem_id
+    ) fa ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
+    LEFT JOIN judge_job ac ON ac.id = fa.ac_id
+    WHERE j.contest_id = $3
+    GROUP BY j.inserter, j.problem_id
+) AS flat
+LEFT JOIN "user" u ON flat.inserter = u.id
+GROUP BY flat.inserter, u.username, u.nickname;`
 		rows, err = d.db.WithContext(ctx).
 			Raw(execSql, id, foundationjudge.JudgeStatusAC, id).
 			Rows()
 	} else {
-		execSql = `
-SELECT inserter,
-       u.username AS username,
-       u.nickname AS nickname,
-       JSON_ARRAYAGG(
-               JSON_OBJECT(
-                       'id', problem_id,
-                       'attempt', count_before,
-                       'lock', count_lock,
-                       'ac', ac
-               )
-       )          AS problems
-FROM (SELECT j.inserter,
-             j.problem_id,
-             SUM((fa.ac_id is null AND j.insert_time < ?) OR j.id < fa.ac_id) AS count_before,
-             SUM(fa.ac_id is not null AND j.insert_time >= ?)                 AS count_lock,
-             ac.insert_time                                                                       AS ac
-      FROM judge_job j
-               LEFT JOIN (SELECT inserter, problem_id, MIN(id) AS ac_id
-                          FROM judge_job
-                          WHERE contest_id = ?
-                            AND status = ?
-                            AND insert_time < ?
-                          GROUP BY inserter, problem_id) fa
-                            ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
-               LEFT JOIN judge_job ac ON ac.id = fa.ac_id
-      WHERE j.contest_id = ?
-      GROUP BY j.inserter, j.problem_id) AS flat
-         LEFT JOIN user u ON flat.inserter = u.id
-GROUP BY inserter;`
+		execSql = `SELECT 
+    flat.inserter,
+    u.username,
+    u.nickname,
+    JSON_AGG(
+        JSON_BUILD_OBJECT(
+            'id', flat.problem_id,
+            'attempt', flat.count_before,
+            'lock', flat.count_lock,
+            'ac', flat.ac
+        )
+    ) AS problems
+FROM (
+    SELECT 
+        j.inserter,
+        j.problem_id,
+        SUM(
+            CASE
+                WHEN (fa.ac_id IS NULL AND j.insert_time < $1) OR (fa.ac_id IS NOT NULL AND j.id < fa.ac_id) THEN 1
+                ELSE 0
+            END
+        ) AS count_before,
+        SUM(
+            CASE
+                WHEN fa.ac_id IS NOT NULL AND j.insert_time >= $2 THEN 1
+                ELSE 0
+            END
+        ) AS count_lock,
+        MIN(ac.insert_time) AS ac
+    FROM judge_job j
+    LEFT JOIN (
+        SELECT 
+            inserter, 
+            problem_id, 
+            MIN(id) AS ac_id
+        FROM judge_job
+        WHERE contest_id = $3
+          AND status = $4
+          AND insert_time < $5
+        GROUP BY inserter, problem_id
+    ) fa ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
+    LEFT JOIN judge_job ac ON ac.id = fa.ac_id
+    WHERE j.contest_id = $6
+    GROUP BY j.inserter, j.problem_id
+) AS flat
+LEFT JOIN "user" u ON flat.inserter = u.id
+GROUP BY flat.inserter, u.username, u.nickname;`
 
-		rows, err = d.db.WithContext(ctx).Debug().Raw(
+		rows, err = d.db.WithContext(ctx).Raw(
 			execSql,
 			lockTime,
 			lockTime,

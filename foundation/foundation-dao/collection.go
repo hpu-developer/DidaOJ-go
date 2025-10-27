@@ -8,7 +8,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
 	"time"
 
@@ -26,7 +26,7 @@ func GetCollectionDao() *CollectionDao {
 	return singletonCollectionDao.GetInstance(
 		func() *CollectionDao {
 			dao := &CollectionDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -90,8 +90,8 @@ func (d *CollectionDao) GetCollectionDetail(ctx context.Context, id int) (*found
 			u2.username AS modifier_username, u2.nickname AS modifier_nickname
 		`,
 		).
-		Joins("LEFT JOIN user AS u1 ON c.inserter = u1.id").
-		Joins("LEFT JOIN user AS u2 ON c.modifier = u2.id").
+		Joins("LEFT JOIN \"user\" AS u1 ON c.inserter = u1.id").
+		Joins("LEFT JOIN \"user\" AS u2 ON c.modifier = u2.id").
 		Where("c.id = ?", id).
 		Scan(&result).Error
 
@@ -134,7 +134,7 @@ func (d *CollectionDao) GetCollectionList(
 			u.nickname AS inserter_nickname
 		`,
 		).
-		Joins("LEFT JOIN user u ON u.id = c.inserter").
+		Joins("LEFT JOIN \"user\" u ON u.id = c.inserter").
 		Order("c.id DESC").
 		Limit(pageSize).
 		Offset(offset).
@@ -189,7 +189,7 @@ func (d *CollectionDao) GetCollectionRank(
 		`, foundationjudge.JudgeStatusAC,
 		).
 		Joins("JOIN collection_member AS cm ON cm.user_id = j.inserter AND cm.id = ?", collectionId).
-		Joins("JOIN user AS u ON u.id = j.inserter").
+		Joins("JOIN \"user\" AS u ON u.id = j.inserter").
 		Where("j.problem_id IN ?", collection.Problems)
 
 	if collection.StartTime != nil {

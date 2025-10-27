@@ -6,12 +6,13 @@ import (
 	"fmt"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	metatime "meta/meta-time"
 	"meta/singleton"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type ProblemDailyDao struct {
@@ -24,7 +25,7 @@ func GetProblemDailyDao() *ProblemDailyDao {
 	return singletonProblemDailyDao.GetInstance(
 		func() *ProblemDailyDao {
 			dao := &ProblemDailyDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -38,7 +39,7 @@ func (d *ProblemDailyDao) HasProblemDaily(ctx *gin.Context, dailyId string) (boo
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.ProblemDaily{}).
 		Select("1").
-		Where("`key` = ?", dailyId).
+		Where(map[string]interface{}{"key": dailyId}).
 		Limit(1).
 		Scan(&dummy).Error
 	if err != nil {
@@ -81,9 +82,9 @@ func (d *ProblemDailyDao) GetProblemDaily(
 	var record *foundationview.ProblemDaily
 	err := d.db.WithContext(ctx).
 		Table("problem_daily as pd").
-		Select("pd.problem_id,pd.solution,pd.code,problem.`key` as problem_key").
+		Select("pd.problem_id,pd.solution,pd.code,problem.key as problem_key").
 		Joins("JOIN problem ON problem.id = pd.problem_id").
-		Where("pd.`key` = ?", dailyId).
+		Where("pd.key = ?", dailyId).
 		Take(&record).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -104,14 +105,14 @@ func (d *ProblemDailyDao) GetProblemDailyEdit(ctx *gin.Context, dailyId string) 
 	var record foundationview.ProblemDailyEdit
 	err := d.db.WithContext(ctx).
 		Select(
-			"problem_daily.*, problem.`key` as problem_key, problem.title as problem_title, "+
+			"problem_daily.*, problem.key as problem_key, problem.title as problem_title, "+
 				"inserter.username as inserter_username, inserter.nickname as inserter_nickname, "+
 				"modifier.username as modifier_username, modifier.nickname as modifier_nickname",
 		).
 		Joins("JOIN problem ON problem.id = problem_daily.problem_id").
-		Joins("JOIN user AS inserter ON inserter.id = problem_daily.inserter").
-		Joins("JOIN user AS modifier ON modifier.id = problem_daily.modifier").
-		Where("problem_daily.`key` = ?", dailyId).
+		Joins("JOIN \"user\" AS inserter ON inserter.id = problem_daily.inserter").
+		Joins("JOIN \"user\" AS modifier ON modifier.id = problem_daily.modifier").
+		Where("problem_daily.key = ?", dailyId).
 		Take(&record).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -134,21 +135,21 @@ func (d *ProblemDailyDao) GetDailyList(
 	db := d.db.WithContext(ctx).Table("problem_daily as pd")
 	nowId := metatime.GetTimeNowBeijing().Format("2006-01-02")
 	if startDate != nil && *startDate != "" {
-		db = db.Where("pd.`key` >= ?", *startDate)
+		db = db.Where("pd.key >= ?", *startDate)
 	}
 	if hasAuth {
 		if endDate != nil && *endDate != "" {
-			db = db.Where("pd.`key` <= ?", *endDate)
+			db = db.Where("pd.key <= ?", *endDate)
 		}
 	} else {
 		if endDate != nil && *endDate != "" {
 			if *endDate < nowId {
-				db = db.Where("pd.`key` <= ?", *endDate)
+				db = db.Where("pd.key <= ?", *endDate)
 			} else {
-				db = db.Where("pd.`key` <= ?", nowId)
+				db = db.Where("pd.key <= ?", nowId)
 			}
 		} else {
-			db = db.Where("pd.`key` <= ?", nowId)
+			db = db.Where("pd.key <= ?", nowId)
 		}
 	}
 	if problemId > 0 {
@@ -161,15 +162,15 @@ func (d *ProblemDailyDao) GetDailyList(
 	offset := (page - 1) * pageSize
 	var list []*foundationview.ProblemDailyList
 	err := db.Select(
-		"pd.`key`",
+		"pd.key",
 		"pd.problem_id",
 		"p.title AS title",
-		"p.`key` AS problem_key",
+		"p.key AS problem_key",
 		"p.accept AS accept",
 		"p.attempt AS attempt",
 	).
 		Joins("LEFT JOIN problem AS p ON pd.problem_id = p.id").
-		Order("`key` DESC").
+		Order("key DESC").
 		Limit(pageSize).
 		Offset(offset).
 		Find(&list).Error
@@ -186,14 +187,14 @@ func (d *ProblemDailyDao) GetDailyRecently(ctx *gin.Context) ([]*foundationview.
 	err := d.db.WithContext(ctx).
 		Table("problem_daily AS pd").
 		Select(
-			"`pd`.`key` AS `key`",
+			"pd.key AS key",
 			"p.title AS title",
 			"pd.problem_id AS problem_id",
-			"p.`key` AS problem_key",
+			"p.key AS problem_key",
 		).
 		Joins("LEFT JOIN problem AS p ON pd.problem_id = p.id").
-		Where("pd.`key` <= ?", today).
-		Order("pd.`key` DESC").
+		Where("pd.key <= ?", today).
+		Order("pd.key DESC").
 		Limit(7).
 		Scan(&result).Error
 	if err != nil {
@@ -225,7 +226,7 @@ func (d *ProblemDailyDao) UpdateProblemDaily(
 		return metaerror.New("daily is nil")
 	}
 	db := d.db.WithContext(ctx).Model(problemDaily)
-	if err := db.Where("`key` = ?", key).Updates(problemDaily).Error; err != nil {
+	if err := db.Where("key = ?", key).Updates(problemDaily).Error; err != nil {
 		return metaerror.Wrap(err, "update problemDaily")
 	}
 	if db.RowsAffected == 0 {

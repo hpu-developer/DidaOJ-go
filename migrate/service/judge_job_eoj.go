@@ -81,7 +81,7 @@ func (s *MigrateJudgeJobEojService) Start() error {
 
 func (s *MigrateJudgeJobEojService) processEojJudgeJob(ctx context.Context) ([]*foundationmodel.JudgeJob, error) {
 
-	eojDb := metamysql.GetSubsystem().GetClient("eoj")
+	eojDb := metapostgresql.GetSubsystem().GetClient("eoj")
 
 	const batchSize = 1000
 	offset := 0

@@ -6,7 +6,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +23,7 @@ func GetDiscussDao() *DiscussDao {
 	return singletonDiscussDao.GetInstance(
 		func() *DiscussDao {
 			dao := &DiscussDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -56,8 +56,8 @@ func (d *DiscussDao) GetDiscussDetail(ctx context.Context, id int) (*foundationv
 			p.key AS problem_key
 		`,
 		).
-		Joins("LEFT JOIN user AS u1 ON d.inserter = u1.id").
-		Joins("LEFT JOIN user AS u2 ON d.modifier = u2.id").
+		Joins("LEFT JOIN \"user\" AS u1 ON d.inserter = u1.id").
+		Joins("LEFT JOIN \"user\" AS u2 ON d.modifier = u2.id").
 		Joins("LEFT JOIN problem AS p ON d.problem_id = p.id").
 		Where("d.id = ?", id).
 		Scan(&discuss).Error
@@ -164,20 +164,20 @@ func (d *DiscussDao) GetDiscussList(
 	}
 
 	if contestId > 0 {
-		selectFields = append(selectFields, "cp.`index` AS contest_problem_index")
+		selectFields = append(selectFields, "cp.index AS contest_problem_index")
 	} else {
-		selectFields = append(selectFields, "p.`key` AS problem_key")
+		selectFields = append(selectFields, "p.key AS problem_key")
 	}
 
 	// 构造 DB 查询
 	db = db.Select(selectFields).
-		Joins("LEFT JOIN `user` AS ui ON ui.id = discuss.inserter").
-		Joins("LEFT JOIN `user` AS um ON um.id = discuss.modifier")
+		Joins("LEFT JOIN \"user\" AS ui ON ui.id = discuss.inserter").
+		Joins("LEFT JOIN \"user\" AS um ON um.id = discuss.modifier")
 
 	if contestId > 0 {
-		db = db.Joins("LEFT JOIN `contest_problem` AS cp ON cp.problem_id = discuss.problem_id AND cp.id = discuss.contest_id")
+		db = db.Joins("LEFT JOIN contest_problem AS cp ON cp.problem_id = discuss.problem_id AND cp.id = discuss.contest_id")
 	} else {
-		db = db.Joins("LEFT JOIN `problem` AS p ON p.id = discuss.problem_id")
+		db = db.Joins("LEFT JOIN problem AS p ON p.id = discuss.problem_id")
 	}
 
 	err := db.

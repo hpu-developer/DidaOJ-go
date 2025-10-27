@@ -3,10 +3,11 @@ package foundationdao
 import (
 	"context"
 	foundationmodel "foundation/foundation-model"
-	"gorm.io/gorm"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
+
+	"gorm.io/gorm"
 )
 
 type DiscussTagDao struct {
@@ -19,7 +20,7 @@ func GetDiscussTagDao() *DiscussTagDao {
 	return singletonDiscussTagDao.GetInstance(
 		func() *DiscussTagDao {
 			dao := &DiscussTagDao{}
-			db := metamysql.GetSubsystem().GetClient("didaoj")
+			db := metapostgresql.GetSubsystem().GetClient("didaoj")
 			dao.db = db.Model((*foundationmodel.DiscussTag)(nil))
 			return dao
 		},

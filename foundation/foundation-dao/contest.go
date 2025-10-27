@@ -8,7 +8,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	metatime "meta/meta-time"
 	"meta/singleton"
 	"time"
@@ -27,7 +27,7 @@ func GetContestDao() *ContestDao {
 	return singletonContestDao.GetInstance(
 		func() *ContestDao {
 			dao := &ContestDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
@@ -64,7 +64,7 @@ func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int)
 		Where(
 			d.db.Table("contest").
 				Where("inserter = ?", userId).
-				Or("`private` = 0").
+				Or("private = FALSE").
 				Or("? IN (SELECT user_id FROM contest_member WHERE id = contest.id)", userId).
 				Or("? IN (SELECT user_id FROM contest_member_auth WHERE id = contest.id)", userId),
 		).
@@ -89,7 +89,7 @@ func (d *ContestDao) HasContestSubmitAuth(ctx context.Context, id int, userId in
 			d.db.
 				Table("contest").
 				Where("inserter = ?", userId).
-				Or("`private` = 0").
+				Or("private = FALSE").
 				Or("? IN (SELECT user_id FROM contest_member WHERE id = contest.id)", userId).
 				Or("? IN (SELECT user_id FROM contest_member_auth WHERE id = contest.id)", userId),
 		).
@@ -188,8 +188,8 @@ func (d *ContestDao) GetContest(ctx context.Context, id int) (*foundationview.Co
 			u2.username AS modifier_username, u2.nickname AS modifier_nickname
 		`,
 		).
-		Joins("LEFT JOIN user AS u1 ON c.inserter = u1.id").
-		Joins("LEFT JOIN user AS u2 ON c.modifier = u2.id").
+		Joins("LEFT JOIN \"user\" AS u1 ON c.inserter = u1.id").
+		Joins("LEFT JOIN \"user\" AS u2 ON c.modifier = u2.id").
 		Where("c.id = ?", id).
 		Take(&result).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -215,8 +215,8 @@ func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationvie
 			u2.username AS modifier_username, u2.nickname AS modifier_nickname
 		`,
 		).
-		Joins("LEFT JOIN user AS u1 ON c.inserter = u1.id").
-		Joins("LEFT JOIN user AS u2 ON c.modifier = u2.id").
+		Joins("LEFT JOIN \"user\" AS u1 ON c.inserter = u1.id").
+		Joins("LEFT JOIN \"user\" AS u2 ON c.modifier = u2.id").
 		Where("c.id = ?", id).
 		Scan(&result).Error
 
@@ -320,7 +320,7 @@ func (d *ContestDao) GetContestList(
 `
 	err := base.
 		Select(selectCols).
-		Joins("LEFT JOIN `user` AS u ON c.inserter = u.id").
+		Joins("LEFT JOIN \"user\" AS u ON c.inserter = u.id").
 		Order("c.start_time DESC, c.id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).

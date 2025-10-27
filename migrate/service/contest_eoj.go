@@ -105,7 +105,7 @@ func (s *MigrateContestEojService) Start() error {
 	}
 
 	// 初始化 GORM 客户端
-	eojDb := metamysql.GetSubsystem().GetClient("eoj")
+	eojDb := metapostgresql.GetSubsystem().GetClient("eoj")
 
 	var contestModels []EojContest
 	if err := eojDb.

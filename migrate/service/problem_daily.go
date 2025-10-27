@@ -46,7 +46,7 @@ func (s *MigrateProblemDailyService) Start() error {
 	//ctx := context.Background()
 
 	// 初始化 GORM 客户端
-	codeojDB := metamysql.GetSubsystem().GetClient("jol")
+	codeojDB := metapostgresql.GetSubsystem().GetClient("jol")
 
 	// 查询题目主表并构造 Mongo 对象
 	var problems []Daily

@@ -177,7 +177,7 @@ func (s *MigrateDiscussEojService) Start() error {
 
 func (s *MigrateDiscussEojService) processDiscussEojBlog(ctx context.Context) ([]*foundationmodel.Discuss, error) {
 
-	eojDb := metamysql.GetSubsystem().GetClient("eoj")
+	eojDb := metapostgresql.GetSubsystem().GetClient("eoj")
 
 	ignoreIds := []int{39}
 
@@ -242,7 +242,7 @@ func (s *MigrateDiscussEojService) processDiscussEojProblemComments(ctx context.
 	error,
 ) {
 
-	eojDb := metamysql.GetSubsystem().GetClient("eoj")
+	eojDb := metapostgresql.GetSubsystem().GetClient("eoj")
 
 	var discusss []*foundationmodel.Discuss
 
@@ -299,7 +299,7 @@ func (s *MigrateDiscussEojService) processDiscussEojContests(ctx context.Context
 	error,
 ) {
 
-	eojDb := metamysql.GetSubsystem().GetClient("eoj")
+	eojDb := metapostgresql.GetSubsystem().GetClient("eoj")
 
 	var discusss []*foundationmodel.Discuss
 
@@ -381,7 +381,7 @@ func (s *MigrateDiscussEojService) processEojBlogComments(ctx context.Context) (
 	error,
 ) {
 
-	eojDb := metamysql.GetSubsystem().GetClient("eoj")
+	eojDb := metapostgresql.GetSubsystem().GetClient("eoj")
 
 	var discussComments []*foundationmodel.DiscussComment
 
@@ -426,7 +426,7 @@ func (s *MigrateDiscussEojService) processEojContestComments(ctx context.Context
 	error,
 ) {
 
-	eojDb := metamysql.GetSubsystem().GetClient("eoj")
+	eojDb := metapostgresql.GetSubsystem().GetClient("eoj")
 
 	var discussComments []*foundationmodel.DiscussComment
 

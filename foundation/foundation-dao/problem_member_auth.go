@@ -3,10 +3,11 @@ package foundationdao
 import (
 	"context"
 	foundationmodel "foundation/foundation-model"
-	"gorm.io/gorm"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
+
+	"gorm.io/gorm"
 )
 
 type ProblemMemberAuthDao struct {
@@ -19,7 +20,7 @@ func GetProblemMemberAuthDao() *ProblemMemberAuthDao {
 	return singletonProblemMemberAuthDao.GetInstance(
 		func() *ProblemMemberAuthDao {
 			dao := &ProblemMemberAuthDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)

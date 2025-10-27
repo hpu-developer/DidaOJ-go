@@ -140,7 +140,7 @@ func (s *MigrateJudgeJobService) Start() error {
 
 func (s *MigrateJudgeJobService) processCodeojJudgeJob(ctx context.Context) ([]*foundationmodel.JudgeJob, error) {
 
-	codeojDB := metamysql.GetSubsystem().GetClient("codeoj")
+	codeojDB := metapostgresql.GetSubsystem().GetClient("codeoj")
 
 	const batchSize = 1000
 	offset := 0
@@ -207,7 +207,7 @@ func (s *MigrateJudgeJobService) processCodeojJudgeJob(ctx context.Context) ([]*
 func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*foundationmodel.JudgeJob, error) {
 	slog.Info("migrate judge job processJolJudgeJob")
 
-	jolDB := metamysql.GetSubsystem().GetClient("jol")
+	jolDB := metapostgresql.GetSubsystem().GetClient("jol")
 
 	const batchSize = 1000
 	offset := 0
@@ -276,7 +276,7 @@ func (s *MigrateJudgeJobService) processJolJudgeJob(ctx context.Context) ([]*fou
 func (s *MigrateJudgeJobService) processVhojJudgeJob(ctx context.Context) ([]*foundationmodel.JudgeJob, error) {
 	slog.Info("migrate judge job processVhojJudgeJob")
 
-	vhojDB := metamysql.GetSubsystem().GetClient("vhoj")
+	vhojDB := metapostgresql.GetSubsystem().GetClient("vhoj")
 
 	var judgeJobs []*foundationmodel.JudgeJob
 

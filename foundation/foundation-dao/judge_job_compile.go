@@ -3,7 +3,7 @@ package foundationdao
 import (
 	"context"
 	metaerror "meta/meta-error"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 	metautf "meta/meta-utf"
 	"meta/singleton"
 
@@ -20,7 +20,7 @@ func GetJudgeJobCompileDao() *JudgeJobCompileDao {
 	return singletonJudgeJobCompileDao.GetInstance(
 		func() *JudgeJobCompileDao {
 			dao := &JudgeJobCompileDao{}
-			dao.db = metamysql.GetSubsystem().GetClient("didaoj")
+			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
 			return dao
 		},
 	)
