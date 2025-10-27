@@ -1,7 +1,7 @@
 package foundationview
 
 import (
-	metamysql "meta/meta-mysql"
+	metamysql "meta/meta-sql"
 	"time"
 )
 

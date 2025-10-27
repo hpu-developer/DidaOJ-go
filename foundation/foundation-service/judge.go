@@ -302,12 +302,16 @@ func (s *JudgeService) GetRankAcProblem(
 	)
 }
 
-func (s *JudgeService) GetUserAcProblemIds(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
-	problemIds, err := foundationdao.GetJudgeJobDao().GetUserAcProblemIds(ctx, userId)
+func (s *JudgeService) GetUserAttemptProblems(ctx context.Context, userId int) (
+	[]*foundationview.ProblemViewKey,
+	[]*foundationview.ProblemViewKey,
+	error,
+) {
+	acProblems, attemptProblems, err := foundationdao.GetJudgeJobDao().GetUserAttemptProblems(ctx, userId)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return problemIds, nil
+	return acProblems, attemptProblems, nil
 }
 
 func (s *JudgeService) GetJudgeJobCountStaticsRecently(ctx context.Context) (
@@ -315,6 +319,13 @@ func (s *JudgeService) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 	error,
 ) {
 	return foundationdao.GetJudgeJobDao().GetJudgeJobCountStaticsRecently(ctx)
+}
+
+func (s *JudgeService) GetUserJudgeJobCountStatics(ctx context.Context, userId int, year int) (
+	[]*foundationview.JudgeJobCountStatics,
+	error,
+) {
+	return foundationdao.GetJudgeJobDao().GetUserJudgeJobCountStatics(ctx, userId, year)
 }
 
 func (s *JudgeService) GetProblemAttemptStatus(

@@ -281,7 +281,7 @@ func (d *JudgeJobDao) GetProblemAttemptStatusByKey(
 	return statusMap, nil
 }
 
-func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
+func (d *JudgeJobDao) GetUserAcProblems(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
 	var problemIds []*foundationview.ProblemViewKey
 	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
 		Select("DISTINCT problem_id as id, p.key as key").
@@ -293,6 +293,54 @@ func (d *JudgeJobDao) GetUserAcProblemIds(ctx context.Context, userId int) ([]*f
 		return nil, metaerror.Wrap(err, "failed to get distinct problem_ids")
 	}
 	return problemIds, nil
+}
+
+func (d *JudgeJobDao) GetUserAttemptProblems(ctx context.Context, userId int) (
+	[]*foundationview.ProblemViewKey,
+	[]*foundationview.ProblemViewKey,
+	error,
+) {
+	var results []struct {
+		Id   int    `gorm:"column:id"`
+		Key  string `gorm:"column:key"`
+		IsAc bool   `gorm:"column:is_ac"`
+	}
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.JudgeJob{}).
+		Select(
+			`
+			judge_job.problem_id AS id,
+			p.key AS key,
+			MAX(CASE WHEN judge_job.status = ? THEN 1 ELSE 0 END) = 1 AS is_ac
+		`, foundationjudge.JudgeStatusAC,
+		).
+		Where("judge_job.inserter = ?", userId).
+		Joins("JOIN problem AS p ON p.id = judge_job.problem_id").
+		Group("judge_job.problem_id, p.key").
+		Scan(&results).Error
+	if err != nil {
+		return nil, nil, metaerror.Wrap(err, "failed to get user problem ids")
+	}
+	var acProblems []*foundationview.ProblemViewKey
+	var notAcProblems []*foundationview.ProblemViewKey
+	for _, r := range results {
+		if r.IsAc {
+			acProblems = append(
+				acProblems, &foundationview.ProblemViewKey{
+					Id:  r.Id,
+					Key: r.Key,
+				},
+			)
+		} else {
+			notAcProblems = append(
+				notAcProblems, &foundationview.ProblemViewKey{
+					Id:  r.Id,
+					Key: r.Key,
+				},
+			)
+		}
+	}
+	return acProblems, notAcProblems, nil
 }
 
 func (d *JudgeJobDao) GetAcUserIds(ctx context.Context, problemId int, limit int) ([]int, error) {
@@ -316,7 +364,7 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 	hasAuth bool,
 	problemId int,
 ) ([]int, error) {
-	userAcProblems, err := d.GetUserAcProblemIds(ctx, userId)
+	userAcProblems, err := d.GetUserAcProblems(ctx, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -485,6 +533,57 @@ func (d *JudgeJobDao) GetJudgeJobCountStaticsRecently(ctx context.Context) (
 		}
 	}
 
+	return statList, nil
+}
+
+func (d *JudgeJobDao) GetUserJudgeJobCountStatics(
+	ctx context.Context,
+	userId int,
+	year int,
+) ([]*foundationview.JudgeJobCountStatics, error) {
+
+	start := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
+	end := start.AddDate(1, 0, 0) // 下一年的开始
+
+	type aggResult struct {
+		Date   time.Time
+		Status foundationjudge.JudgeStatus
+		Count  int
+	}
+
+	var results []aggResult
+
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.JudgeJob{}).
+		Select(`DATE(insert_time) AS date, status, COUNT(*) AS count`).
+		Where("inserter = ? AND insert_time >= ? AND insert_time < ?", userId, start, end).
+		Group("date, status").
+		Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	resultMap := make(map[string]*foundationview.JudgeJobCountStatics)
+	for _, res := range results {
+		dateStr := res.Date.Format("2006-01-02")
+		if _, ok := resultMap[dateStr]; !ok {
+			resultMap[dateStr] = &foundationview.JudgeJobCountStatics{
+				Date:    res.Date,
+				Accept:  0,
+				Attempt: 0,
+			}
+		}
+		stat := resultMap[dateStr]
+		stat.Attempt += res.Count
+		if res.Status == foundationjudge.JudgeStatusAC {
+			stat.Accept += res.Count
+		}
+	}
+	var statList []*foundationview.JudgeJobCountStatics
+	for _, stat := range resultMap {
+		if stat.Attempt > 0 || stat.Accept > 0 {
+			statList = append(statList, stat)
+		}
+	}
 	return statList, nil
 }
 

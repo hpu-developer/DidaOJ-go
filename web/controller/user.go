@@ -47,18 +47,29 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
-	acProblems, err := foundationservice.GetJudgeService().GetUserAcProblemIds(ctx, userInfo.Id)
+	acProblems, attemptProblems, err := foundationservice.GetJudgeService().GetUserAttemptProblems(ctx, userInfo.Id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	newYear := metatime.GetCurrentYear()
+	userStatic, err := foundationservice.GetJudgeService().GetUserJudgeJobCountStatics(ctx, userInfo.Id, newYear)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 
 	responseData := struct {
-		User       *foundationview.UserInfo         `json:"user"`
-		ProblemsAc []*foundationview.ProblemViewKey `json:"problems_ac"`
+		User           *foundationview.UserInfo               `json:"user"`
+		ProblemsAc     []*foundationview.ProblemViewKey       `json:"problems_ac"`
+		ProblemAttempt []*foundationview.ProblemViewKey       `json:"problems_attempt"`
+		Statics        []*foundationview.JudgeJobCountStatics `json:"statics"`
 	}{
-		User:       userInfo,
-		ProblemsAc: acProblems,
+		User:           userInfo,
+		ProblemsAc:     acProblems,
+		ProblemAttempt: attemptProblems,
+		Statics:        userStatic,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
