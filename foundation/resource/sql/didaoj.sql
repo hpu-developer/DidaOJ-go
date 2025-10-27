@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 28/10/2025 00:43:44
+ Date: 28/10/2025 00:46:11
 */
 
 
@@ -523,7 +523,7 @@ CREATE TABLE "didaoj"."user" (
 -- ----------------------------
 DROP TABLE IF EXISTS "didaoj"."user_role";
 CREATE TABLE "didaoj"."user_role" (
-  "id" int8 NOT NULL DEFAULT nextval('user_role_id_seq'::regclass),
+  "id" int8 NOT NULL,
   "role_id" varchar(10) COLLATE "pg_catalog"."default" NOT NULL
 )
 ;
