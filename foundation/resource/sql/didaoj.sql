@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 27/10/2025 22:53:03
+ Date: 27/10/2025 22:58:53
 */
 
 
@@ -597,7 +597,6 @@ SELECT setval('"didaoj"."tag_id_seq"', 1, false);
 ALTER SEQUENCE "didaoj"."user_id_seq"
 OWNED BY "didaoj"."user"."id";
 SELECT setval('"didaoj"."user_id_seq"', 1, false);
-
 
 -- ----------------------------
 -- Uniques structure for table judger
