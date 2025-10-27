@@ -76,21 +76,19 @@ func (d *TagDao) InsertTag(ctx context.Context, name string) (int, error) {
 	}
 	return tag.Id, nil
 }
+
 func (d *TagDao) InsertTagWithDb(tx *gorm.DB, name string) (int, error) {
 	if name == "" {
 		return 0, metaerror.New("tag name is empty")
 	}
-
+	var id int
 	sql := `
 		INSERT INTO tag (name)
 		VALUES (?)
-		ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)
+		ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+		RETURNING id
 	`
-	if err := tx.Exec(sql, name).Error; err != nil {
-		return 0, err
-	}
-	var id int
-	if err := tx.Raw("SELECT LAST_INSERT_ID()").Scan(&id).Error; err != nil {
+	if err := tx.Raw(sql, name).Scan(&id).Error; err != nil {
 		return 0, err
 	}
 	return id, nil

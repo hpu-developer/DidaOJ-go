@@ -7,8 +7,8 @@ import (
 	"judge/config"
 	cfr2 "meta/cf-r2"
 	"meta/engine"
-	metamysql "meta/meta-mysql"
 	metapanic "meta/meta-panic"
+	metapostgresql "meta/meta-postgresql"
 	"meta/subsystem"
 )
 
@@ -26,9 +26,9 @@ func InitPre() error {
 
 	engine.RegisterSubsystem(
 		func() subsystem.Interface {
-			mysqlSubsystem := &metamysql.Subsystem{}
-			mysqlSubsystem.GetConfig = func() map[string]*metamysql.Config {
-				return config.GetMysqlConfig()
+			mysqlSubsystem := &metapostgresql.Subsystem{}
+			mysqlSubsystem.GetConfig = func() map[string]*metapostgresql.Config {
+				return config.GetPostgreSqlConfig()
 			}
 			return mysqlSubsystem
 		},

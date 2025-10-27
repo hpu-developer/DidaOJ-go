@@ -5,16 +5,16 @@ import (
 	cfr2 "meta/cf-r2"
 	"meta/engine"
 	metaconfig "meta/meta-config"
-	metamysql "meta/meta-mysql"
+	metapostgresql "meta/meta-postgresql"
 )
 
 type Config struct {
-	Judger       foundationjudge.JudgerConfig  `yaml:"judger"`         // 评测器标识
-	GoJudge      foundationjudge.GoJudgeConfig `yaml:"go-judge"`       // GoJudge 数据服务地址
-	MaxJob       int                           `yaml:"max-job"`        // 最大同时评测的job数量
-	MaxJobRemote int                           `yaml:"max-job-remote"` // 最大同时远程评测的job数量
-	JudgeData    cfr2.Config                   `yaml:"judge-data"`     // GoJudge 数据服务地址
-	Mysql        map[string]*metamysql.Config  `yaml:"mysql"`          // MySQL 数据库配置
+	Judger       foundationjudge.JudgerConfig      `yaml:"judger"`         // 评测器标识
+	GoJudge      foundationjudge.GoJudgeConfig     `yaml:"go-judge"`       // GoJudge 数据服务地址
+	MaxJob       int                               `yaml:"max-job"`        // 最大同时评测的job数量
+	MaxJobRemote int                               `yaml:"max-job-remote"` // 最大同时远程评测的job数量
+	JudgeData    cfr2.Config                       `yaml:"judge-data"`     // GoJudge 数据服务地址
+	PostgreSql   map[string]*metapostgresql.Config `yaml:"postgresql"`
 
 	CfR2 map[string]*cfr2.Config `yaml:"cf-r2"` // GoJudge 数据服务地址
 
@@ -46,7 +46,7 @@ func GetConfig() *Config {
 	return GetSubsystem().config
 }
 
-func GetMysqlConfig() map[string]*metamysql.Config {
+func GetPostgreSqlConfig() map[string]*metapostgresql.Config {
 	configSubsystem := GetSubsystem()
 	if configSubsystem == nil {
 		return nil
@@ -54,7 +54,7 @@ func GetMysqlConfig() map[string]*metamysql.Config {
 	if configSubsystem.config == nil {
 		return nil
 	}
-	return configSubsystem.config.Mysql
+	return configSubsystem.config.PostgreSql
 }
 
 func GetCfr2Config() map[string]*cfr2.Config {

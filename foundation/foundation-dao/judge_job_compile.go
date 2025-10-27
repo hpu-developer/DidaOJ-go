@@ -36,13 +36,13 @@ func (d *JudgeJobCompileDao) MarkJudgeJobCompileMessage(
 	err := d.db.WithContext(ctx).
 		Exec(
 			`
-		INSERT INTO judge_job_compile (id, message)
+INSERT INTO judge_job_compile (id, message)
 SELECT j.id, ?
 FROM judge_job AS j
-WHERE j.id = ?
-  AND j.judger = ?
-ON DUPLICATE KEY UPDATE message = ?;
-	`, message, id, judger, message,
+WHERE j.id = ? AND j.judger = ?
+ON CONFLICT (id) DO UPDATE
+SET message = EXCLUDED.message;
+			`, message, id, judger,
 		).Error
 	if err != nil {
 		return metaerror.Wrap(err)

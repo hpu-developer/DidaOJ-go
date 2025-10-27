@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 27/10/2025 17:58:05
+ Date: 27/10/2025 18:14:58
 */
 
 
@@ -310,7 +310,7 @@ DROP TABLE IF EXISTS "didaoj"."discuss_tag";
 CREATE TABLE "didaoj"."discuss_tag" (
   "id" int8 NOT NULL,
   "tag_id" int8 NOT NULL,
-  "index" bool NOT NULL
+  "index" int2 NOT NULL
 )
 ;
 
@@ -398,7 +398,7 @@ CREATE TABLE "didaoj"."problem" (
   "source" varchar(250) COLLATE "pg_catalog"."default",
   "time_limit" int8 NOT NULL,
   "memory_limit" int8 NOT NULL,
-  "judge_type" bool NOT NULL,
+  "judge_type" int2 NOT NULL,
   "inserter" int8 NOT NULL,
   "insert_time" timestamptz(6) NOT NULL,
   "modifier" int8 NOT NULL,
@@ -477,7 +477,7 @@ DROP TABLE IF EXISTS "didaoj"."problem_tag";
 CREATE TABLE "didaoj"."problem_tag" (
   "id" int8 NOT NULL,
   "tag_id" int8 NOT NULL,
-  "index" bool NOT NULL
+  "index" int2 NOT NULL
 )
 ;
 
