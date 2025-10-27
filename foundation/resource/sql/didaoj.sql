@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 27/10/2025 22:58:53
+ Date: 28/10/2025 00:15:53
 */
 
 
@@ -346,7 +346,7 @@ CREATE TABLE "didaoj"."judge_job" (
 -- ----------------------------
 DROP TABLE IF EXISTS "didaoj"."judge_job_compile";
 CREATE TABLE "didaoj"."judge_job_compile" (
-  "id" int8,
+  "id" int8 NOT NULL,
   "message" text COLLATE "pg_catalog"."default"
 )
 ;
@@ -597,6 +597,11 @@ SELECT setval('"didaoj"."tag_id_seq"', 1, false);
 ALTER SEQUENCE "didaoj"."user_id_seq"
 OWNED BY "didaoj"."user"."id";
 SELECT setval('"didaoj"."user_id_seq"', 1, false);
+
+-- ----------------------------
+-- Primary Key structure for table judge_job_compile
+-- ----------------------------
+ALTER TABLE "didaoj"."judge_job_compile" ADD CONSTRAINT "judge_job_compile_pk" PRIMARY KEY ("id");
 
 -- ----------------------------
 -- Uniques structure for table judger
