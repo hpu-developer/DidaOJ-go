@@ -272,11 +272,8 @@ func (d *ContestDao) GetProblemAttemptInfo(
 		Model(&foundationmodel.JudgeJob{}).
 		Select(
 			fmt.Sprintf(
-				`
-	problem_id AS id,
-	COUNT(1) AS attempt,
-	SUM(IF(status = %d, 1, 0)) AS accept
-`, foundationjudge.JudgeStatusAC,
+				`problem_id AS id, COUNT(1) AS attempt, SUM(CASE WHEN status = %d THEN 1 ELSE 0 END) AS accept`,
+				foundationjudge.JudgeStatusAC,
 			),
 		).
 		Where("problem_id IN ?", problemIds).
@@ -306,7 +303,7 @@ func (d *ContestDao) GetContestList(
 	var total int64
 	base := d.db.WithContext(ctx).Table("contest AS c")
 	if title != "" {
-		base = base.Where("c.title LIKE ?", "%"+title+"%")
+		base = base.Where("c.title ILIKE ?", "%"+title+"%")
 	}
 	if userId > 0 {
 		base = base.Where("c.inserter = ?", userId)

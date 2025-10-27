@@ -31,7 +31,7 @@ func GetTagDao() *TagDao {
 func (d *TagDao) SearchTagIds(ctx context.Context, tag string) ([]int, error) {
 	var ids []int
 	err := d.db.WithContext(ctx).
-		Where("name LIKE ?", "%"+tag+"%").
+		Where("name ILIKE ?", "%"+tag+"%").
 		Pluck("id", &ids).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to pluck tag ids")

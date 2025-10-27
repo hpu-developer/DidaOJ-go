@@ -130,7 +130,7 @@ func (d *DiscussDao) GetDiscussList(
 
 	// title 模糊匹配，等价于 Mongo 的 "$regex" + "$options: i"
 	if title != "" {
-		db = db.Where("title LIKE ?", "%"+title+"%")
+		db = db.Where("title ILIKE ?", "%"+title+"%")
 	}
 
 	// author_id 条件

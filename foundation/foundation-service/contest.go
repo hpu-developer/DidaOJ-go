@@ -294,6 +294,9 @@ func (s *ContestService) GetContestList(
 		if err != nil {
 			return nil, 0, err
 		}
+		if userId <= 0 {
+			return nil, 0, nil
+		}
 	}
 	return foundationdao.GetContestDao().GetContestList(ctx, title, userId, page, pageSize)
 }

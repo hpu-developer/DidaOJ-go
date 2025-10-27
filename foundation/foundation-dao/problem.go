@@ -12,6 +12,7 @@ import (
 	metatime "meta/meta-time"
 	"meta/singleton"
 	"strconv"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -82,7 +83,7 @@ func (d *ProblemDao) GetProblemList(
 	if len(tags) > 0 {
 		db = db.Joins("JOIN problem_tag pt ON pt.id = problem.id").
 			Where("pt.tag_id IN ?", tags).
-			Group("problem.id")
+			Group("problem.id, problem.key, problem.title, problem.accept, problem.attempt")
 	}
 
 	if page < 1 {
@@ -284,7 +285,7 @@ func (d *ProblemDao) GetProblemIdByKey(ctx context.Context, key string) (int, er
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Problem{}).
 		Select("id").
-		Where(map[string]interface{}{"key": key}).
+		Where("LOWER(key) = LOWER(?)", key).
 		Take(&result).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -294,16 +295,19 @@ func (d *ProblemDao) GetProblemIdByKey(ctx context.Context, key string) (int, er
 	}
 	return result.Id, nil
 }
-
 func (d *ProblemDao) GetProblemIdsByKey(ctx context.Context, problemKeys []string) ([]int, error) {
 	if len(problemKeys) == 0 {
 		return nil, nil
+	}
+	lowerKeys := make([]string, len(problemKeys))
+	for i, k := range problemKeys {
+		lowerKeys[i] = strings.ToLower(k)
 	}
 	var ids []int
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Problem{}).
 		Select("id").
-		Where("key IN ?", problemKeys).
+		Where("LOWER(key) IN ?", lowerKeys).
 		Pluck("id", &ids).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "find problem ids by keys failed")

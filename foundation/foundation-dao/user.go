@@ -51,7 +51,7 @@ func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.User{}).
 		Select("id, username, nickname, password").
-		Where("username = ?", username).
+		Where("LOWER(username) = LOWER(?)", username).
 		First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
