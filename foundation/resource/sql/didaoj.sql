@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 27/10/2025 18:14:58
+ Date: 27/10/2025 22:53:03
 */
 
 
@@ -500,7 +500,7 @@ CREATE TABLE "didaoj"."user" (
   "username" varchar(50) COLLATE "pg_catalog"."default" NOT NULL,
   "nickname" varchar(80) COLLATE "pg_catalog"."default" NOT NULL,
   "real_name" varchar(20) COLLATE "pg_catalog"."default",
-  "password" char(80) COLLATE "pg_catalog"."default" NOT NULL,
+  "password" varchar(80) COLLATE "pg_catalog"."default" NOT NULL,
   "email" varchar(90) COLLATE "pg_catalog"."default",
   "gender" int2,
   "number" varchar(20) COLLATE "pg_catalog"."default",
@@ -597,3 +597,43 @@ SELECT setval('"didaoj"."tag_id_seq"', 1, false);
 ALTER SEQUENCE "didaoj"."user_id_seq"
 OWNED BY "didaoj"."user"."id";
 SELECT setval('"didaoj"."user_id_seq"', 1, false);
+
+
+-- ----------------------------
+-- Uniques structure for table judger
+-- ----------------------------
+ALTER TABLE "didaoj"."judger" ADD CONSTRAINT "judger_key_unique" UNIQUE ("key");
+
+-- ----------------------------
+-- Indexes structure for table problem
+-- ----------------------------
+CREATE INDEX "idx_problem_key_lower" ON "didaoj"."problem" USING btree (
+  lower(key::text) COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);
+CREATE INDEX "idx_problem_title_trgm" ON "didaoj"."problem" USING gin (
+  "title" COLLATE "pg_catalog"."default" "public"."gin_trgm_ops"
+);
+
+-- ----------------------------
+-- Indexes structure for table tag
+-- ----------------------------
+CREATE INDEX "idx_tag_name_trgm" ON "didaoj"."tag" USING gin (
+  "name" COLLATE "pg_catalog"."default" "public"."gin_trgm_ops"
+);
+
+-- ----------------------------
+-- Uniques structure for table tag
+-- ----------------------------
+ALTER TABLE "didaoj"."tag" ADD CONSTRAINT "tag_pk_2" UNIQUE ("name");
+
+-- ----------------------------
+-- Primary Key structure for table tag
+-- ----------------------------
+ALTER TABLE "didaoj"."tag" ADD CONSTRAINT "tag_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table user
+-- ----------------------------
+CREATE INDEX "idx_user_username_lower" ON "didaoj"."user" USING btree (
+  lower(username::text) COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);
