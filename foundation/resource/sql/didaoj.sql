@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 28/10/2025 00:15:53
+ Date: 28/10/2025 00:43:44
 */
 
 
@@ -198,7 +198,7 @@ CREATE TABLE "didaoj"."contest" (
 DROP TABLE IF EXISTS "didaoj"."contest_language";
 CREATE TABLE "didaoj"."contest_language" (
   "id" int8 NOT NULL,
-  "language" varchar(10) COLLATE "pg_catalog"."default"
+  "language" varchar(10) COLLATE "pg_catalog"."default" NOT NULL
 )
 ;
 
@@ -258,7 +258,7 @@ CREATE TABLE "didaoj"."contest_member_volunteer" (
 DROP TABLE IF EXISTS "didaoj"."contest_problem";
 CREATE TABLE "didaoj"."contest_problem" (
   "id" int8 NOT NULL,
-  "problem_id" int8,
+  "problem_id" int8 NOT NULL,
   "index" int8,
   "view_id" int8,
   "score" int8
@@ -523,8 +523,8 @@ CREATE TABLE "didaoj"."user" (
 -- ----------------------------
 DROP TABLE IF EXISTS "didaoj"."user_role";
 CREATE TABLE "didaoj"."user_role" (
-  "id" int8,
-  "role_id" varchar(10) COLLATE "pg_catalog"."default"
+  "id" int8 NOT NULL DEFAULT nextval('user_role_id_seq'::regclass),
+  "role_id" varchar(10) COLLATE "pg_catalog"."default" NOT NULL
 )
 ;
 
@@ -599,14 +599,139 @@ OWNED BY "didaoj"."user"."id";
 SELECT setval('"didaoj"."user_id_seq"', 1, false);
 
 -- ----------------------------
+-- Primary Key structure for table collection
+-- ----------------------------
+ALTER TABLE "didaoj"."collection" ADD CONSTRAINT "collection_id_idx" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Primary Key structure for table collection_member
+-- ----------------------------
+ALTER TABLE "didaoj"."collection_member" ADD CONSTRAINT "collection_member_pk" PRIMARY KEY ("id", "user_id");
+
+-- ----------------------------
+-- Primary Key structure for table collection_problem
+-- ----------------------------
+ALTER TABLE "didaoj"."collection_problem" ADD CONSTRAINT "collection_problem_pk" PRIMARY KEY ("id", "problem_id");
+
+-- ----------------------------
+-- Primary Key structure for table contest
+-- ----------------------------
+ALTER TABLE "didaoj"."contest" ADD CONSTRAINT "contest_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Primary Key structure for table contest_language
+-- ----------------------------
+ALTER TABLE "didaoj"."contest_language" ADD CONSTRAINT "contest_language_pk" PRIMARY KEY ("language", "id");
+
+-- ----------------------------
+-- Primary Key structure for table contest_member
+-- ----------------------------
+ALTER TABLE "didaoj"."contest_member" ADD CONSTRAINT "contest_member_pk" PRIMARY KEY ("user_id", "id");
+
+-- ----------------------------
+-- Primary Key structure for table contest_member_auth
+-- ----------------------------
+ALTER TABLE "didaoj"."contest_member_auth" ADD CONSTRAINT "contest_member_auth_pk" PRIMARY KEY ("user_id", "id");
+
+-- ----------------------------
+-- Primary Key structure for table contest_member_author
+-- ----------------------------
+ALTER TABLE "didaoj"."contest_member_author" ADD CONSTRAINT "contest_member_author_pk" PRIMARY KEY ("user_id", "id");
+
+-- ----------------------------
+-- Primary Key structure for table contest_member_ignore
+-- ----------------------------
+ALTER TABLE "didaoj"."contest_member_ignore" ADD CONSTRAINT "contest_member_ignore_pk" PRIMARY KEY ("id", "user_id");
+
+-- ----------------------------
+-- Primary Key structure for table contest_member_volunteer
+-- ----------------------------
+ALTER TABLE "didaoj"."contest_member_volunteer" ADD CONSTRAINT "contest_member_volunteer_pk" PRIMARY KEY ("user_id", "id");
+
+-- ----------------------------
+-- Primary Key structure for table contest_problem
+-- ----------------------------
+ALTER TABLE "didaoj"."contest_problem" ADD CONSTRAINT "contest_problem_pk" PRIMARY KEY ("problem_id", "id");
+
+-- ----------------------------
+-- Indexes structure for table discuss
+-- ----------------------------
+CREATE INDEX "discuss_contest_id_index" ON "didaoj"."discuss" USING btree (
+  "contest_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+CREATE INDEX "discuss_inserter_index" ON "didaoj"."discuss" USING btree (
+  "inserter" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+CREATE INDEX "discuss_judge_id_index" ON "didaoj"."discuss" USING btree (
+  "judge_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+CREATE INDEX "discuss_problem_id_index" ON "didaoj"."discuss" USING btree (
+  "problem_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table discuss
+-- ----------------------------
+ALTER TABLE "didaoj"."discuss" ADD CONSTRAINT "discuss_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table discuss_comment
+-- ----------------------------
+CREATE INDEX "discuss_comment_discuss_id_index" ON "didaoj"."discuss_comment" USING btree (
+  "discuss_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table discuss_comment
+-- ----------------------------
+ALTER TABLE "didaoj"."discuss_comment" ADD CONSTRAINT "discuss_comment_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Primary Key structure for table discuss_tag
+-- ----------------------------
+ALTER TABLE "didaoj"."discuss_tag" ADD CONSTRAINT "discuss_tag_pk" PRIMARY KEY ("id", "tag_id");
+
+-- ----------------------------
+-- Indexes structure for table judge_job
+-- ----------------------------
+CREATE INDEX "judge_job_contest_id_index" ON "didaoj"."judge_job" USING btree (
+  "contest_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+CREATE INDEX "judge_job_inserter_index" ON "didaoj"."judge_job" USING btree (
+  "inserter" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+CREATE INDEX "judge_job_judger_index" ON "didaoj"."judge_job" USING btree (
+  "judger" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);
+CREATE INDEX "judge_job_language_index" ON "didaoj"."judge_job" USING btree (
+  "language" "pg_catalog"."int2_ops" ASC NULLS LAST
+);
+CREATE INDEX "judge_job_problem_id_index" ON "didaoj"."judge_job" USING btree (
+  "problem_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+CREATE INDEX "judge_job_status_index" ON "didaoj"."judge_job" USING btree (
+  "status" "pg_catalog"."int2_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table judge_job
+-- ----------------------------
+ALTER TABLE "didaoj"."judge_job" ADD CONSTRAINT "judge_job_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
 -- Primary Key structure for table judge_job_compile
 -- ----------------------------
 ALTER TABLE "didaoj"."judge_job_compile" ADD CONSTRAINT "judge_job_compile_pk" PRIMARY KEY ("id");
 
 -- ----------------------------
--- Uniques structure for table judger
+-- Primary Key structure for table judge_task
 -- ----------------------------
-ALTER TABLE "didaoj"."judger" ADD CONSTRAINT "judger_key_unique" UNIQUE ("key");
+ALTER TABLE "didaoj"."judge_task" ADD CONSTRAINT "judge_task_pk" PRIMARY KEY ("task_id", "id");
+
+-- ----------------------------
+-- Primary Key structure for table judger
+-- ----------------------------
+ALTER TABLE "didaoj"."judger" ADD CONSTRAINT "judger_pk" PRIMARY KEY ("key");
 
 -- ----------------------------
 -- Indexes structure for table problem
@@ -617,6 +742,73 @@ CREATE INDEX "idx_problem_key_lower" ON "didaoj"."problem" USING btree (
 CREATE INDEX "idx_problem_title_trgm" ON "didaoj"."problem" USING gin (
   "title" COLLATE "pg_catalog"."default" "public"."gin_trgm_ops"
 );
+CREATE INDEX "problem_inserter_index" ON "didaoj"."problem" USING btree (
+  "inserter" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Uniques structure for table problem
+-- ----------------------------
+ALTER TABLE "didaoj"."problem" ADD CONSTRAINT "problem_pk_2" UNIQUE ("key");
+
+-- ----------------------------
+-- Primary Key structure for table problem
+-- ----------------------------
+ALTER TABLE "didaoj"."problem" ADD CONSTRAINT "problem_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table problem_daily
+-- ----------------------------
+CREATE INDEX "problem_daily_inserter_index" ON "didaoj"."problem_daily" USING btree (
+  "inserter" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+CREATE INDEX "problem_daily_problem_id_index" ON "didaoj"."problem_daily" USING btree (
+  "problem_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table problem_daily
+-- ----------------------------
+ALTER TABLE "didaoj"."problem_daily" ADD CONSTRAINT "problem_daily_pk" PRIMARY KEY ("key");
+
+-- ----------------------------
+-- Indexes structure for table problem_local
+-- ----------------------------
+CREATE INDEX "problem_local_problem_id_index" ON "didaoj"."problem_local" USING btree (
+  "problem_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table problem_local
+-- ----------------------------
+ALTER TABLE "didaoj"."problem_local" ADD CONSTRAINT "problem_local_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Primary Key structure for table problem_member
+-- ----------------------------
+ALTER TABLE "didaoj"."problem_member" ADD CONSTRAINT "problem_member_pk" PRIMARY KEY ("user_id", "id");
+
+-- ----------------------------
+-- Primary Key structure for table problem_member_auth
+-- ----------------------------
+ALTER TABLE "didaoj"."problem_member_auth" ADD CONSTRAINT "problem_member_auth_pk" PRIMARY KEY ("id", "user_id");
+
+-- ----------------------------
+-- Indexes structure for table problem_remote
+-- ----------------------------
+CREATE INDEX "problem_remote_problem_id_index" ON "didaoj"."problem_remote" USING btree (
+  "problem_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table problem_remote
+-- ----------------------------
+ALTER TABLE "didaoj"."problem_remote" ADD CONSTRAINT "problem_remote_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Primary Key structure for table problem_tag
+-- ----------------------------
+ALTER TABLE "didaoj"."problem_tag" ADD CONSTRAINT "problem_tag_pk" PRIMARY KEY ("id", "tag_id");
 
 -- ----------------------------
 -- Indexes structure for table tag
@@ -641,3 +833,18 @@ ALTER TABLE "didaoj"."tag" ADD CONSTRAINT "tag_pk" PRIMARY KEY ("id");
 CREATE INDEX "idx_user_username_lower" ON "didaoj"."user" USING btree (
   lower(username::text) COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
 );
+
+-- ----------------------------
+-- Uniques structure for table user
+-- ----------------------------
+ALTER TABLE "didaoj"."user" ADD CONSTRAINT "user_pk_2" UNIQUE ("username");
+
+-- ----------------------------
+-- Primary Key structure for table user
+-- ----------------------------
+ALTER TABLE "didaoj"."user" ADD CONSTRAINT "user_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Primary Key structure for table user_role
+-- ----------------------------
+ALTER TABLE "didaoj"."user_role" ADD CONSTRAINT "user_role_pk" PRIMARY KEY ("role_id", "id");
