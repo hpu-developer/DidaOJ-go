@@ -401,14 +401,14 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 		if userId > 0 {
 			recQuery = recQuery.Where(
 				`
-				(p.private = 0
+				(p.private = FALSE
 				OR p.inserter = ?
 				OR p.id IN (SELECT problem_id FROM problem_member WHERE user_id = ?)
 				OR p.id IN (SELECT problem_id FROM problem_member_auth WHERE user_id = ?))`,
 				userId, userId, userId,
 			)
 		} else {
-			recQuery = recQuery.Where("p.private = 0")
+			recQuery = recQuery.Where("p.private = FALSE")
 		}
 	}
 
@@ -417,7 +417,7 @@ func (d *JudgeJobDao) GetProblemRecommendByProblem(
 		Limit(20)
 
 	if err := recQuery.Scan(&recResults).Error; err != nil {
-		return nil, err
+		return nil, metaerror.Wrap(err, "failed to get problem recommend results")
 	}
 	if len(recResults) == 0 {
 		return nil, nil

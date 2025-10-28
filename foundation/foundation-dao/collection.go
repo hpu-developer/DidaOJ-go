@@ -189,18 +189,15 @@ func (d *CollectionDao) GetCollectionRank(
 		`, foundationjudge.JudgeStatusAC,
 		).
 		Joins("JOIN collection_member AS cm ON cm.user_id = j.inserter AND cm.id = ?", collectionId).
-		Joins("JOIN \"user\" AS u ON u.id = j.inserter").
+		Joins(`JOIN "user" AS u ON u.id = j.inserter`).
 		Where("j.problem_id IN ?", collection.Problems)
-
 	if collection.StartTime != nil {
 		db = db.Where("j.insert_time >= ?", *collection.StartTime)
 	}
 	if collection.EndTime != nil {
 		db = db.Where("j.insert_time <= ?", *collection.EndTime)
 	}
-
-	db = db.Group("j.inserter")
-
+	db = db.Group("j.inserter, u.username, u.nickname")
 	var ranks []*foundationview.CollectionRank
 	if err := db.Scan(&ranks).Error; err != nil {
 		return nil, err
