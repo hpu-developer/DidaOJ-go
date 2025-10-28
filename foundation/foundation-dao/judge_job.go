@@ -13,6 +13,7 @@ import (
 	metaerror "meta/meta-error"
 	metapanic "meta/meta-panic"
 	metapostgresql "meta/meta-postgresql"
+	metautf "meta/meta-utf"
 	"meta/singleton"
 	"strings"
 	"time"
@@ -1005,6 +1006,8 @@ func (d *JudgeJobDao) AddJudgeJobTaskCurrent(
 	judger string,
 	task *foundationmodel.JudgeTask,
 ) error {
+	task.Content = metautf.SanitizeText(task.Content)
+	task.Hint = metautf.SanitizeText(task.Hint)
 	return d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			// 确保 judge_job 中有这条记录且 judger 匹配
@@ -1094,6 +1097,7 @@ func (d *JudgeJobDao) MarkJudgeJobJudgeFinalStatus(
 		return markStatusFunc(d.db.WithContext(ctx))
 	}
 }
+
 func (d *JudgeJobDao) RejudgeJob(ctx context.Context, id int) error {
 	return d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
