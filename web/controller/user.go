@@ -17,6 +17,7 @@ import (
 	metamath "meta/meta-math"
 	metaredis "meta/meta-redis"
 	"meta/meta-response"
+	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	"strconv"
 	"time"
@@ -115,6 +116,38 @@ func (c *UserController) PostModify(ctx *gin.Context) {
 		return
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
+func (c *UserController) PostModifyVjudge(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
+	var requestData foundationrequest.UserModifyVjudge
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	username := requestData.Username
+	if len(username) < 1 || len(username) > 30 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	redisClient := metaredis.GetSubsystem().GetClient()
+	if redisClient == nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	codeKey := fmt.Sprintf("modify_vjudge_%d", userId)
+	_, err = redisClient.Set(ctx, codeKey, 1, 10*time.Minute).Result()
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	randomString := metastring.GetRandomString(16)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, randomString)
 }
 
 func (c *UserController) PostAccountInfos(ctx *gin.Context) {
