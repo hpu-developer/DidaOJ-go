@@ -6,5 +6,6 @@ type UserModifyInfo struct {
 }
 
 type UserModifyVjudge struct {
+	Approved bool   `json:"approved"`
 	Username string `json:"username"`
 }

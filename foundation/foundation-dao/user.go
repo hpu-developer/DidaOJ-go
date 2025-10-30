@@ -11,6 +11,7 @@ import (
 	"meta/singleton"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -282,6 +283,24 @@ func (d *UserDao) InsertUser(ctx context.Context, user *foundationmodel.User) er
 	db := d.db.WithContext(ctx).Model(user)
 	if err := db.Create(user).Error; err != nil {
 		return metaerror.Wrap(err, "insert user")
+	}
+	return nil
+}
+
+func (d *UserDao) UpdateUserVjudgeUsername(ctx *gin.Context, id int, vjudgeId string, now time.Time) error {
+	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
+	res := db.Where("id = ?", id).
+		Updates(
+			map[string]interface{}{
+				"vjudge_id":   vjudgeId,
+				"modify_time": now,
+			},
+		)
+	if res.Error != nil {
+		return metaerror.Wrap(res.Error, "update user vjudge username")
+	}
+	if res.RowsAffected == 0 {
+		return metaerror.New("no rows affected, user not found")
 	}
 	return nil
 }

@@ -10,16 +10,21 @@ import (
 	foundationservice "foundation/foundation-service"
 	foundationuser "foundation/foundation-user"
 	foundationview "foundation/foundation-view"
+	"io"
 	cfturnstile "meta/cf-turnstile"
 	metacontroller "meta/controller"
 	"meta/error-code"
 	metaemail "meta/meta-email"
+	metaerror "meta/meta-error"
 	metamath "meta/meta-math"
+	metapanic "meta/meta-panic"
 	metaredis "meta/meta-redis"
 	"meta/meta-response"
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
+	"net/http"
 	"strconv"
+	"strings"
 	"time"
 	"web/config"
 	weberrorcode "web/error-code"
@@ -130,8 +135,18 @@ func (c *UserController) PostModifyVjudge(ctx *gin.Context) {
 		return
 	}
 	username := requestData.Username
-	if len(username) < 1 || len(username) > 30 {
+	if len(username) > 30 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	if username == "" {
+		err = foundationservice.GetUserService().UpdateUserVjudgeUsername(ctx, userId, username, metatime.GetTimeNow())
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		metaresponse.NewResponse(ctx, metaerrorcode.Success)
 		return
 	}
 
@@ -141,13 +156,55 @@ func (c *UserController) PostModifyVjudge(ctx *gin.Context) {
 		return
 	}
 	codeKey := fmt.Sprintf("modify_vjudge_%d", userId)
-	_, err = redisClient.Set(ctx, codeKey, 1, 10*time.Minute).Result()
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
+
+	if requestData.Approved {
+		randomKey, err := redisClient.Get(ctx, codeKey).Result()
+		if err != nil {
+			metaresponse.NewResponse(ctx, weberrorcode.UserModifyVjudgeReload, nil)
+			return
+		}
+		if randomKey == "" {
+			metaresponse.NewResponse(ctx, weberrorcode.UserModifyVjudgeReload, nil)
+			return
+		}
+		vjudgeUrl := fmt.Sprintf("https://vjudge.net/user/%s", username)
+		// 请求页面信息是否包含randomKey
+		response, err := http.Get(vjudgeUrl)
+		if err != nil {
+			metaresponse.NewResponse(ctx, weberrorcode.UserModifyVjudgeCannotGet, nil)
+			return
+		}
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			if err != nil {
+				metapanic.ProcessError(metaerror.Wrap(err, "defer http body close failed"))
+				return
+			}
+		}(response.Body)
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			metaresponse.NewResponse(ctx, weberrorcode.UserModifyVjudgeReload, nil)
+			return
+		}
+		if !strings.Contains(string(body), randomKey) {
+			metaresponse.NewResponse(ctx, weberrorcode.UserModifyVjudgeVerifyFail, nil)
+			return
+		}
+		err = foundationservice.GetUserService().UpdateUserVjudgeUsername(ctx, userId, username, metatime.GetTimeNow())
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		metaresponse.NewResponse(ctx, metaerrorcode.Success)
+	} else {
+		randomString := metastring.GetRandomString(16)
+		_, err = redisClient.Set(ctx, codeKey, randomString, 10*time.Minute).Result()
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, randomString)
 	}
-	randomString := metastring.GetRandomString(16)
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, randomString)
 }
 
 func (c *UserController) PostAccountInfos(ctx *gin.Context) {

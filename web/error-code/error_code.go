@@ -38,4 +38,7 @@ const (
 	ProblemJudgeDataHasNotValid          metaerrorcode.ErrorCode = 100033
 	UserNeedLogin                        metaerrorcode.ErrorCode = 100034
 	ProblemCrawlCannotOriginOj           metaerrorcode.ErrorCode = 100035
+	UserModifyVjudgeReload               metaerrorcode.ErrorCode = 100036
+	UserModifyVjudgeCannotGet            metaerrorcode.ErrorCode = 100037
+	UserModifyVjudgeVerifyFail           metaerrorcode.ErrorCode = 100038
 )

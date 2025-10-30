@@ -224,3 +224,7 @@ func (s *UserService) UpdateUserInfo(
 ) error {
 	return foundationdao.GetUserDao().UpdateUserInfo(ctx, userId, r, modifyTime)
 }
+
+func (s *UserService) UpdateUserVjudgeUsername(ctx *gin.Context, userId int, vjudgeId string, now time.Time) error {
+	return foundationdao.GetUserDao().UpdateUserVjudgeUsername(ctx, userId, vjudgeId, now)
+}
