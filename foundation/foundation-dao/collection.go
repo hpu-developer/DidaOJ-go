@@ -185,6 +185,7 @@ func (d *CollectionDao) GetCollectionRank(
 			j.inserter AS inserter,
 			u.username AS inserter_username,
 			u.nickname AS inserter_nickname,
+			u.email AS inserter_email,
 			COUNT(DISTINCT CASE WHEN j.status = ? THEN j.problem_id END) AS accept
 		`, foundationjudge.JudgeStatusAC,
 		).
@@ -197,7 +198,7 @@ func (d *CollectionDao) GetCollectionRank(
 	if collection.EndTime != nil {
 		db = db.Where("j.insert_time <= ?", *collection.EndTime)
 	}
-	db = db.Group("j.inserter, u.username, u.nickname")
+	db = db.Group("j.inserter, u.username, u.nickname, u.email")
 	var ranks []*foundationview.CollectionRank
 	if err := db.Scan(&ranks).Error; err != nil {
 		return nil, err

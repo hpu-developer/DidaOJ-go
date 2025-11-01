@@ -30,6 +30,7 @@ type ContestRank struct {
 	Inserter         int     `json:"inserter"`                    // 提交者UserId
 	InserterUsername *string `json:"inserter_username,omitempty"` // 提交者用户名
 	InserterNickname *string `json:"inserter_nickname,omitempty"` // 提交者昵称
+	InserterEmail    *string `json:"inserter_email,omitempty"`    // 提交者邮箱
 
 	Problems []*ContestRankProblem `json:"problems,omitempty" gorm:"-"` // 题目提交情况
 }

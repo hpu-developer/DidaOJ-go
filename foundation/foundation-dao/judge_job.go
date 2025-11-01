@@ -451,7 +451,7 @@ func (d *JudgeJobDao) GetRankAcProblem(
 		Group("inserter")
 	var result []*foundationview.UserRank
 	err := d.db.Table("(?) AS t", subQuery).
-		Select("t.id, t.problem_count, u.username, u.nickname, u.slogan").
+		Select("t.id, t.problem_count, u.username, u.nickname, u.slogan, u.email").
 		Joins("LEFT JOIN \"user\" u ON u.id = t.id").
 		Order("t.problem_count DESC, t.id ASC").
 		Limit(pageSize).
@@ -604,6 +604,7 @@ func (d *JudgeJobDao) GetContestRanks(
     flat.inserter,
     u.username,
     u.nickname,
+    u.email,
     JSON_AGG(
         JSON_BUILD_OBJECT(
             'id', flat.problem_id,
@@ -638,7 +639,7 @@ FROM (
     GROUP BY j.inserter, j.problem_id
 ) AS flat
 LEFT JOIN "user" u ON flat.inserter = u.id
-GROUP BY flat.inserter, u.username, u.nickname;`
+GROUP BY flat.inserter, u.username, u.nickname, u.email;`
 		rows, err = d.db.WithContext(ctx).
 			Raw(execSql, id, foundationjudge.JudgeStatusAC, id).
 			Rows()
@@ -647,6 +648,7 @@ GROUP BY flat.inserter, u.username, u.nickname;`
     flat.inserter,
     u.username,
     u.nickname,
+    u.email,
     JSON_AGG(
         JSON_BUILD_OBJECT(
             'id', flat.problem_id,
@@ -689,7 +691,7 @@ FROM (
     GROUP BY j.inserter, j.problem_id
 ) AS flat
 LEFT JOIN "user" u ON flat.inserter = u.id
-GROUP BY flat.inserter, u.username, u.nickname;`
+GROUP BY flat.inserter, u.username, u.nickname, u.email;`
 
 		rows, err = d.db.WithContext(ctx).Raw(
 			execSql,
@@ -717,7 +719,13 @@ GROUP BY flat.inserter, u.username, u.nickname;`
 	for rows.Next() {
 		var rank foundationview.ContestRank
 		var jsonProblems json.RawMessage
-		err := rows.Scan(&rank.Inserter, &rank.InserterUsername, &rank.InserterNickname, &jsonProblems)
+		err := rows.Scan(
+			&rank.Inserter,
+			&rank.InserterUsername,
+			&rank.InserterNickname,
+			&rank.InserterEmail,
+			&jsonProblems,
+		)
 		if err != nil {
 			return nil, metaerror.Wrap(err, "failed to scan row")
 		}

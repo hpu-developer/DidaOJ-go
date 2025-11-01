@@ -5,6 +5,7 @@ type UserRank struct {
 	Username     string `json:"username" bson:"username"`                               // 对用户展示的唯一标识
 	Nickname     string `json:"nickname,omitempty" bson:"nickname,omitempty"`           // 显示的昵称
 	Slogan       string `json:"slogan,omitempty" bson:"slogan,omitempty"`               // 用户slogan
+	Email        string `json:"email,omitempty" bson:"email,omitempty"`                 // 用户邮箱
 	ProblemCount int    `json:"problem_count,omitempty" bson:"problem_count,omitempty"` // 解决的题目数
 	Accept       int    `json:"accept,omitempty" bson:"accept,omitempty"`               // AC次数
 	Attempt      int    `json:"attempt,omitempty" bson:"attempt,omitempty"`             // 尝试次数

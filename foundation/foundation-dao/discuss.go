@@ -159,6 +159,7 @@ func (d *DiscussDao) GetDiscussList(
 
 		"ui.username AS inserter_username",
 		"ui.nickname AS inserter_nickname",
+		"ui.email AS inserter_email",
 		"um.username AS modifier_username",
 		"um.nickname AS modifier_nickname",
 	}
