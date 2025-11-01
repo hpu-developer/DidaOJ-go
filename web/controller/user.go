@@ -5,6 +5,7 @@ import (
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
+	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
 	"foundation/foundation-request"
 	foundationservice "foundation/foundation-service"
@@ -327,11 +328,14 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 
 func (c *UserController) PostRegister(ctx *gin.Context) {
 	var requestData struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
-		Nickname string `json:"nickname" binding:"required"`
-		Email    string `json:"email" binding:"required"`
-		Key      string `json:"key" binding:"required"`
+		Username     string `json:"username" binding:"required"`
+		Password     string `json:"password" binding:"required"`
+		Nickname     string `json:"nickname" binding:"required"`
+		RealName     string `json:"real_name,omitempty"`
+		Gender       string `json:"gender,omitempty"`
+		Organization string `json:"organization,omitempty"`
+		Email        string `json:"email" binding:"required"`
+		Key          string `json:"key" binding:"required"`
 	}
 	if err := ctx.ShouldBindJSON(&requestData); err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
@@ -353,6 +357,16 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 	}
 	nickname := requestData.Nickname
 	if len(nickname) < 1 || len(nickname) > 30 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	realName := requestData.RealName
+	if len(realName) > 20 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	organization := requestData.Organization
+	if len(organization) > 30 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -397,11 +411,16 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 
 	nowTime := metatime.GetTimeNow()
 
+	gender := foundationenum.GetUserGender(requestData.Gender)
+
 	user := foundationmodel.NewUserBuilder().
 		Username(requestData.Username).
 		Password(passwordEncode).
 		Email(requestData.Email).
 		Nickname(requestData.Nickname).
+		Gender(gender).
+		RealName(&realName).
+		Organization(&organization).
 		InsertTime(nowTime).
 		ModifyTime(nowTime).
 		Build()

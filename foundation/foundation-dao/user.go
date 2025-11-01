@@ -3,6 +3,7 @@ package foundationdao
 import (
 	"context"
 	"errors"
+	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
 	"foundation/foundation-request"
 	foundationview "foundation/foundation-view"
@@ -259,12 +260,18 @@ func (d *UserDao) UpdateUserInfo(
 	modifyTime time.Time,
 ) error {
 	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
+
+	gender := foundationenum.GetUserGender(request.Gender)
+
 	res := db.Where("id = ?", userId).
 		Updates(
 			map[string]interface{}{
-				"nickname":    request.Nickname,
-				"slogan":      request.Slogan,
-				"modify_time": modifyTime,
+				"nickname":     request.Nickname,
+				"slogan":       request.Slogan,
+				"real_name":    request.RealName,
+				"gender":       gender,
+				"organization": request.Organization,
+				"modify_time":  modifyTime,
 			},
 		)
 	if res.Error != nil {
