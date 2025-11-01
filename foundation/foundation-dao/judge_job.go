@@ -1543,3 +1543,83 @@ func (d *JudgeJobDao) InsertJudgeJob(
 		},
 	)
 }
+
+func (d *JudgeJobDao) GetProblemRank(
+	ctx *gin.Context,
+	problemId int,
+	language foundationjudge.JudgeLanguage,
+	rankType foundationenum.ProblemRankType,
+) ([]*foundationview.JudgeJobRank, error) {
+
+	sub := d.db.WithContext(ctx).
+		Table("judge_job").
+		Select("MIN(id) AS id").
+		Where("status = ?", foundationjudge.JudgeStatusAC)
+	if foundationjudge.IsValidJudgeLanguage(int(language)) {
+		sub = sub.Where("language = ?", language)
+	}
+	sub = sub.Group("inserter, problem_id")
+	sub = sub.Where("problem_id = ?", problemId)
+
+	db := d.db.WithContext(ctx).Table("judge_job AS j").
+		Select(
+			`
+            j.id, j.insert_time, j.language, j.score, j.status,
+            j.time, j.memory, j.problem_id, j.inserter, j.code_length,
+            u.username AS inserter_username, u.nickname AS inserter_nickname, u.email AS inserter_email,
+            p.key AS problem_key
+        `,
+		).
+		Joins("INNER JOIN (?) AS t ON t.id = j.id", sub).
+		Joins("LEFT JOIN \"user\" AS u ON u.id = j.inserter").
+		Joins("LEFT JOIN problem AS p ON p.id = j.problem_id")
+
+	if rankType == foundationenum.ProblemRankTypeMemory {
+		db = db.Order("j.memory ASC, j.time ASC, j.code_length, j.insert_time ASC")
+	} else if rankType == foundationenum.ProblemRankTypeCodeLength {
+		db = db.Order("j.code_length ASC, j.time ASC, j.memory ASC, j.insert_time ASC")
+	} else {
+		db = db.Order("j.time ASC, j.memory ASC, j.code_length, j.insert_time ASC")
+	}
+
+	page := 1
+	pageSize := 20
+	offset := (page - 1) * pageSize
+	db = db.Limit(pageSize).Offset(offset)
+
+	var list []*foundationview.JudgeJobRank
+	if err := db.Scan(&list).Error; err != nil {
+		return nil, metaerror.Wrap(err, "failed to query judge job list")
+	}
+	return list, nil
+}
+
+func (d *JudgeJobDao) GetProblemStatistics(
+	ctx context.Context,
+	problemId int,
+	language foundationjudge.JudgeLanguage,
+) (map[foundationjudge.JudgeStatus]int, error) {
+	result := make(map[foundationjudge.JudgeStatus]int)
+	db := d.db.WithContext(ctx).
+		Table("judge_job").
+		Select("status, COUNT(1) AS cnt")
+	if problemId > 0 {
+		db = db.Where("problem_id = ?", problemId)
+	}
+	if language > 0 {
+		db = db.Where("language = ?", language)
+	}
+	db = db.Group("status")
+	type Row struct {
+		Status foundationjudge.JudgeStatus
+		Cnt    int
+	}
+	var rows []Row
+	if err := db.Scan(&rows).Error; err != nil {
+		return nil, metaerror.Wrap(err, "failed to get problem statistics")
+	}
+	for _, r := range rows {
+		result[r.Status] = r.Cnt
+	}
+	return result, nil
+}

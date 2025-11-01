@@ -295,6 +295,7 @@ func (d *ProblemDao) GetProblemIdByKey(ctx context.Context, key string) (int, er
 	}
 	return result.Id, nil
 }
+
 func (d *ProblemDao) GetProblemIdsByKey(ctx context.Context, problemKeys []string) ([]int, error) {
 	if len(problemKeys) == 0 {
 		return nil, nil
@@ -313,6 +314,43 @@ func (d *ProblemDao) GetProblemIdsByKey(ctx context.Context, problemKeys []strin
 		return nil, metaerror.Wrap(err, "find problem ids by keys failed")
 	}
 	return ids, nil
+}
+
+func (d *ProblemDao) CheckProblemIdViewByKey(
+	ctx context.Context, problemKey string,
+	userId int, hasAuth bool,
+) (
+	int,
+	error,
+) {
+	db := d.db.WithContext(ctx).Table("problem AS p").
+		Select(`p.id`).
+		Where("p.key = ?", problemKey)
+
+	if !hasAuth {
+		if userId > 0 {
+			db = db.Where(
+				`
+				p.private = FALSE OR
+				p.inserter = ? OR
+				EXISTS (
+					SELECT 1 FROM problem_member pm WHERE pm.id = p.id AND pm.user_id = ?
+				) OR
+				EXISTS (
+					SELECT 1 FROM problem_member_auth pam WHERE pam.id = p.id AND pam.user_id = ?
+				)
+			`, userId, userId, userId,
+			)
+		} else {
+			db = db.Where("p.private = FALSE")
+		}
+	}
+	var problemId int
+	err := db.Take(&problemId).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	return problemId, err
 }
 
 func (d *ProblemDao) GetProblemTitle(ctx context.Context, id int) (*string, error) {

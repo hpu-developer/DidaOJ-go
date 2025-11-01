@@ -384,3 +384,20 @@ func (s *JudgeService) RejudgeRecently(ctx context.Context) error {
 func (s *JudgeService) RejudgeAll(ctx context.Context) error {
 	return foundationdao.GetJudgeJobDao().RejudgeAll(ctx)
 }
+
+func (s *JudgeService) GetProblemRank(
+	ctx *gin.Context,
+	problemId int,
+	language foundationjudge.JudgeLanguage,
+	rankType foundationenum.ProblemRankType,
+) ([]*foundationview.JudgeJobRank, error) {
+	return foundationdao.GetJudgeJobDao().GetProblemRank(ctx, problemId, language, rankType)
+}
+
+func (s *JudgeService) GetProblemStatistics(
+	ctx context.Context,
+	problemId int,
+	language foundationjudge.JudgeLanguage,
+) (map[foundationjudge.JudgeStatus]int, error) {
+	return foundationdao.GetJudgeJobDao().GetProblemStatistics(ctx, problemId, language)
+}

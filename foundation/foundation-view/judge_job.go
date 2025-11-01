@@ -1,6 +1,7 @@
 package foundationview
 
 import (
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	"time"
 )
@@ -27,4 +28,17 @@ type JudgeJobViewAuth struct {
 	Inserter   int       `json:"inserter_id" bson:"inserter_id"`             // 提交者UserId
 	InsertTime time.Time `json:"inserter_time" bson:"inserter_time"`         // 申请时间
 	Private    bool      `json:"private,omitempty" bson:"private,omitempty"` // 是否隐藏源码
+}
+
+type JudgeJobRank struct {
+	Id               int                           `json:"id" gorm:"column:id;primaryKey;autoIncrement"`
+	Language         foundationjudge.JudgeLanguage `json:"language" gorm:"column:language;not null"`
+	CodeLength       int                           `json:"code_length" gorm:"column:code_length;not null"`
+	Time             int                           `json:"time,omitempty" gorm:"column:time"`
+	Memory           int                           `json:"memory,omitempty" gorm:"column:memory"`
+	Inserter         int                           `json:"inserter" gorm:"column:inserter;not null"`
+	InserterUsername string                        `json:"inserter_username,omitempty"`
+	InserterNickname string                        `json:"inserter_nickname,omitempty"`
+	InserterEmail    string                        `json:"inserter_email,omitempty"`
+	InsertTime       time.Time                     `json:"insert_time" gorm:"column:insert_time;not null"`
 }

@@ -367,6 +367,86 @@ func (c *ProblemController) GetTagList(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ProblemController) GetStatistics(ctx *gin.Context) {
+	problemService := foundationservice.GetProblemService()
+	problemKey := ctx.Query("key")
+	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
+		ctx,
+		foundationauth.AuthTypeManageProblem,
+	)
+	problemId, err := problemService.CheckProblemIdViewByKey(ctx, problemKey, userId, hasAuth)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+		return
+	}
+	if problemId <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	languageStr := ctx.Query("language")
+	language := foundationjudge.JudgeLanguageUnknown
+	if languageStr != "" {
+		languageInt, err := strconv.Atoi(languageStr)
+		if err == nil && foundationjudge.IsValidJudgeLanguage(languageInt) {
+			language = foundationjudge.JudgeLanguage(languageInt)
+		}
+	}
+
+	judgeService := foundationservice.GetJudgeService()
+	statics, err := judgeService.GetProblemStatistics(
+		ctx, problemId, language,
+	)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, statics)
+}
+
+func (c *ProblemController) GetRank(ctx *gin.Context) {
+	problemService := foundationservice.GetProblemService()
+	problemKey := ctx.Query("key")
+	userId, hasAuth, err := foundationservice.GetUserService().CheckUserAuth(
+		ctx,
+		foundationauth.AuthTypeManageProblem,
+	)
+	problemId, err := problemService.CheckProblemIdViewByKey(ctx, problemKey, userId, hasAuth)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+		return
+	}
+	if problemId <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	languageStr := ctx.Query("language")
+	language := foundationjudge.JudgeLanguageUnknown
+	if languageStr != "" {
+		languageInt, err := strconv.Atoi(languageStr)
+		if err == nil && foundationjudge.IsValidJudgeLanguage(languageInt) {
+			language = foundationjudge.JudgeLanguage(languageInt)
+		}
+	}
+	rankTypeStr := ctx.Query("type")
+	rankType := foundationenum.ProblemRankTypeTime
+	if rankTypeStr != "" {
+		rankTypeInt, err := strconv.Atoi(rankTypeStr)
+		if err == nil {
+			rankType = foundationenum.ProblemRankType(rankTypeInt)
+		}
+	}
+
+	judgeService := foundationservice.GetJudgeService()
+	list, err := judgeService.GetProblemRank(
+		ctx, problemId, language, rankType,
+	)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, list)
+}
+
 func (c *ProblemController) GetJudge(ctx *gin.Context) {
 	problemKey := ctx.Query("key")
 	if problemKey == "" {
