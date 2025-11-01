@@ -88,6 +88,7 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int, fields []str
 			selectFields,
 			"u.username AS inserter_username",
 			"u.nickname AS inserter_nickname",
+			"u.email AS inserter_email",
 			"judger.name AS judger_name",
 			"jc.message AS compile_message",
 			"p.key AS problem_key",
@@ -97,6 +98,7 @@ func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int, fields []str
 			"j.*",
 			"u.username AS inserter_username",
 			"u.nickname AS inserter_nickname",
+			"u.email AS inserter_email",
 			"judger.name AS judger_name",
 			"jc.message AS compile_message",
 			"p.key AS problem_key",
@@ -134,7 +136,7 @@ func (d *JudgeJobDao) GetJudgeJobList(
 	selectSql := `
 			j.id, j.insert_time, j.language, j.score, j.status,
 			j.time, j.memory, j.problem_id, j.inserter, j.code_length,
-			u.username AS inserter_username, u.nickname AS inserter_nickname`
+			u.username AS inserter_username, u.nickname AS inserter_nickname, u.email AS inserter_email`
 
 	selectSql += ", p.key as problem_key"
 
