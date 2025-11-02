@@ -376,6 +376,7 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int, nowTime ti
 
 	contestRanks, err := foundationdao.GetJudgeJobDao().GetContestRanks(
 		ctx, id,
+		contest.StartTime,
 		lockTimePtr,
 		problemMap,
 	)

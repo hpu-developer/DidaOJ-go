@@ -593,7 +593,8 @@ func (d *JudgeJobDao) GetUserJudgeJobCountStatics(
 
 func (d *JudgeJobDao) GetContestRanks(
 	ctx context.Context,
-	id int,
+	contestId int,
+	startTime time.Time,
 	lockTime *time.Time,
 	problemMap map[int]uint8,
 ) ([]*foundationview.ContestRank, error) {
@@ -603,6 +604,7 @@ func (d *JudgeJobDao) GetContestRanks(
 	var err error
 
 	if lockTime == nil {
+		// 无锁榜模式
 		execSql = `SELECT 
     flat.inserter,
     u.username,
@@ -635,18 +637,23 @@ FROM (
         FROM judge_job
         WHERE contest_id = $1
           AND status = $2
+          AND insert_time >= $4
         GROUP BY inserter, problem_id
     ) fa ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
     LEFT JOIN judge_job ac ON ac.id = fa.ac_id
     WHERE j.contest_id = $3
+      AND j.insert_time >= $4
     GROUP BY j.inserter, j.problem_id
 ) AS flat
 LEFT JOIN "user" u ON flat.inserter = u.id
 GROUP BY flat.inserter, u.username, u.nickname, u.email;`
+
 		rows, err = d.db.WithContext(ctx).
-			Raw(execSql, id, foundationjudge.JudgeStatusAC, id).
+			Raw(execSql, contestId, foundationjudge.JudgeStatusAC, contestId, startTime).
 			Rows()
+
 	} else {
+		// 锁榜模式
 		execSql = `SELECT 
     flat.inserter,
     u.username,
@@ -672,7 +679,7 @@ FROM (
         ) AS count_before,
         SUM(
             CASE
-                WHEN fa.ac_id IS NOT NULL AND j.insert_time >= $2 THEN 1
+                WHEN fa.ac_id IS NULL AND j.insert_time >= $2 THEN 1
                 ELSE 0
             END
         ) AS count_lock,
@@ -686,11 +693,13 @@ FROM (
         FROM judge_job
         WHERE contest_id = $3
           AND status = $4
+          AND insert_time >= $7
           AND insert_time < $5
         GROUP BY inserter, problem_id
     ) fa ON j.inserter = fa.inserter AND j.problem_id = fa.problem_id
     LEFT JOIN judge_job ac ON ac.id = fa.ac_id
     WHERE j.contest_id = $6
+      AND j.insert_time >= $7
     GROUP BY j.inserter, j.problem_id
 ) AS flat
 LEFT JOIN "user" u ON flat.inserter = u.id
@@ -700,10 +709,11 @@ GROUP BY flat.inserter, u.username, u.nickname, u.email;`
 			execSql,
 			lockTime,
 			lockTime,
-			id,
+			contestId,
 			foundationjudge.JudgeStatusAC,
 			lockTime,
-			id,
+			contestId,
+			startTime,
 		).Rows()
 	}
 
@@ -713,7 +723,7 @@ GROUP BY flat.inserter, u.username, u.nickname, u.email;`
 	defer func(rows *sql.Rows) {
 		err := rows.Close()
 		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err, "failed to close rows,id:%d"), id)
+			metapanic.ProcessError(metaerror.Wrap(err, "failed to close rows,id:%d"), contestId)
 		}
 	}(rows)
 
