@@ -2,6 +2,7 @@ package foundationview
 
 import (
 	foundationenum "foundation/foundation-enum"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	"time"
 )
@@ -26,6 +27,12 @@ type ContestDetailEdit struct {
 	InserterNickname string `json:"inserter_nickname"`
 	ModifierUsername string `json:"modifier_username"`
 	ModifierNickname string `json:"modifier_nickname"`
+}
+
+type ContestProblemStatistics struct {
+	ProblemId  int                                 `json:"problem_id,omitempty" gorm:"column:problem_id;primaryKey"`
+	Index      uint8                               `json:"index" gorm:"column:index;type:tinyint(1) unsigned;"`
+	Statistics map[foundationjudge.JudgeStatus]int `json:"statistics,omitempty" gorm:"-"`
 }
 
 type ContestViewLock struct {

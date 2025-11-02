@@ -297,6 +297,31 @@ func (c *ContestController) GetRank(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ContestController) GetStatistics(ctx *gin.Context) {
+	contestService := foundationservice.GetContestService()
+	idStr := ctx.Query("id")
+	if idStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	statistics, err := contestService.GetContestStatistics(ctx, id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	resp := struct {
+		Statistics []*foundationview.ContestProblemStatistics `json:"statistics"`
+	}{
+		Statistics: statistics,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, resp)
+}
+
 func (c *ContestController) GetImageToken(ctx *gin.Context) {
 	idStr := ctx.Query("id")
 	if idStr == "" {

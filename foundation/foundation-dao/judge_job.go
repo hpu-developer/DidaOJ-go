@@ -1623,3 +1623,42 @@ func (d *JudgeJobDao) GetProblemStatistics(
 	}
 	return result, nil
 }
+
+func (d *JudgeJobDao) GetContestStatistics(
+	ctx context.Context, contestId int, language foundationjudge.JudgeLanguage,
+) ([]*foundationview.ContestProblemStatistics, error) {
+	var cps []*foundationview.ContestProblemStatistics
+	db := d.db.WithContext(ctx).
+		Table("contest_problem").
+		Select("problem_id, index").
+		Where("id = ?", contestId)
+	if err := db.Order("index asc").Scan(&cps).Error; err != nil {
+		return nil, metaerror.Wrap(err, "failed to query contest problems")
+	}
+	type Row struct {
+		Status foundationjudge.JudgeStatus
+		Cnt    int
+	}
+	for _, cp := range cps {
+		stats := make(map[foundationjudge.JudgeStatus]int)
+
+		q := d.db.WithContext(ctx).
+			Table("judge_job").
+			Select("status, COUNT(1) AS cnt").
+			Where("contest_id = ?", contestId).
+			Where("problem_id = ?", cp.ProblemId)
+		if language > 0 {
+			q = q.Where("language = ?", language)
+		}
+		q = q.Group("status")
+		var rows []Row
+		if err := q.Scan(&rows).Error; err != nil {
+			return nil, metaerror.Wrap(err, "failed to get statistics for problem")
+		}
+		for _, r := range rows {
+			stats[r.Status] = r.Cnt
+		}
+		cp.Statistics = stats
+	}
+	return cps, nil
+}

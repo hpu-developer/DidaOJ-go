@@ -8,6 +8,7 @@ import (
 	foundationcontest "foundation/foundation-contest"
 	foundationdao "foundation/foundation-dao"
 	foundationenum "foundation/foundation-enum"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	"io"
@@ -207,6 +208,24 @@ func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundatio
 		return nil, err
 	}
 	return contest, err
+}
+
+func (s *ContestService) GetContestStatistics(ctx *gin.Context, id int) (
+	[]*foundationview.ContestProblemStatistics,
+	error,
+) {
+	statistics, err := foundationdao.GetJudgeJobDao().GetContestStatistics(
+		ctx,
+		id,
+		foundationjudge.JudgeLanguageUnknown,
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, stat := range statistics {
+		stat.ProblemId = 0
+	}
+	return statistics, nil
 }
 
 func (s *ContestService) GetContestStartTime(ctx *gin.Context, id int) (*time.Time, error) {
