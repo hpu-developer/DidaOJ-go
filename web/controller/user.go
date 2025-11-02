@@ -124,6 +124,29 @@ func (c *UserController) PostModify(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }
 
+func (c *UserController) PostModifyPassword(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
+	var requestData foundationrequest.UserModifyPassword
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if !foundationuser.IsValidPassword(requestData.Password) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	err = foundationservice.GetUserService().UpdateUserPassword(ctx, userId, &requestData, metatime.GetTimeNow())
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
 func (c *UserController) PostModifyVjudge(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
@@ -502,7 +525,7 @@ func (c *UserController) PostForget(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, email)
 }
 
-func (c *UserController) PostPasswordModify(ctx *gin.Context) {
+func (c *UserController) PostPasswordForget(ctx *gin.Context) {
 	var requestData struct {
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
@@ -546,13 +569,13 @@ func (c *UserController) PostPasswordModify(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	err = foundationservice.GetUserService().UpdatePassword(ctx, requestData.Username, passwordEncode)
+	nowTime := metatime.GetTimeNow()
+	err = foundationservice.GetUserService().UpdatePassword(ctx, requestData.Username, passwordEncode, nowTime)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success)
-
 }
 
 func (c *UserController) PostLoginRefresh(ctx *gin.Context) {

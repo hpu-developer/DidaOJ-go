@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationconfig "foundation/foundation-config"
 	foundationdao "foundation/foundation-dao"
@@ -109,8 +110,13 @@ func (s *UserService) GeneratePasswordEncode(password string) (string, error) {
 	return encoded, nil
 }
 
-func (s *UserService) UpdatePassword(ctx *gin.Context, username string, passwordEncode string) error {
-	return foundationdao.GetUserDao().UpdatePassword(ctx, username, passwordEncode)
+func (s *UserService) UpdatePassword(
+	ctx *gin.Context,
+	username string,
+	passwordEncode string,
+	nowTime time.Time,
+) error {
+	return foundationdao.GetUserDao().UpdatePassword(ctx, username, passwordEncode, nowTime)
 }
 
 func (s *UserService) Login(ctx *gin.Context, username string, password string) (*foundationview.UserLogin, error) {
@@ -227,4 +233,41 @@ func (s *UserService) UpdateUserInfo(
 
 func (s *UserService) UpdateUserVjudgeUsername(ctx *gin.Context, userId int, vjudgeId string, now time.Time) error {
 	return foundationdao.GetUserDao().UpdateUserVjudgeUsername(ctx, userId, vjudgeId, now)
+}
+
+func (s *UserService) UpdateUserPassword(
+	ctx *gin.Context,
+	userId int,
+	requestData *foundationrequest.UserModifyPassword,
+	nowTime time.Time,
+) error {
+	password, err := foundationdao.GetUserDao().GetUserPassword(ctx, userId)
+	if err != nil {
+		return err
+	}
+	decoded, err := base64.StdEncoding.DecodeString(password)
+	if err != nil {
+		return metaerror.Wrap(err)
+	}
+	if len(decoded) <= 20 {
+		return metaerror.New("password decoded error", "len", len(decoded))
+	}
+	salt := decoded[20:]
+	md5Hex := md5.Sum([]byte(requestData.Password))
+	md5HexStr := make([]byte, 32)
+	hex.Encode(md5HexStr, md5Hex[:])
+	sha1Hasher := sha1.New()
+	sha1Hasher.Write(md5HexStr)
+	sha1Hasher.Write(salt)
+	sha1Hash := sha1Hasher.Sum(nil)
+	final := append(sha1Hash, salt...)
+	encoded := base64.StdEncoding.EncodeToString(final)
+	if encoded != password {
+		return metaerror.NewCode(foundationerrorcode.PasswordNotMatch)
+	}
+	newPasswordEncode, err := s.GeneratePasswordEncode(requestData.NewPassword)
+	if err != nil {
+		return err
+	}
+	return foundationdao.GetUserDao().UpdatePasswordByUserId(ctx, userId, newPasswordEncode, nowTime)
 }

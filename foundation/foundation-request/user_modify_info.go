@@ -8,6 +8,11 @@ type UserModifyInfo struct {
 	Organization string `json:"organization,omitempty"`
 }
 
+type UserModifyPassword struct {
+	Password    string `json:"password,omitempty"`
+	NewPassword string `json:"new_password,omitempty"`
+}
+
 type UserModifyVjudge struct {
 	Approved bool   `json:"approved"`
 	Username string `json:"username"`

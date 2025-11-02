@@ -64,6 +64,19 @@ func (d *UserDao) GetUserLoginByUsername(ctx context.Context, username string) (
 	return &user, nil
 }
 
+func (d *UserDao) GetUserPassword(ctx context.Context, userId int) (string, error) {
+	var password string
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.User{}).
+		Select("password").
+		Where("id = ?", userId).
+		Pluck("password", &password).Error
+	if err != nil {
+		return "", metaerror.Wrap(err, "get user password")
+	}
+	return password, nil
+}
+
 func (d *UserDao) GetModifyInfo(ctx context.Context, userId int) (*foundationview.UserModifyInfo, error) {
 	var userInfo foundationview.UserModifyInfo
 	err := d.db.WithContext(ctx).
@@ -240,10 +253,11 @@ func (d *UserDao) FilterValidUserIds(ctx context.Context, ids []int) ([]int, err
 	return validIds, nil
 }
 
-func (d *UserDao) UpdatePassword(ctx context.Context, username string, encodePassword string) error {
+func (d *UserDao) UpdatePassword(ctx context.Context, username string, encodePassword string, nowTime time.Time) error {
 	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
 	res := db.Where("username = ?", username).
-		Update("password", encodePassword)
+		Update("password", encodePassword).
+		Update("modify_time", nowTime)
 	if res.Error != nil {
 		return metaerror.Wrap(res.Error, "update user password")
 	}
@@ -290,6 +304,20 @@ func (d *UserDao) InsertUser(ctx context.Context, user *foundationmodel.User) er
 	db := d.db.WithContext(ctx).Model(user)
 	if err := db.Create(user).Error; err != nil {
 		return metaerror.Wrap(err, "insert user")
+	}
+	return nil
+}
+
+func (d *UserDao) UpdatePasswordByUserId(ctx *gin.Context, id int, encodePassword string, nowTime time.Time) error {
+	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
+	res := db.Where("id = ?", id).
+		Update("password", encodePassword).
+		Update("modify_time", nowTime)
+	if res.Error != nil {
+		return metaerror.Wrap(res.Error, "update user password")
+	}
+	if res.RowsAffected == 0 {
+		return metaerror.New("no rows affected, user not found")
 	}
 	return nil
 }
