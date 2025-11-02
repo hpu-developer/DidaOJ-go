@@ -1725,7 +1725,7 @@ func (d *JudgeJobDao) GetContestCountStatics(
 	if realEndTime.Before(contest.Start) {
 		realEndTime = contest.Start
 	}
-	totalSeconds := contest.End.Unix() - contest.Start.Unix()
+	totalSeconds := realEndTime.Unix() - contest.Start.Unix()
 	if totalSeconds < 0 {
 		return nil, fmt.Errorf("invalid contest duration")
 	}
