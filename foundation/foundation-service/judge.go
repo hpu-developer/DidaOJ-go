@@ -401,3 +401,11 @@ func (s *JudgeService) GetProblemStatistics(
 ) (map[foundationjudge.JudgeStatus]int, error) {
 	return foundationdao.GetJudgeJobDao().GetProblemStatistics(ctx, problemId, language)
 }
+
+func (s *JudgeService) GetContestCountStatics(
+	ctx *gin.Context,
+	id int,
+	language foundationjudge.JudgeLanguage,
+) ([]*foundationview.JudgeJobCountStatics, error) {
+	return foundationdao.GetJudgeJobDao().GetContestCountStatics(ctx, id, language)
+}

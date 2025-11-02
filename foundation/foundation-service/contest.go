@@ -210,14 +210,14 @@ func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundatio
 	return contest, err
 }
 
-func (s *ContestService) GetContestStatistics(ctx *gin.Context, id int) (
+func (s *ContestService) GetContestStatistics(ctx *gin.Context, id int, language foundationjudge.JudgeLanguage) (
 	[]*foundationview.ContestProblemStatistics,
 	error,
 ) {
 	statistics, err := foundationdao.GetJudgeJobDao().GetContestStatistics(
 		ctx,
 		id,
-		foundationjudge.JudgeLanguageUnknown,
+		language,
 	)
 	if err != nil {
 		return nil, err

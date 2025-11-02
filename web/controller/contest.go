@@ -5,6 +5,7 @@ import (
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationenum "foundation/foundation-enum"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
@@ -309,14 +310,30 @@ func (c *ContestController) GetStatistics(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	statistics, err := contestService.GetContestStatistics(ctx, id)
+	languageStr := ctx.Query("language")
+	language := foundationjudge.JudgeLanguageUnknown
+	if languageStr != "" {
+		languageInt, err := strconv.Atoi(languageStr)
+		if err == nil && foundationjudge.IsValidJudgeLanguage(languageInt) {
+			language = foundationjudge.JudgeLanguage(languageInt)
+		}
+	}
+
+	countStatics, err := foundationservice.GetJudgeService().GetContestCountStatics(
+		ctx,
+		id,
+		language,
+	)
+	statistics, err := contestService.GetContestStatistics(ctx, id, language)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	resp := struct {
+		Count      []*foundationview.JudgeJobCountStatics     `json:"count"`
 		Statistics []*foundationview.ContestProblemStatistics `json:"statistics"`
 	}{
+		Count:      countStatics,
 		Statistics: statistics,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, resp)

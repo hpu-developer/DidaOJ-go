@@ -1662,3 +1662,105 @@ func (d *JudgeJobDao) GetContestStatistics(
 	}
 	return cps, nil
 }
+
+func (d *JudgeJobDao) GetContestCountStatics(
+	ctx context.Context,
+	contestId int,
+	language foundationjudge.JudgeLanguage,
+) ([]*foundationview.JudgeJobCountStatics, error) {
+	var contest struct {
+		Start time.Time `gorm:"column:start_time"`
+		End   time.Time `gorm:"column:end_time"`
+	}
+	if err := d.db.WithContext(ctx).
+		Table("contest").
+		Select("start_time, end_time").
+		Where("id = ?", contestId).
+		Scan(&contest).Error; err != nil {
+		return nil, err
+	}
+	if contest.End.Before(contest.Start) {
+		return nil, fmt.Errorf("invalid contest time")
+	}
+	newTime := time.Now()
+	if newTime.Before(contest.End) {
+		contest.End = newTime
+	}
+	totalSeconds := contest.End.Unix() - contest.Start.Unix()
+	if totalSeconds <= 0 {
+		return nil, fmt.Errorf("invalid contest duration")
+	}
+	type row struct {
+		Bucket  int
+		Accept  int
+		Attempt int
+	}
+
+	var rows []row
+	if foundationjudge.IsValidJudgeLanguage(int(language)) {
+		err := d.db.WithContext(ctx).Raw(
+			`
+		SELECT
+			LEAST(
+				FLOOR(
+					(EXTRACT(EPOCH FROM j.insert_time) - EXTRACT(EPOCH FROM ?::timestamptz)) 
+					/ ? * 100
+				)::int, 
+				99
+			) AS bucket,
+			COUNT(*) AS attempt,
+			SUM(CASE WHEN j.status = ? THEN 1 ELSE 0 END) AS accept
+		FROM judge_job j
+		WHERE j.contest_id = ?
+		  AND j.language = ?
+		GROUP BY bucket
+		ORDER BY bucket
+	`, contest.Start, totalSeconds, foundationjudge.JudgeStatusAC, contestId, language,
+		).
+			Scan(&rows).Error
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err := d.db.WithContext(ctx).Raw(
+			`
+		SELECT
+			LEAST(
+				FLOOR(
+					(EXTRACT(EPOCH FROM j.insert_time) - EXTRACT(EPOCH FROM ?::timestamptz)) 
+					/ ? * 100
+				)::int, 
+				99
+			) AS bucket,
+			COUNT(*) AS attempt,
+			SUM(CASE WHEN j.status = ? THEN 1 ELSE 0 END) AS accept
+		FROM judge_job j
+		WHERE j.contest_id = ?
+		GROUP BY bucket
+		ORDER BY bucket
+	`, contest.Start, totalSeconds, foundationjudge.JudgeStatusAC, contestId,
+		).
+			Scan(&rows).Error
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	totalParts := 100
+	stats := make([]*foundationview.JudgeJobCountStatics, totalParts)
+	interval := time.Duration(float64(contest.End.Sub(contest.Start)) / float64(totalParts))
+	for i := 0; i < totalParts; i++ {
+		stats[i] = &foundationview.JudgeJobCountStatics{
+			Date:    contest.Start.Add(interval * time.Duration(i)),
+			Accept:  0,
+			Attempt: 0,
+		}
+	}
+	for _, r := range rows {
+		if r.Bucket >= 0 && r.Bucket < totalParts {
+			stats[r.Bucket].Accept = r.Accept
+			stats[r.Bucket].Attempt = r.Attempt
+		}
+	}
+	return stats, nil
+}
