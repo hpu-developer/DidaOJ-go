@@ -183,7 +183,7 @@ func (s *JudgeService) GetJudgeList(
 			for _, judgeJob := range judgeJobs {
 				if contest.Type == foundationenum.ContestTypeAcm {
 					// IOI模式之外隐藏分数信息
-					if judgeJob.Score < 100 {
+					if judgeJob.Score < 1000 {
 						judgeJob.Score = 0
 					}
 				}

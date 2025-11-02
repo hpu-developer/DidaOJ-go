@@ -108,7 +108,7 @@ func (c *JudgeController) Get(ctx *gin.Context) {
 		judgeJob.ProblemId = 0
 		if contest.Type == foundationenum.ContestTypeAcm {
 			// IOI模式之外隐藏分数信息
-			if judgeJob.Score < 100 {
+			if judgeJob.Score < 1000 {
 				judgeJob.Score = 0
 			}
 		}
