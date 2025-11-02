@@ -404,8 +404,15 @@ func (s *JudgeService) GetProblemStatistics(
 
 func (s *JudgeService) GetContestCountStatics(
 	ctx *gin.Context,
-	id int,
+	contestId int,
 	language foundationjudge.JudgeLanguage,
 ) ([]*foundationview.JudgeJobCountStatics, error) {
-	return foundationdao.GetJudgeJobDao().GetContestCountStatics(ctx, id, language)
+	return foundationdao.GetJudgeJobDao().GetContestCountStatics(ctx, contestId, language)
+}
+
+func (s *JudgeService) GetContestLanguageStatics(
+	ctx *gin.Context,
+	contestId int,
+) (map[foundationjudge.JudgeLanguage]int, error) {
+	return foundationdao.GetJudgeJobDao().GetContestLanguageStatics(ctx, contestId)
 }

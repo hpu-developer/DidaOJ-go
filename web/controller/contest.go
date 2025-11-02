@@ -305,9 +305,23 @@ func (c *ContestController) GetStatistics(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	id, err := strconv.Atoi(idStr)
+	contestId, err := strconv.Atoi(idStr)
 	if err != nil {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	_, hasAuth, err := foundationservice.GetContestService().CheckViewAuth(ctx, contestId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		responseData := struct {
+			HasAuth bool `json:"has_auth"`
+		}{
+			HasAuth: false,
+		}
+		metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 		return
 	}
 	languageStr := ctx.Query("language")
@@ -321,19 +335,32 @@ func (c *ContestController) GetStatistics(ctx *gin.Context) {
 
 	countStatics, err := foundationservice.GetJudgeService().GetContestCountStatics(
 		ctx,
-		id,
+		contestId,
 		language,
 	)
-	statistics, err := contestService.GetContestStatistics(ctx, id, language)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	languages, err := foundationservice.GetJudgeService().GetContestLanguageStatics(ctx, contestId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	statistics, err := contestService.GetContestStatistics(ctx, contestId, language)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
 	resp := struct {
+		HasAuth    bool                                       `json:"has_auth"`
 		Count      []*foundationview.JudgeJobCountStatics     `json:"count"`
+		Language   map[foundationjudge.JudgeLanguage]int      `json:"language"`
 		Statistics []*foundationview.ContestProblemStatistics `json:"statistics"`
 	}{
+		HasAuth:    true,
 		Count:      countStatics,
+		Language:   languages,
 		Statistics: statistics,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, resp)

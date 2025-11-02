@@ -1764,3 +1764,27 @@ func (d *JudgeJobDao) GetContestCountStatics(
 	}
 	return stats, nil
 }
+
+func (d *JudgeJobDao) GetContestLanguageStatics(ctx *gin.Context, id int) (
+	map[foundationjudge.JudgeLanguage]int,
+	error,
+) {
+	result := make(map[foundationjudge.JudgeLanguage]int)
+	db := d.db.WithContext(ctx).
+		Table("judge_job").
+		Select("language, COUNT(1) AS cnt").
+		Where("contest_id = ?", id).
+		Group("language")
+	type Row struct {
+		Language foundationjudge.JudgeLanguage
+		Cnt      int
+	}
+	var rows []Row
+	if err := db.Scan(&rows).Error; err != nil {
+		return nil, metaerror.Wrap(err, "failed to get contest language statistics")
+	}
+	for _, r := range rows {
+		result[r.Language] = r.Cnt
+	}
+	return result, nil
+}
