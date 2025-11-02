@@ -13,6 +13,7 @@ import (
 	metaerror "meta/meta-error"
 	metapanic "meta/meta-panic"
 	metapostgresql "meta/meta-postgresql"
+	metatime "meta/meta-time"
 	metautf "meta/meta-utf"
 	"meta/singleton"
 	"strings"
@@ -1627,12 +1628,37 @@ func (d *JudgeJobDao) GetProblemStatistics(
 func (d *JudgeJobDao) GetContestStatistics(
 	ctx context.Context, contestId int, language foundationjudge.JudgeLanguage,
 ) ([]*foundationview.ContestProblemStatistics, error) {
+	var contest struct {
+		StartTime        time.Time      `gorm:"column:start_time"`
+		End              time.Time      `gorm:"column:end_time"`
+		LockRankDuration *time.Duration `gorm:"column:lock_rank_duration"`
+		AlwaysLock       bool           `gorm:"column:always_lock"`
+	}
+	if err := d.db.WithContext(ctx).
+		Table("contest").
+		Select("start_time, end_time, lock_rank_duration, always_lock").
+		Where("id = ?", contestId).
+		Scan(&contest).Error; err != nil {
+		return nil, err
+	}
+	var lockTime *time.Time
+	if contest.LockRankDuration != nil {
+		if contest.AlwaysLock || time.Now().After(contest.End.Add(-*contest.LockRankDuration)) {
+			t := contest.End.Add(-*contest.LockRankDuration)
+			lockTime = &t
+		}
+	}
+	var langPtr *foundationjudge.JudgeLanguage
+	if foundationjudge.IsValidJudgeLanguage(int(language)) {
+		langPtr = &language
+	}
 	var cps []*foundationview.ContestProblemStatistics
-	db := d.db.WithContext(ctx).
+	if err := d.db.WithContext(ctx).
 		Table("contest_problem").
 		Select("problem_id, index").
-		Where("id = ?", contestId)
-	if err := db.Order("index asc").Scan(&cps).Error; err != nil {
+		Where("id = ?", contestId).
+		Order("index asc").
+		Scan(&cps).Error; err != nil {
 		return nil, metaerror.Wrap(err, "failed to query contest problems")
 	}
 	type Row struct {
@@ -1641,18 +1667,18 @@ func (d *JudgeJobDao) GetContestStatistics(
 	}
 	for _, cp := range cps {
 		stats := make(map[foundationjudge.JudgeStatus]int)
-
-		q := d.db.WithContext(ctx).
+		var rows []Row
+		err := d.db.WithContext(ctx).
 			Table("judge_job").
 			Select("status, COUNT(1) AS cnt").
 			Where("contest_id = ?", contestId).
-			Where("problem_id = ?", cp.ProblemId)
-		if language > 0 {
-			q = q.Where("language = ?", language)
-		}
-		q = q.Group("status")
-		var rows []Row
-		if err := q.Scan(&rows).Error; err != nil {
+			Where("problem_id = ?", cp.ProblemId).
+			Where("(?::int IS NULL OR language = ?::int)", langPtr, langPtr).
+			Where("insert_time >= ?", contest.StartTime).
+			Where("(?::timestamptz IS NULL OR insert_time < ?::timestamptz)", lockTime, lockTime).
+			Group("status").
+			Scan(&rows).Error
+		if err != nil {
 			return nil, metaerror.Wrap(err, "failed to get statistics for problem")
 		}
 		for _, r := range rows {
@@ -1669,25 +1695,28 @@ func (d *JudgeJobDao) GetContestCountStatics(
 	language foundationjudge.JudgeLanguage,
 ) ([]*foundationview.JudgeJobCountStatics, error) {
 	var contest struct {
-		Start time.Time `gorm:"column:start_time"`
-		End   time.Time `gorm:"column:end_time"`
+		Start            time.Time      `gorm:"column:start_time"`
+		End              time.Time      `gorm:"column:end_time"`
+		LockRankDuration *time.Duration `gorm:"column:lock_rank_duration"`
+		AlwaysLock       bool           `gorm:"column:always_lock"`
 	}
 	if err := d.db.WithContext(ctx).
 		Table("contest").
-		Select("start_time, end_time").
+		Select("start_time, end_time, lock_rank_duration, always_lock").
 		Where("id = ?", contestId).
 		Scan(&contest).Error; err != nil {
 		return nil, err
 	}
-	if contest.End.Before(contest.Start) {
-		return nil, fmt.Errorf("invalid contest time")
+	realEndTime := contest.End
+	nowTime := time.Now()
+	if nowTime.Before(realEndTime) {
+		realEndTime = nowTime
 	}
-	newTime := time.Now()
-	if newTime.Before(contest.End) {
-		contest.End = newTime
+	if realEndTime.Before(contest.Start) {
+		realEndTime = contest.Start
 	}
 	totalSeconds := contest.End.Unix() - contest.Start.Unix()
-	if totalSeconds <= 0 {
+	if totalSeconds < 0 {
 		return nil, fmt.Errorf("invalid contest duration")
 	}
 	type row struct {
@@ -1697,53 +1726,51 @@ func (d *JudgeJobDao) GetContestCountStatics(
 	}
 
 	var rows []row
+	lockTime := (*time.Time)(nil)
+	if contest.LockRankDuration != nil {
+		if contest.AlwaysLock || nowTime.After(contest.End.Add(-*contest.LockRankDuration)) {
+			t := contest.End.Add(-*contest.LockRankDuration)
+			lockTime = &t
+		}
+	}
+
+	var langPtr *foundationjudge.JudgeLanguage
 	if foundationjudge.IsValidJudgeLanguage(int(language)) {
-		err := d.db.WithContext(ctx).Raw(
-			`
-		SELECT
-			LEAST(
-				FLOOR(
-					(EXTRACT(EPOCH FROM j.insert_time) - EXTRACT(EPOCH FROM ?::timestamptz)) 
-					/ ? * 100
-				)::int, 
-				99
-			) AS bucket,
-			COUNT(*) AS attempt,
-			SUM(CASE WHEN j.status = ? THEN 1 ELSE 0 END) AS accept
-		FROM judge_job j
-		WHERE j.contest_id = ?
-		  AND j.language = ?
-		GROUP BY bucket
-		ORDER BY bucket
-	`, contest.Start, totalSeconds, foundationjudge.JudgeStatusAC, contestId, language,
-		).
-			Scan(&rows).Error
-		if err != nil {
-			return nil, err
-		}
+		langPtr = &language
 	} else {
-		err := d.db.WithContext(ctx).Raw(
-			`
-		SELECT
-			LEAST(
-				FLOOR(
-					(EXTRACT(EPOCH FROM j.insert_time) - EXTRACT(EPOCH FROM ?::timestamptz)) 
-					/ ? * 100
-				)::int, 
-				99
-			) AS bucket,
-			COUNT(*) AS attempt,
-			SUM(CASE WHEN j.status = ? THEN 1 ELSE 0 END) AS accept
-		FROM judge_job j
-		WHERE j.contest_id = ?
-		GROUP BY bucket
-		ORDER BY bucket
-	`, contest.Start, totalSeconds, foundationjudge.JudgeStatusAC, contestId,
-		).
-			Scan(&rows).Error
-		if err != nil {
-			return nil, err
-		}
+		langPtr = nil
+	}
+
+	query := `
+SELECT
+    LEAST(
+        FLOOR(
+            (EXTRACT(EPOCH FROM j.insert_time) - EXTRACT(EPOCH FROM ?::timestamptz)) 
+            / ? * 100
+        )::int, 
+        99
+    ) AS bucket,
+    COUNT(*) AS attempt,
+    SUM(CASE WHEN j.status = ? THEN 1 ELSE 0 END) AS accept
+FROM judge_job j
+WHERE j.contest_id = ?
+  AND (?::int IS NULL OR j.language = ?::int)
+  AND j.insert_time >= ?::timestamptz
+  AND (?::timestamptz IS NULL OR j.insert_time < ?::timestamptz)
+GROUP BY bucket
+ORDER BY bucket
+`
+	err := d.db.WithContext(ctx).Raw(
+		query,
+		contest.Start, totalSeconds, foundationjudge.JudgeStatusAC,
+		contestId,
+		langPtr, langPtr,
+		contest.Start,
+		lockTime, lockTime,
+	).Scan(&rows).Error
+
+	if err != nil {
+		return nil, err
 	}
 
 	totalParts := 100
@@ -1764,25 +1791,48 @@ func (d *JudgeJobDao) GetContestCountStatics(
 	}
 	return stats, nil
 }
-
-func (d *JudgeJobDao) GetContestLanguageStatics(ctx *gin.Context, id int) (
+func (d *JudgeJobDao) GetContestLanguageStatics(ctx *gin.Context, contestId int) (
 	map[foundationjudge.JudgeLanguage]int,
 	error,
 ) {
-	result := make(map[foundationjudge.JudgeLanguage]int)
-	db := d.db.WithContext(ctx).
-		Table("judge_job").
-		Select("language, COUNT(1) AS cnt").
-		Where("contest_id = ?", id).
-		Group("language")
+	var contest struct {
+		StartTime        time.Time      `gorm:"column:start_time"`
+		End              time.Time      `gorm:"column:end_time"`
+		LockRankDuration *time.Duration `gorm:"column:lock_rank_duration"`
+		AlwaysLock       bool           `gorm:"column:always_lock"`
+	}
+	if err := d.db.WithContext(ctx).
+		Table("contest").
+		Select("start_time, end_time, lock_rank_duration, always_lock").
+		Where("id = ?", contestId).
+		Scan(&contest).Error; err != nil {
+		return nil, err
+	}
+	nowTime := metatime.GetTimeNow()
+	var lockTime *time.Time
+	if contest.LockRankDuration != nil {
+		if contest.AlwaysLock || nowTime.After(contest.End.Add(-*contest.LockRankDuration)) {
+			t := contest.End.Add(-*contest.LockRankDuration)
+			lockTime = &t
+		}
+	}
 	type Row struct {
 		Language foundationjudge.JudgeLanguage
 		Cnt      int
 	}
 	var rows []Row
-	if err := db.Scan(&rows).Error; err != nil {
+	err := d.db.WithContext(ctx).
+		Table("judge_job").
+		Select("language, COUNT(1) AS cnt").
+		Where("contest_id = ?", contestId).
+		Where("insert_time >= ?", contest.StartTime).
+		Where("(?::timestamptz IS NULL OR insert_time < ?::timestamptz)", lockTime, lockTime).
+		Group("language").
+		Scan(&rows).Error
+	if err != nil {
 		return nil, metaerror.Wrap(err, "failed to get contest language statistics")
 	}
+	result := make(map[foundationjudge.JudgeLanguage]int)
 	for _, r := range rows {
 		result[r.Language] = r.Cnt
 	}
