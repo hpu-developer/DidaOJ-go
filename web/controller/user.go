@@ -147,6 +147,221 @@ func (c *UserController) PostModifyPassword(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }
 
+func (c *UserController) PostModifyEmail(ctx *gin.Context) {
+	var requestDatastruct struct {
+		EmailKey    string `json:"email_key" binding:"required"`
+		NewEmail    string `json:"new_email" binding:"required"`
+		NewEmailKey string `json:"new_email_key" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestDatastruct); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
+	// 判断验证码是否正确
+	redisClient := metaredis.GetSubsystem().GetClient()
+	oldCodeKey := fmt.Sprintf("modify_email_old_key_%d", userId)
+	storedOldCode, err := redisClient.Get(ctx, oldCodeKey).Result()
+	if storedOldCode != requestDatastruct.EmailKey {
+		metaresponse.NewResponse(ctx, weberrorcode.UserModifyOldEmailKeyError, nil)
+		return
+	}
+	newCodeKey := fmt.Sprintf("modify_email_key_%d_%s", userId, requestDatastruct.NewEmail)
+	storedNewCode, err := redisClient.Get(ctx, newCodeKey).Result()
+	if storedNewCode != requestDatastruct.NewEmailKey {
+		metaresponse.NewResponse(ctx, weberrorcode.UserModifyEmailKeyError, nil)
+		return
+	}
+	// 删除所有的验证码
+	if err := redisClient.Del(ctx, oldCodeKey).Err(); err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if err := redisClient.Del(ctx, newCodeKey).Err(); err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	err = foundationservice.GetUserService().UpdateUserEmail(
+		ctx,
+		userId,
+		requestDatastruct.NewEmail,
+		metatime.GetTimeNow(),
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
+func (c *UserController) PostModifyEmailKey(ctx *gin.Context) {
+	var requestData struct {
+		Email string `json:"email" binding:"required"`
+		Token string `json:"token" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
+	email := requestData.Email
+
+	if !metaemail.IsEmailValid(email) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	isTurnstileValid, err := cfturnstile.IsTurnstileTokenValid(ctx, config.GetConfig().CfTurnstile, requestData.Token)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if !isTurnstileValid {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	redisClient := metaredis.GetSubsystem().GetClient()
+	flagKey := fmt.Sprintf("modify_email_dup_%d_%s", userId, email)
+	codeKey := fmt.Sprintf("modify_email_key_%d_%s", userId, email)
+
+	// 检查是否在 1 分钟内重复发送
+	ok, err := redisClient.SetNX(ctx, flagKey, 1, time.Minute).Result()
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, metaerrorcode.TooManyRequests, nil)
+		return
+	}
+
+	// 生成验证码并存入 Redis，设置10分钟过期
+	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
+	if err := redisClient.Set(ctx, codeKey, code, 10*time.Minute).Err(); err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	subject := fmt.Sprintf("[DidaOJ] - 邮件验证码")
+	body := fmt.Sprintf(
+		"%s：\n\n您好！\n欢迎您使用DidaOJ，以下是您的邮箱验证码：\n\n%s\n\n本验证码用于您修改本系统绑定的邮箱，请勿泄露给他人。\n请在10分钟之内使用本验证码，过期请重新申请。\n如有疑问，请联系管理员。\n\n祝好！\nDidaOJ团队\nhttps://oj.didapipa.com",
+		email, code,
+	)
+
+	err = metaemail.SendEmail(
+		"DidaOJ",
+		config.GetConfig().Email.Email,
+		config.GetConfig().Email.Password,
+		config.GetConfig().Email.Host,
+		config.GetConfig().Email.Port,
+		email,
+		subject,
+		body,
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.MailSendFail, nil)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
+func (c *UserController) PostModifyEmailKeyOld(ctx *gin.Context) {
+	var requestData struct {
+		Token string `json:"token" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
+	emailPtr, err := foundationservice.GetUserService().GetEmail(ctx, userId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if emailPtr == nil || *emailPtr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	email := *emailPtr
+
+	if !metaemail.IsEmailValid(email) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	isTurnstileValid, err := cfturnstile.IsTurnstileTokenValid(ctx, config.GetConfig().CfTurnstile, requestData.Token)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if !isTurnstileValid {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	redisClient := metaredis.GetSubsystem().GetClient()
+	flagKey := fmt.Sprintf("modify_email_old_dup_%d", userId)
+	codeKey := fmt.Sprintf("modify_email_old_key_%d", userId)
+
+	// 检查是否在 1 分钟内重复发送
+	ok, err := redisClient.SetNX(ctx, flagKey, 1, time.Minute).Result()
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if !ok {
+		metaresponse.NewResponse(ctx, metaerrorcode.TooManyRequests, nil)
+		return
+	}
+
+	// 生成验证码并存入 Redis，设置10分钟过期
+	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
+	if err := redisClient.Set(ctx, codeKey, code, 10*time.Minute).Err(); err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	subject := fmt.Sprintf("[DidaOJ] - 邮件验证码")
+	body := fmt.Sprintf(
+		"%s：\n\n您好！\n欢迎您使用DidaOJ，以下是您的邮箱验证码：\n\n%s\n\n本验证码用于您修改本系统绑定的邮箱，请勿泄露给他人。\n请在10分钟之内使用本验证码，过期请重新申请。\n如有疑问，请联系管理员。\n\n祝好！\nDidaOJ团队\nhttps://oj.didapipa.com",
+		email, code,
+	)
+
+	err = metaemail.SendEmail(
+		"DidaOJ",
+		config.GetConfig().Email.Email,
+		config.GetConfig().Email.Password,
+		config.GetConfig().Email.Host,
+		config.GetConfig().Email.Port,
+		email,
+		subject,
+		body,
+	)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.MailSendFail, nil)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
 func (c *UserController) PostModifyVjudge(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
@@ -342,7 +557,7 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 		body,
 	)
 	if err != nil {
-		metaresponse.NewResponse(ctx, weberrorcode.RegisterMailSendFail, nil)
+		metaresponse.NewResponse(ctx, weberrorcode.MailSendFail, nil)
 		return
 	}
 
@@ -517,7 +732,7 @@ func (c *UserController) PostForget(ctx *gin.Context) {
 		body,
 	)
 	if err != nil {
-		metaresponse.NewResponse(ctx, weberrorcode.RegisterMailSendFail, nil)
+		metaresponse.NewResponse(ctx, weberrorcode.MailSendFail, nil)
 		return
 	}
 

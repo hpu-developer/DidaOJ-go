@@ -64,6 +64,10 @@ func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*fo
 	return resultUser, nil
 }
 
+func (s *UserService) GetEmail(ctx context.Context, userId int) (*string, error) {
+	return foundationdao.GetUserDao().GetEmail(ctx, userId)
+}
+
 func (s *UserService) GetEmailByUsername(ctx context.Context, username string) (*string, error) {
 	return foundationdao.GetUserDao().GetEmailByUsername(ctx, username)
 }
@@ -270,4 +274,8 @@ func (s *UserService) UpdateUserPassword(
 		return err
 	}
 	return foundationdao.GetUserDao().UpdatePasswordByUserId(ctx, userId, newPasswordEncode, nowTime)
+}
+
+func (s *UserService) UpdateUserEmail(ctx *gin.Context, userId int, email string, now time.Time) error {
+	return foundationdao.GetUserDao().UpdateUserEmail(ctx, userId, email, now)
 }

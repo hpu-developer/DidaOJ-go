@@ -199,6 +199,21 @@ func (d *UserDao) GetUserIdsByUsername(ctx context.Context, usernames []string) 
 	return userIds, nil
 }
 
+func (d *UserDao) GetEmail(ctx context.Context, id int) (*string, error) {
+	var email string
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.User{}).
+		Where("id = ?", id).
+		Pluck("email", &email).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "get email by user id")
+	}
+	return &email, nil
+}
+
 func (d *UserDao) GetEmailByUsername(ctx context.Context, username string) (*string, error) {
 	var email string
 	err := d.db.WithContext(ctx).
@@ -333,6 +348,24 @@ func (d *UserDao) UpdateUserVjudgeUsername(ctx *gin.Context, id int, vjudgeId st
 		)
 	if res.Error != nil {
 		return metaerror.Wrap(res.Error, "update user vjudge username")
+	}
+	if res.RowsAffected == 0 {
+		return metaerror.New("no rows affected, user not found")
+	}
+	return nil
+}
+
+func (d *UserDao) UpdateUserEmail(ctx *gin.Context, id int, email string, now time.Time) error {
+	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
+	res := db.Where("id = ?", id).
+		Updates(
+			map[string]interface{}{
+				"email":       email,
+				"modify_time": now,
+			},
+		)
+	if res.Error != nil {
+		return metaerror.Wrap(res.Error, "update user email")
 	}
 	if res.RowsAffected == 0 {
 		return metaerror.New("no rows affected, user not found")

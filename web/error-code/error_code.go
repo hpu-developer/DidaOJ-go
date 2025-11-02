@@ -4,7 +4,7 @@ import "meta/error-code"
 
 const (
 	UserNotMatch                         metaerrorcode.ErrorCode = 100001
-	RegisterMailSendFail                 metaerrorcode.ErrorCode = 100002
+	MailSendFail                         metaerrorcode.ErrorCode = 100002
 	RegisterMailKeyError                 metaerrorcode.ErrorCode = 100003
 	RegisterUserFail                     metaerrorcode.ErrorCode = 100004
 	ForgetUserWithoutEmail               metaerrorcode.ErrorCode = 100005
@@ -41,4 +41,6 @@ const (
 	UserModifyVjudgeReload               metaerrorcode.ErrorCode = 100036
 	UserModifyVjudgeCannotGet            metaerrorcode.ErrorCode = 100037
 	UserModifyVjudgeVerifyFail           metaerrorcode.ErrorCode = 100038
+	UserModifyOldEmailKeyError           metaerrorcode.ErrorCode = 100039
+	UserModifyEmailKeyError              metaerrorcode.ErrorCode = 100040
 )
