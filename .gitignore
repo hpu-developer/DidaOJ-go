@@ -2,8 +2,6 @@
 .DS_Store
 Thumbs.db
 
-meta
-
 # 忽略 Go 的编译文件
 *.exe
 *.dll
