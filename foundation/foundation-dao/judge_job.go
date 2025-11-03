@@ -1785,7 +1785,7 @@ ORDER BY bucket
 
 	totalParts := 100
 	stats := make([]*foundationview.JudgeJobCountStatics, totalParts)
-	interval := time.Duration(float64(contest.End.Sub(contest.Start)) / float64(totalParts))
+	interval := time.Duration(float64(realEndTime.Sub(contest.Start)) / float64(totalParts))
 	for i := 0; i < totalParts; i++ {
 		stats[i] = &foundationview.JudgeJobCountStatics{
 			Date:    contest.Start.Add(interval * time.Duration(i)),
