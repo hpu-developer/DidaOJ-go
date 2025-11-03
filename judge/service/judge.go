@@ -242,7 +242,7 @@ func (s *JudgeService) handleStart() error {
 				defer s.checkStartJob()
 
 				defer func() {
-					slog.Info(fmt.Sprintf("JudgeTask_%d end", job.Id))
+					slog.Info(fmt.Sprintf("JudgeJob_%d end", job.Id))
 					s.runningTasks.Add(-1)
 				}()
 				val, _ := s.judgeJobMutexMap.LoadOrStore(job.Id, &judgeMutexEntry{})
@@ -257,7 +257,7 @@ func (s *JudgeService) handleStart() error {
 				e.mu.Lock()
 				defer e.mu.Unlock()
 
-				slog.Info(fmt.Sprintf("JudgeTask_%d start", job.Id))
+				slog.Info(fmt.Sprintf("JudgeJob_%d start", job.Id))
 				err = s.startJudgeJob(job)
 				if err != nil {
 					markErr := foundationdao.GetJudgeJobCompileDao().MarkJudgeJobCompileMessage(
