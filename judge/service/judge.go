@@ -99,12 +99,8 @@ func (s *JudgeService) Start() error {
 	c := cron.NewWithSeconds()
 	_, err = c.AddFunc(
 		"* * * * * ?", func() {
-			// 每秒运行一次任务
-			err := s.handleStart()
-			if err != nil {
-				metapanic.ProcessError(err)
-				return
-			}
+			// 每秒检查一次任务是否能运行
+			s.checkStartJob()
 		},
 	)
 	if err != nil {
@@ -192,6 +188,13 @@ func (s *JudgeService) uploadFile(filePath string) (*string, error) {
 	return foundationjudge.UploadFile(s.goJudgeClient, config.GetConfig().GoJudge.Url, filePath)
 }
 
+func (s *JudgeService) checkStartJob() {
+	err := s.handleStart()
+	if err != nil {
+		metapanic.ProcessError(err)
+	}
+}
+
 func (s *JudgeService) handleStart() error {
 
 	// 如果没开启评测，停止判题
@@ -235,6 +238,9 @@ func (s *JudgeService) handleStart() error {
 	for _, job := range jobs {
 		routine.SafeGo(
 			fmt.Sprintf("RunningJudgeJob_%d", job.Id), func() error {
+				// 执行完本Job后再尝试启动一次任务
+				defer s.checkStartJob()
+
 				defer func() {
 					slog.Info(fmt.Sprintf("JudgeTask_%d end", job.Id))
 					s.runningTasks.Add(-1)
@@ -242,6 +248,7 @@ func (s *JudgeService) handleStart() error {
 				val, _ := s.judgeJobMutexMap.LoadOrStore(job.Id, &judgeMutexEntry{})
 				e := val.(*judgeMutexEntry)
 				atomic.AddInt32(&e.ref, 1)
+
 				defer func() {
 					if atomic.AddInt32(&e.ref, -1) == 0 {
 						s.judgeJobMutexMap.Delete(job.Id)
@@ -251,7 +258,7 @@ func (s *JudgeService) handleStart() error {
 				defer e.mu.Unlock()
 
 				slog.Info(fmt.Sprintf("JudgeTask_%d start", job.Id))
-				err = s.startJudgeTask(job)
+				err = s.startJudgeJob(job)
 				if err != nil {
 					markErr := foundationdao.GetJudgeJobCompileDao().MarkJudgeJobCompileMessage(
 						ctx, job.Id, config.GetConfig().Judger.Key,
@@ -271,6 +278,7 @@ func (s *JudgeService) handleStart() error {
 					}
 					return err
 				}
+
 				return nil
 			},
 		)
@@ -278,7 +286,7 @@ func (s *JudgeService) handleStart() error {
 	return nil
 }
 
-func (s *JudgeService) startJudgeTask(job *foundationmodel.JudgeJob) error {
+func (s *JudgeService) startJudgeJob(job *foundationmodel.JudgeJob) error {
 	ctx := context.Background()
 	jobId := job.Id
 	ok, err := foundationdao.GetJudgeJobDao().StartProcessLocalJudgeJob(ctx, job.Id, config.GetConfig().Judger.Key)
