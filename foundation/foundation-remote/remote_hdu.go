@@ -504,6 +504,11 @@ func (s *RemoteHduAgent) submitImp(
 	code string, retryCount int,
 ) (string, string, error) {
 
+	languageCode := s.getLanguageCode(language)
+	if languageCode == "" {
+		return "", "", metaerror.New("HDU remote judge not support language")
+	}
+
 	hduUrl := "https://acm.hdu.edu.cn/submit.php?action=submit"
 	method := "POST"
 	payload := &bytes.Buffer{}
@@ -582,11 +587,6 @@ func (s *RemoteHduAgent) submit(
 	language foundationjudge.JudgeLanguage,
 	code string, retryCount int,
 ) (string, string, error) {
-
-	languageCode := s.getLanguageCode(language)
-	if languageCode == "" {
-		return "", "", metaerror.New("HDU remote judge not support language")
-	}
 
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
