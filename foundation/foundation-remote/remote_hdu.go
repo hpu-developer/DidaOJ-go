@@ -11,6 +11,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationrender "foundation/foundation-render"
 	"io"
+	"log/slog"
 	metaerror "meta/meta-error"
 	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
@@ -256,13 +257,16 @@ func (s *RemoteHduAgent) cleanCodeBeforeSubmit(code string, language foundationj
 }
 
 func (s *RemoteHduAgent) login(ctx context.Context) error {
-	url := "https://acm.hdu.edu.cn/userloginex.php?action=login"
+
+	slog.Info("HDU remote judge login start")
+
+	loginUrl := "https://acm.hdu.edu.cn/userloginex.php?action=login"
 	method := "POST"
 	username := foundationconfig.GetConfig().Remote.Hdu.Username
 	password := foundationconfig.GetConfig().Remote.Hdu.Password
 
 	payload := strings.NewReader(fmt.Sprintf("username=%s&userpass=%s", username, password))
-	req, err := http.NewRequestWithContext(ctx, method, url, payload)
+	req, err := http.NewRequestWithContext(ctx, method, loginUrl, payload)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to create login request")
 	}
@@ -494,19 +498,11 @@ func (s *RemoteHduAgent) GetJudgeJobExtraMessage(
 	return compileMessage, nil
 }
 
-func (s *RemoteHduAgent) submit(
+func (s *RemoteHduAgent) submitImp(
 	ctx context.Context, problemId string,
 	language foundationjudge.JudgeLanguage,
 	code string, retryCount int,
 ) (string, string, error) {
-
-	languageCode := s.getLanguageCode(language)
-	if languageCode == "" {
-		return "", "", metaerror.New("HDU remote judge not support language")
-	}
-
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 
 	hduUrl := "https://acm.hdu.edu.cn/submit.php?action=submit"
 	method := "POST"
@@ -568,7 +564,7 @@ func (s *RemoteHduAgent) submit(
 		if err != nil {
 			return "", "", metaerror.Wrap(err, "failed to login")
 		}
-		return s.submit(ctx, problemId, language, code, retryCount+1)
+		return s.submitImp(ctx, problemId, language, code, retryCount+1)
 	}
 	if !strings.Contains(bodyStr, "<title>Realtime Status</title>") {
 		return "", "", metaerror.New("HDU remote judge submit failed")
@@ -579,6 +575,25 @@ func (s *RemoteHduAgent) submit(
 		return "", "", metaerror.Wrap(err, "failed to get max run id")
 	}
 	return runId, username, nil
+}
+
+func (s *RemoteHduAgent) submit(
+	ctx context.Context, problemId string,
+	language foundationjudge.JudgeLanguage,
+	code string, retryCount int,
+) (string, string, error) {
+
+	languageCode := s.getLanguageCode(language)
+	if languageCode == "" {
+		return "", "", metaerror.New("HDU remote judge not support language")
+	}
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	slog.Info("HDU remote judge submit start", "problemId", problemId, "language", language)
+
+	return s.submitImp(ctx, problemId, language, code, retryCount)
 }
 
 func (s *RemoteHduAgent) PostSubmitJudgeJob(
