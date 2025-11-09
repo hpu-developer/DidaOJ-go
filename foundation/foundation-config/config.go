@@ -26,7 +26,7 @@ type Config struct {
 			Username string `yaml:"username"`
 			Password string `yaml:"password"`
 		} `yaml:"hdu"`
-		VJudge struct {
+		Poj struct {
 			Username string `yaml:"username"`
 			Password string `yaml:"password"`
 		} `yaml:"poj"`

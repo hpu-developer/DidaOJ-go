@@ -30,3 +30,6 @@ remote:
   hdu:
     username: ""
     password:
+  poj:
+    username: ""
+    password:

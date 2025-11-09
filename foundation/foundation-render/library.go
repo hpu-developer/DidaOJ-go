@@ -5,17 +5,16 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	metahttp "meta/meta-http"
+	"regexp"
+	"sort"
+	"strings"
+
 	"github.com/JohannesKaufmann/html-to-markdown/v2/converter"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/base"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/commonmark"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/strikethrough"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/table"
-	"io"
-	metahttp "meta/meta-http"
-	"net/http"
-	"regexp"
-	"sort"
-	"strings"
 )
 
 func Render(template string, data map[string]string) string {
@@ -99,21 +98,22 @@ func fixAndUploadAllLinks(problemKey string, html string, baseUrl string) (strin
 		if !entry.ForceUpload && !regexp.MustCompile(`\.(png|jpe?g|gif|webp)$`).MatchString(absoluteUrl) {
 			newUrl = absoluteUrl
 		} else {
-			resp, err := http.Get(absoluteUrl)
-			if err != nil {
-				return "", fmt.Errorf("failed to download %s: %w", absoluteUrl, err)
-			}
-			defer resp.Body.Close()
-
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return "", fmt.Errorf("failed to read body: %w", err)
-			}
-
-			newUrl, err = uploadToR2(problemKey, body)
-			if err != nil {
-				return "", fmt.Errorf("upload failed: %w", err)
-			}
+			newUrl = absoluteUrl
+			//resp, err := http.Get(absoluteUrl)
+			//if err != nil {
+			//	return "", fmt.Errorf("failed to download %s: %w", absoluteUrl, err)
+			//}
+			//defer resp.Body.Close()
+			//
+			//body, err := io.ReadAll(resp.Body)
+			//if err != nil {
+			//	return "", fmt.Errorf("failed to read body: %w", err)
+			//}
+			//
+			//newUrl, err = uploadToR2(problemKey, body)
+			//if err != nil {
+			//	return "", fmt.Errorf("upload failed: %w", err)
+			//}
 		}
 
 		if strings.HasPrefix(raw, "src=") || strings.HasPrefix(raw, "href=") {
@@ -171,18 +171,14 @@ func restoreMathBlocks(markdown string, placeholderMap map[string]string) string
 }
 
 func HTMLToMarkdown(problemId string, htmlStr string, baseURL string) (string, error) {
-
 	preprocessedHTML, mathMap := extractMathBlocks(htmlStr)
-
-	// Step 1: fix and upload all links
 	fixedHtml, err := fixAndUploadAllLinks(problemId, preprocessedHTML, baseURL)
 	if err != nil {
 		return "", err
 	}
-
-	// Step 2: convert to markdown
 	conv := converter.NewConverter(
 		converter.WithPlugins(
+			NewFontColorPlugin(),
 			base.NewBasePlugin(),
 			commonmark.NewCommonmarkPlugin(),
 			strikethrough.NewStrikethroughPlugin(),
@@ -193,9 +189,6 @@ func HTMLToMarkdown(problemId string, htmlStr string, baseURL string) (string, e
 	if err != nil {
 		return "", err
 	}
-
-	// 3. 恢复 $$...$$
 	finalMarkdown := restoreMathBlocks(markdown, mathMap)
-
 	return finalMarkdown, nil
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	foundationconfig "foundation/foundation-config"
 	foundationdao "foundation/foundation-dao"
@@ -20,13 +19,12 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/text/encoding/simplifiedchinese"
-	"golang.org/x/text/transform"
+	"web/config"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -110,28 +108,153 @@ func (s *RemotePojAgent) GetJudgeStatus(status string) foundationjudge.JudgeStat
 func (s *RemotePojAgent) IsSupportJudge(problemId string, language foundationjudge.JudgeLanguage) bool {
 	return s.getLanguageCode(language) != ""
 }
+func (s *RemotePojAgent) PostCrawlProblem(ctx context.Context, id string) (*string, error) {
+	nowTime := metatime.GetTimeNow()
+	newProblemId := fmt.Sprintf("POJ-%s", id)
+
+	baseURL := "http://poj.org/"
+	problemUrl := fmt.Sprintf("%sproblem?id=%s", baseURL, id)
+
+	resp, err := http.Get(problemUrl)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch problem page")
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err))
+		}
+	}(resp.Body)
+
+	utf8Html, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	utf8String := string(utf8Html)
+
+	if strings.Contains(utf8String, "<li>Can not find problem (ID:") {
+		return nil, nil
+	}
+
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(utf8String))
+	if err != nil {
+		return nil, err
+	}
+
+	title := strings.TrimSpace(doc.Find(".ptt").First().Text())
+
+	sectionMap := make(map[string]string)
+	doc.Find("p.pst").Each(
+		func(_ int, s *goquery.Selection) {
+			key := strings.TrimSpace(s.Text())
+			next := s.Next()
+
+			if goquery.NodeName(next) == "div" && next.HasClass("ptx") {
+				htmlContent, _ := next.Html()
+				htmlContent, err = foundationrender.HTMLToMarkdown(newProblemId, htmlContent, baseURL)
+				if err == nil {
+					sectionMap[key] = htmlContent
+				}
+				return
+			}
+
+			// <pre class="sio"> 样例
+			if goquery.NodeName(next) == "pre" && next.HasClass("sio") {
+				sectionMap[key] = fmt.Sprintf("```\n%s\n```", next.Text())
+				return
+			}
+		},
+	)
+
+	description := sectionMap["Description"]
+	input := sectionMap["Input"]
+	output := sectionMap["Output"]
+	sampleInput := sectionMap["Sample Input"]
+	sampleOutput := sectionMap["Sample Output"]
+
+	hint := sectionMap["Hint"]
+	if hint != "" {
+		hint = "\n\n## Hint\n\n" + hint
+	}
+
+	source := sectionMap["Source"]
+
+	limitText := doc.Find(".plm").Text()
+
+	reTL := regexp.MustCompile(`Time Limit:\s*(\d+)MS`)
+	reML := regexp.MustCompile(`Memory Limit:\s*(\d+)K`)
+
+	timeLimit := -1
+	memoryLimit := -1
+
+	if m := reTL.FindStringSubmatch(limitText); len(m) > 1 {
+		timeLimit, _ = strconv.Atoi(m[1])
+	}
+	if m := reML.FindStringSubmatch(limitText); len(m) > 1 {
+		memoryLimit, _ = strconv.Atoi(m[1])
+	}
+	template := config.GetOjTemplateContent("poj")
+	descriptionRendered := foundationrender.Render(
+		template, map[string]string{
+			"description":  description,
+			"input":        input,
+			"output":       output,
+			"sampleInput":  sampleInput,
+			"sampleOutput": sampleOutput,
+			"hint":         hint,
+		},
+	)
+
+	originUrl := fmt.Sprintf("http://poj.org/problem?id=%s", id)
+	originAuthor := ""
+
+	problem := foundationmodel.NewProblemBuilder().
+		Title(title).
+		Description(descriptionRendered).
+		TimeLimit(timeLimit).
+		MemoryLimit(memoryLimit).
+		Source(&source).
+		InsertTime(nowTime).
+		ModifyTime(nowTime).
+		Build()
+	problemRemote := foundationmodel.NewProblemRemoteBuilder().
+		OriginOj("POJ").
+		OriginId(id).
+		OriginUrl(originUrl).
+		OriginAuthor(&originAuthor).
+		Build()
+	err = foundationdao.GetProblemDao().UpdateProblemCrawl(ctx, newProblemId, problem, problemRemote)
+	if err != nil {
+		return nil, err
+	}
+	return &newProblemId, nil
+}
+
+func (s *RemotePojAgent) cleanCodeBeforeSubmit(code string, language foundationjudge.JudgeLanguage) string {
+	return code
+}
 
 func (s *RemotePojAgent) login(ctx context.Context) error {
 
 	slog.Info("POJ remote judge login start")
 
-	loginUrl := "https://vjudge.net/user/login"
+	loginUrl := "https://acm.poj.edu.cn/userloginex.php?action=login"
 	method := "POST"
-	username := foundationconfig.GetConfig().Remote.Hdu.Username
-	password := foundationconfig.GetConfig().Remote.Hdu.Password
+	username := foundationconfig.GetConfig().Remote.Poj.Username
+	password := foundationconfig.GetConfig().Remote.Poj.Password
 
 	payload := strings.NewReader(fmt.Sprintf("username=%s&userpass=%s", username, password))
 	req, err := http.NewRequestWithContext(ctx, method, loginUrl, payload)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to create login request")
 	}
-	req.Header.Add("priority", "u=1, i")
-	req.Header.Add("x-requested-with", "XMLHttpRequest")
-	req.Header.Add("content-type", "application/x-www-form-urlencoded; charset=UTF-8")
+	req.Header.Add("Sec-Fetch-User", "?1")
+	req.Header.Add("Upgrade-Insecure-Requests", "1")
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "vjudge.net")
+	req.Header.Add("Host", "acm.poj.edu.cn")
 	req.Header.Add("Connection", "keep-alive")
-
+	req.Header.Add("Referer", "https://acm.poj.edu.cn/userloginex.php?action=login")
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return metaerror.Wrap(err, "login request failed")
@@ -146,252 +269,25 @@ func (s *RemotePojAgent) login(ctx context.Context) error {
 	if cookie == "" {
 		return metaerror.New("login failed, no Set-Cookie header")
 	}
-	cookieParts := strings.SplitN(cookie, ";", 2)
-	if len(cookieParts) == 0 {
-		return metaerror.New("login failed, invalid Set-Cookie header")
-	}
-	cookie = strings.TrimSpace(cookieParts[0])
-	s.cookie = fmt.Sprintf("JSESSIONlD:%s|%s; Path=/; Domain=vjudge.net;", username, cookie)
+	s.cookie = cookie
 	return nil
 }
 
-func (s *RemotePojAgent) crawlProblem(ctx context.Context, id string, retryCount int) (*string, error) {
-
-	nowTime := metatime.GetTimeNow()
-	newProblemId := fmt.Sprintf("POJ-%s", id)
-	baseURL := "https://vjudge.net/"
-
-	vjudgeUrl := fmt.Sprintf("https://vjudge.net/problem/%s", newProblemId)
-	method := "GET"
-	req, err := http.NewRequestWithContext(ctx, method, vjudgeUrl, nil)
-	if err != nil {
-		return nil, metaerror.Wrap(err, "failed to create PostCrawlProblem request")
-	}
-	req.Header.Add("priority", "u=0, i")
-	req.Header.Add("sec-fetch-user", "?1")
-	req.Header.Add("upgrade-insecure-requests", "1")
-	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "vjudge.net")
-	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Username", foundationconfig.GetConfig().Remote.VJudge.Username)
-	req.Header.Add("Cookie", s.cookie)
-
-	resp, err := s.goJudgeClient.Do(req)
-	if err != nil {
-		return nil, metaerror.Wrap(err, "PostCrawlProblem request failed")
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err))
-		}
-	}(resp.Body)
-
-	// 解码 GBK 到 UTF-8
-	gbkData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	reader := transform.NewReader(bytes.NewReader(gbkData), simplifiedchinese.GBK.NewDecoder())
-	utf8Html, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	// 解析 HTML
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(utf8Html))
-	if err != nil {
-		return nil, err
-	}
-
-	descLi := doc.Find(`ul#prob-descs li`).FilterFunction(
-		func(i int, s *goquery.Selection) bool {
-			return s.Find("b").First().Text() == "System Crawler"
-		},
-	).First()
-
-	descUrl, _ := descLi.Find(`.operation a[target="_blank"]`).Attr("href")
-	if descUrl == "" {
-		if retryCount < 1 {
-			// 重新登录一次试试
-			err := s.login(ctx)
-			if err != nil {
-				return nil, err
-			}
-			return s.crawlProblem(ctx, id, retryCount+1)
-		}
-		return nil, metaerror.New("failed to get problem description URL")
-	}
-	fullDescUrl := "https://vjudge.net" + descUrl
-
-	descResp, err := http.Get(fullDescUrl)
-	if err != nil {
-		return nil, err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err))
-		}
-	}(descResp.Body)
-
-	descGbkData, err := io.ReadAll(descResp.Body)
-	if err != nil {
-		return nil, err
-	}
-	descReader := transform.NewReader(bytes.NewReader(descGbkData), simplifiedchinese.GBK.NewDecoder())
-	descUtf8Html, err := io.ReadAll(descReader)
-	if err != nil {
-		return nil, err
-	}
-	descDoc, err := goquery.NewDocumentFromReader(bytes.NewReader(descUtf8Html))
-	if err != nil {
-		return nil, err
-	}
-	// 获取 JSON 文本
-	descJsonStr := strings.TrimSpace(descDoc.Find("textarea.data-json-container").Text())
-	var descData struct {
-		Trustable bool `json:"trustable"`
-		Sections  []struct {
-			Title string `json:"title"`
-			Value struct {
-				Format  string `json:"format"`
-				Content string `json:"content"`
-			} `json:"value"`
-		} `json:"sections"`
-	}
-	if err := json.Unmarshal([]byte(descJsonStr), &descData); err != nil {
-		return nil, metaerror.Wrap(err, "parse description json failed")
-	}
-
-	description := ""
-
-	for _, sec := range descData.Sections {
-		title := strings.TrimSpace(sec.Title)
-		htmlContent := sec.Value.Content
-		if title == "" {
-			md, err := foundationrender.HTMLToMarkdown(newProblemId, htmlContent, baseURL)
-			if err != nil {
-				return nil, metaerror.Wrap(err, "convert section HTML to markdown failed")
-			}
-			description += md + "\n\n"
-		}
-	}
-
-	// 标题
-	title := strings.TrimSpace(
-		doc.Find("h2").Clone().Children().Remove().End().Text(),
-	)
-	jsonStr := strings.TrimSpace(doc.Find(`textarea[name="dataJson"]`).Text())
-
-	var data struct {
-		Properties []struct {
-			Title   string `json:"title"`
-			Content string `json:"content"`
-		} `json:"properties"`
-	}
-
-	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
-		return nil, err
-	}
-
-	var (
-		timeLimit   int
-		memoryLimit int
-		source      string
-	)
-
-	for _, p := range data.Properties {
-		switch p.Title {
-		case "time_limit":
-			// "1000 ms" -> 1000
-			timeLimit, _ = strconv.Atoi(strings.Fields(p.Content)[0])
-		case "mem_limit":
-			// "65536 kB" -> 65536
-			memoryLimit, _ = strconv.Atoi(strings.Fields(p.Content)[0])
-		case "source":
-			source = p.Content
-		}
-	}
-
-	// 转成 goquery 文档片段
-	srcDoc, err := goquery.NewDocumentFromReader(strings.NewReader(source))
-	if err != nil {
-		return nil, err
-	}
-
-	// 提取来源链接和文本
-	a := srcDoc.Find("a").First()
-	link, _ := a.Attr("href")
-	sourceName := strings.TrimSpace(a.Text())
-
-	// a 标签后面的文本中包含 author
-	restText := a.Parent().Text()
-	restText = strings.TrimSpace(restText)
-	author := ""
-	// 解析作者
-	if idx := strings.Index(restText, "Author:"); idx >= 0 {
-		author = strings.TrimSpace(restText[idx+len("Author:"):])
-	}
-	// 你最终存储的 source 可以按需求组合：
-	source = fmt.Sprintf("[%s](%s)", sourceName, link)
-
-	originUrl := fmt.Sprintf("http://poj.org/problem?id=%s", id)
-
-	problem := foundationmodel.NewProblemBuilder().
-		Title(title).
-		Description(description).
-		TimeLimit(timeLimit).
-		MemoryLimit(memoryLimit).
-		Source(&source).
-		InsertTime(nowTime).
-		ModifyTime(nowTime).
-		Build()
-
-	problemRemote := foundationmodel.NewProblemRemoteBuilder().
-		OriginOj("POJ").
-		OriginId(id).
-		OriginUrl(originUrl).
-		OriginAuthor(&author).
-		Build()
-
-	err = foundationdao.GetProblemDao().UpdateProblemCrawl(ctx, newProblemId, problem, problemRemote)
-	if err != nil {
-		return nil, err
-	}
-
-	return &newProblemId, nil
-}
-
-func (s *RemotePojAgent) PostCrawlProblem(ctx context.Context, id string) (*string, error) {
-
-	err := s.login(ctx)
-	if err != nil {
-		return nil, metaerror.Wrap(err, "failed to login")
-	}
-
-	return s.crawlProblem(ctx, id, 0)
-}
-
-func (s *RemotePojAgent) cleanCodeBeforeSubmit(code string, language foundationjudge.JudgeLanguage) string {
-	return code
-}
-
 func (s *RemotePojAgent) getMaxRunId(ctx context.Context, username string, problemId string) (string, error) {
-	hduUrl := fmt.Sprintf(
-		"https://acm.hdu.edu.cn/status.php?pid=%s&user=%s",
+	pojUrl := fmt.Sprintf(
+		"https://acm.poj.edu.cn/status.php?pid=%s&user=%s",
 		problemId,
 		username,
 	)
 	method := "GET"
-	req, err := http.NewRequestWithContext(ctx, method, hduUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, method, pojUrl, nil)
 	if err != nil {
 		return "", metaerror.Wrap(err, "failed to create getMaxRunId request")
 	}
 	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.hdu.edu.cn")
+	req.Header.Add("Host", "acm.poj.edu.cn")
 	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", "https://acm.hdu.edu.cn/status.php?first=&pid=&user=&lang=0&status=0")
+	req.Header.Add("Referer", "https://acm.poj.edu.cn/status.php?first=&pid=&user=&lang=0&status=0")
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return "", metaerror.Wrap(err, "getMaxRunId request failed")
@@ -432,9 +328,9 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	int,
 	error,
 ) {
-	hduUrl := fmt.Sprintf("https://acm.hdu.edu.cn/status.php?first=%s", runId)
+	pojUrl := fmt.Sprintf("https://acm.poj.edu.cn/status.php?first=%s", runId)
 	method := "GET"
-	req, err := http.NewRequestWithContext(ctx, method, hduUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, method, pojUrl, nil)
 	if err != nil {
 		return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(
 			err,
@@ -443,9 +339,9 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	}
 	req.Header.Add("Cookie", s.cookie)
 	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.hdu.edu.cn")
+	req.Header.Add("Host", "acm.poj.edu.cn")
 	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", fmt.Sprintf("https://acm.hdu.edu.cn/status.php?first=&pid=&user=&lang=0&status=0"))
+	req.Header.Add("Referer", fmt.Sprintf("https://acm.poj.edu.cn/status.php?first=&pid=&user=&lang=0&status=0"))
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(err, "GetJudgeJobStatus request failed")
@@ -463,7 +359,7 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	bodyStr := string(body)
 	if strings.Contains(bodyStr, "<title>User Login</title>") {
 		if retryCount > 0 {
-			return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.New("HDU remote judge login failed after retry")
+			return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.New("POJ remote judge login failed after retry")
 		}
 		// 重新登录
 		err := s.login(ctx)
@@ -545,17 +441,17 @@ func (s *RemotePojAgent) GetJudgeJobExtraMessage(
 	if status != foundationjudge.JudgeStatusCE {
 		return "", nil
 	}
-	hduUrl := fmt.Sprintf("https://acm.hdu.edu.cn/viewerror.php?rid=%s", id)
+	pojUrl := fmt.Sprintf("https://acm.poj.edu.cn/viewerror.php?rid=%s", id)
 	method := "GET"
-	req, err := http.NewRequestWithContext(ctx, method, hduUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, method, pojUrl, nil)
 	if err != nil {
 		return "", metaerror.Wrap(err, "failed to create GetJudgeJobExtraMessage request")
 	}
 	req.Header.Add("Cookie", s.cookie)
 	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.hdu.edu.cn")
+	req.Header.Add("Host", "acm.poj.edu.cn")
 	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", fmt.Sprintf("https://acm.hdu.edu.cn/status.php?first=&pid=&user=&lang=0&status=0"))
+	req.Header.Add("Referer", fmt.Sprintf("https://acm.poj.edu.cn/status.php?first=&pid=&user=&lang=0&status=0"))
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return "", metaerror.Wrap(err, "GetJudgeJobExtraMessage request failed")
@@ -580,7 +476,7 @@ func (s *RemotePojAgent) GetJudgeJobExtraMessage(
 	return compileMessage, nil
 }
 
-func (s *RemotePojAgent) submit(
+func (s *RemotePojAgent) submitImp(
 	ctx context.Context, problemId string,
 	language foundationjudge.JudgeLanguage,
 	code string, retryCount int,
@@ -588,13 +484,10 @@ func (s *RemotePojAgent) submit(
 
 	languageCode := s.getLanguageCode(language)
 	if languageCode == "" {
-		return "", "", metaerror.New("HDU remote judge not support language")
+		return "", "", metaerror.New("POJ remote judge not support language")
 	}
 
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	hduUrl := "https://acm.hdu.edu.cn/submit.php?action=submit"
+	pojUrl := "https://acm.poj.edu.cn/submit.php?action=submit"
 	method := "POST"
 	payload := &bytes.Buffer{}
 	writer := multipart.NewWriter(payload)
@@ -620,15 +513,15 @@ func (s *RemotePojAgent) submit(
 	if err != nil {
 		return "", "", metaerror.Wrap(err, "failed to close writer")
 	}
-	req, err := http.NewRequestWithContext(ctx, method, hduUrl, payload)
+	req, err := http.NewRequestWithContext(ctx, method, pojUrl, payload)
 	if err != nil {
 		return "", "", metaerror.Wrap(err, "failed to create request")
 	}
 	req.Header.Add("Cookie", s.cookie)
 	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.hdu.edu.cn")
+	req.Header.Add("Host", "acm.poj.edu.cn")
 	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", "https://acm.hdu.edu.cn/submit.php?action=submit")
+	req.Header.Add("Referer", "https://acm.poj.edu.cn/submit.php?action=submit")
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
@@ -647,24 +540,38 @@ func (s *RemotePojAgent) submit(
 	bodyStr := string(body)
 	if strings.Contains(bodyStr, "<title>User Login</title>") {
 		if retryCount > 0 {
-			return "", "", metaerror.New("HDU remote judge login failed after retry")
+			return "", "", metaerror.New("POJ remote judge login failed after retry")
 		}
 		// 重新登录
 		err := s.login(ctx)
 		if err != nil {
 			return "", "", metaerror.Wrap(err, "failed to login")
 		}
-		return s.submit(ctx, problemId, language, code, retryCount+1)
+		return s.submitImp(ctx, problemId, language, code, retryCount+1)
 	}
 	if !strings.Contains(bodyStr, "<title>Realtime Status</title>") {
-		return "", "", metaerror.New("HDU remote judge submit failed")
+		return "", "", metaerror.New("POJ remote judge submit failed")
 	}
-	username := foundationconfig.GetConfig().Remote.VJudge.Username
+	username := foundationconfig.GetConfig().Remote.Poj.Username
 	runId, err := s.getMaxRunId(ctx, username, problemId)
 	if err != nil {
 		return "", "", metaerror.Wrap(err, "failed to get max run id")
 	}
 	return runId, username, nil
+}
+
+func (s *RemotePojAgent) submit(
+	ctx context.Context, problemId string,
+	language foundationjudge.JudgeLanguage,
+	code string, retryCount int,
+) (string, string, error) {
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	slog.Info("POJ remote judge submit start", "problemId", problemId, "language", language)
+
+	return s.submitImp(ctx, problemId, language, code, retryCount)
 }
 
 func (s *RemotePojAgent) PostSubmitJudgeJob(
@@ -673,11 +580,12 @@ func (s *RemotePojAgent) PostSubmitJudgeJob(
 	language foundationjudge.JudgeLanguage,
 	code string,
 ) (string, string, error) {
-	if s.cookie == "" {
-		err := s.login(ctx)
-		if err != nil {
-			return "", "", metaerror.Wrap(err, "failed to login")
-		}
-	}
-	return s.submit(ctx, problemId, language, code, 0)
+	//if s.cookie == "" {
+	//	err := s.login(ctx)
+	//	if err != nil {
+	//		return "", "", metaerror.Wrap(err, "failed to login")
+	//	}
+	//}
+	//return s.submit(ctx, problemId, language, code, 0)
+	return "", "", metaerror.New("POJ remote judge is disabled")
 }
