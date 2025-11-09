@@ -76,11 +76,11 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 				return userId, false, false, nil, err
 			}
 		}
+		contest, err = foundationdao.GetContestDao().GetContestViewLock(ctx, judgeAuth.ContestId)
+		if err != nil {
+			return userId, false, false, contest, err
+		}
 		if !hasAuth {
-			contest, err = foundationdao.GetContestDao().GetContestViewLock(ctx, judgeAuth.ContestId)
-			if err != nil {
-				return userId, false, false, contest, err
-			}
 			nowTime := metatime.GetTimeNow()
 			hasStatusAuth, hasDetailAuth, hasTaskAuth := s.isContestJudgeHasViewAuth(
 				contest, userId,
