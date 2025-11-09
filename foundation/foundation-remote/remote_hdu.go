@@ -117,10 +117,10 @@ func (s *RemoteHduAgent) PostCrawlProblem(ctx context.Context, id string) (*stri
 	nowTime := metatime.GetTimeNow()
 	newProblemId := fmt.Sprintf("HDU-%s", id)
 	baseURL := "https://acm.hdu.edu.cn/"
-	url := fmt.Sprintf("%sshowproblem.php?pid=%s", baseURL, id)
+	problemUrl := fmt.Sprintf("%sshowproblem.php?pid=%s", baseURL, id)
 
 	// 获取原始 HTML
-	resp, err := http.Get(url)
+	resp, err := http.Get(problemUrl)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to fetch problem page")
 	}
@@ -142,8 +142,15 @@ func (s *RemoteHduAgent) PostCrawlProblem(ctx context.Context, id string) (*stri
 		return nil, err
 	}
 
+	utf8String := string(utf8Html)
+
+	if strings.Contains(utf8String, "<title>Show Problem - System Message</title>") &&
+		strings.Contains(utf8String, "<DIV>Invalid Parameter.</DIV>") {
+		return nil, nil
+	}
+
 	// 解析 HTML
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(utf8Html))
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(utf8String))
 	if err != nil {
 		return nil, err
 	}
