@@ -103,6 +103,7 @@ func (s *RemotePojAgent) GetJudgeStatus(status string) foundationjudge.JudgeStat
 	case "Validator Error":
 		return foundationjudge.JudgeStatusRE
 	default:
+		slog.Warn("unknown POJ judge status", "status", status)
 		return foundationjudge.JudgeStatusJudgeFail
 	}
 }
@@ -110,6 +111,7 @@ func (s *RemotePojAgent) GetJudgeStatus(status string) foundationjudge.JudgeStat
 func (s *RemotePojAgent) IsSupportJudge(problemId string, language foundationjudge.JudgeLanguage) bool {
 	return s.getLanguageCode(language) != ""
 }
+
 func (s *RemotePojAgent) PostCrawlProblem(ctx context.Context, id string) (*string, error) {
 	nowTime := metatime.GetTimeNow()
 	newProblemId := fmt.Sprintf("POJ-%s", id)
@@ -330,7 +332,12 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	if err != nil {
 		return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(err, "GetJudgeJobStatus request failed")
 	}
-	defer res.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err))
+		}
+	}(res.Body)
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -362,6 +369,7 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	// Result
 	resultTd := table.Find("tr").Eq(2).Find("td").Eq(2) // 第三行第3列
 	statusStr := strings.TrimSpace(resultTd.Text())
+	statusStr = strings.TrimLeft(statusStr, "Result: ")
 
 	// Time
 	timeTd := table.Find("tr").Eq(1).Find("td").Eq(0)                             // 第二行第1列
