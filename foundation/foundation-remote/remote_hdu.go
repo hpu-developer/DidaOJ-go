@@ -251,14 +251,6 @@ func (s *RemoteHduAgent) PostCrawlProblem(ctx context.Context, id string) (*stri
 	return &newProblemId, nil
 }
 
-// optionalSection 帮助渲染 hint/author/source
-func optionalSection(name string, m map[string]string) string {
-	if v, ok := m[name]; ok && v != "" {
-		return fmt.Sprintf("\n## %s\n\n%s", name, v)
-	}
-	return ""
-}
-
 func (s *RemoteHduAgent) cleanCodeBeforeSubmit(code string, language foundationjudge.JudgeLanguage) string {
 	return code
 }

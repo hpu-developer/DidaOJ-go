@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	foundationconfig "foundation/foundation-config"
 	foundationdao "foundation/foundation-dao"
@@ -11,6 +12,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationrender "foundation/foundation-render"
 	"io"
+	"log/slog"
 	metaerror "meta/meta-error"
 	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
@@ -18,12 +20,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"web/config"
 
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
@@ -111,17 +111,74 @@ func (s *RemotePojAgent) IsSupportJudge(problemId string, language foundationjud
 	return s.getLanguageCode(language) != ""
 }
 
-func (s *RemotePojAgent) PostCrawlProblem(ctx context.Context, id string) (*string, error) {
+func (s *RemotePojAgent) login(ctx context.Context) error {
+
+	slog.Info("POJ remote judge login start")
+
+	loginUrl := "https://vjudge.net/user/login"
+	method := "POST"
+	username := foundationconfig.GetConfig().Remote.Hdu.Username
+	password := foundationconfig.GetConfig().Remote.Hdu.Password
+
+	payload := strings.NewReader(fmt.Sprintf("username=%s&userpass=%s", username, password))
+	req, err := http.NewRequestWithContext(ctx, method, loginUrl, payload)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to create login request")
+	}
+	req.Header.Add("priority", "u=1, i")
+	req.Header.Add("x-requested-with", "XMLHttpRequest")
+	req.Header.Add("content-type", "application/x-www-form-urlencoded; charset=UTF-8")
+	req.Header.Add("Accept", "*/*")
+	req.Header.Add("Host", "vjudge.net")
+	req.Header.Add("Connection", "keep-alive")
+
+	res, err := s.goJudgeClient.Do(req)
+	if err != nil {
+		return metaerror.Wrap(err, "login request failed")
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err))
+		}
+	}(res.Body)
+	cookie := res.Header.Get("Set-Cookie")
+	if cookie == "" {
+		return metaerror.New("login failed, no Set-Cookie header")
+	}
+	cookieParts := strings.SplitN(cookie, ";", 2)
+	if len(cookieParts) == 0 {
+		return metaerror.New("login failed, invalid Set-Cookie header")
+	}
+	cookie = strings.TrimSpace(cookieParts[0])
+	s.cookie = fmt.Sprintf("JSESSIONlD:%s|%s; Path=/; Domain=vjudge.net;", username, cookie)
+	return nil
+}
+
+func (s *RemotePojAgent) crawlProblem(ctx context.Context, id string, retryCount int) (*string, error) {
 
 	nowTime := metatime.GetTimeNow()
-	newProblemId := fmt.Sprintf("HDU-%s", id)
-	baseURL := "https://acm.hdu.edu.cn/"
-	url := fmt.Sprintf("%sshowproblem.php?pid=%s", baseURL, id)
+	newProblemId := fmt.Sprintf("POJ-%s", id)
+	baseURL := "https://vjudge.net/"
 
-	// 获取原始 HTML
-	resp, err := http.Get(url)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch problem page")
+	vjudgeUrl := fmt.Sprintf("https://vjudge.net/problem/%s", newProblemId)
+	method := "GET"
+	req, err := http.NewRequestWithContext(ctx, method, vjudgeUrl, nil)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to create PostCrawlProblem request")
+	}
+	req.Header.Add("priority", "u=0, i")
+	req.Header.Add("sec-fetch-user", "?1")
+	req.Header.Add("upgrade-insecure-requests", "1")
+	req.Header.Add("Accept", "*/*")
+	req.Header.Add("Host", "vjudge.net")
+	req.Header.Add("Connection", "keep-alive")
+	req.Header.Add("Username", foundationconfig.GetConfig().Remote.VJudge.Username)
+	req.Header.Add("Cookie", s.cookie)
+
+	resp, err := s.goJudgeClient.Do(req)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "PostCrawlProblem request failed")
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
@@ -147,76 +204,139 @@ func (s *RemotePojAgent) PostCrawlProblem(ctx context.Context, id string) (*stri
 		return nil, err
 	}
 
+	descLi := doc.Find(`ul#prob-descs li`).FilterFunction(
+		func(i int, s *goquery.Selection) bool {
+			return s.Find("b").First().Text() == "System Crawler"
+		},
+	).First()
+
+	descUrl, _ := descLi.Find(`.operation a[target="_blank"]`).Attr("href")
+	if descUrl == "" {
+		if retryCount < 1 {
+			// 重新登录一次试试
+			err := s.login(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return s.crawlProblem(ctx, id, retryCount+1)
+		}
+		return nil, metaerror.New("failed to get problem description URL")
+	}
+	fullDescUrl := "https://vjudge.net" + descUrl
+
+	descResp, err := http.Get(fullDescUrl)
+	if err != nil {
+		return nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			metapanic.ProcessError(metaerror.Wrap(err))
+		}
+	}(descResp.Body)
+
+	descGbkData, err := io.ReadAll(descResp.Body)
+	if err != nil {
+		return nil, err
+	}
+	descReader := transform.NewReader(bytes.NewReader(descGbkData), simplifiedchinese.GBK.NewDecoder())
+	descUtf8Html, err := io.ReadAll(descReader)
+	if err != nil {
+		return nil, err
+	}
+	descDoc, err := goquery.NewDocumentFromReader(bytes.NewReader(descUtf8Html))
+	if err != nil {
+		return nil, err
+	}
+	// 获取 JSON 文本
+	descJsonStr := strings.TrimSpace(descDoc.Find("textarea.data-json-container").Text())
+	var descData struct {
+		Trustable bool `json:"trustable"`
+		Sections  []struct {
+			Title string `json:"title"`
+			Value struct {
+				Format  string `json:"format"`
+				Content string `json:"content"`
+			} `json:"value"`
+		} `json:"sections"`
+	}
+	if err := json.Unmarshal([]byte(descJsonStr), &descData); err != nil {
+		return nil, metaerror.Wrap(err, "parse description json failed")
+	}
+
+	description := ""
+
+	for _, sec := range descData.Sections {
+		title := strings.TrimSpace(sec.Title)
+		htmlContent := sec.Value.Content
+		if title == "" {
+			md, err := foundationrender.HTMLToMarkdown(newProblemId, htmlContent, baseURL)
+			if err != nil {
+				return nil, metaerror.Wrap(err, "convert section HTML to markdown failed")
+			}
+			description += md + "\n\n"
+		}
+	}
+
 	// 标题
-	title := strings.TrimSpace(doc.Find("h1").First().Text())
-
-	// panel_title / panel_content 处理
-	contentMap := make(map[string]string)
-	var currentSection string
-	var finalErr error
-	doc.Find(".panel_title, .panel_content").Each(
-		func(i int, s *goquery.Selection) {
-			if finalErr != nil {
-				return // 如果已经有错误了，就不再处理
-			}
-			if s.HasClass("panel_title") {
-				currentSection = strings.TrimSpace(s.Text())
-				// 如果需要 markdown 转换，这里调用自定义函数
-			} else if s.HasClass("panel_content") {
-				htmlContent, _ := s.Html()
-				htmlContent, err = foundationrender.HTMLToMarkdown(newProblemId, htmlContent, baseURL)
-				if err != nil {
-					finalErr = metaerror.Join(finalErr, err)
-					return
-				}
-				contentMap[currentSection] = htmlContent
-			}
-		},
+	title := strings.TrimSpace(
+		doc.Find("h2").Clone().Children().Remove().End().Text(),
 	)
-	if finalErr != nil {
-		return nil, finalErr
+	jsonStr := strings.TrimSpace(doc.Find(`textarea[name="dataJson"]`).Text())
+
+	var data struct {
+		Properties []struct {
+			Title   string `json:"title"`
+			Content string `json:"content"`
+		} `json:"properties"`
 	}
 
-	// 时间/内存限制
-	tbodyText := doc.Find("tbody").Text()
-	re := regexp.MustCompile(`Time Limit: \d+/(\d+) MS \(Java/Others\)[\s\S]*Memory Limit: \d+/(\d+) K \(Java/Others\)`)
-	matches := re.FindStringSubmatch(tbodyText)
-	timeLimit, memoryLimit := -1, -1
-	if len(matches) >= 3 {
-		timeLimitStr := strings.TrimSpace(matches[1])
-		memoryLimitStr := strings.TrimSpace(matches[2])
-		timeLimit, err = strconv.Atoi(timeLimitStr)
-		if err != nil {
-			return nil, metaerror.Wrap(err, "parse time limit failed")
-		}
-		memoryLimit, err = strconv.Atoi(memoryLimitStr)
-		if err != nil {
-			return nil, metaerror.Wrap(err, "parse memory limit failed")
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return nil, err
+	}
+
+	var (
+		timeLimit   int
+		memoryLimit int
+		source      string
+	)
+
+	for _, p := range data.Properties {
+		switch p.Title {
+		case "time_limit":
+			// "1000 ms" -> 1000
+			timeLimit, _ = strconv.Atoi(strings.Fields(p.Content)[0])
+		case "mem_limit":
+			// "65536 kB" -> 65536
+			memoryLimit, _ = strconv.Atoi(strings.Fields(p.Content)[0])
+		case "source":
+			source = p.Content
 		}
 	}
 
-	author := contentMap["Author"]
-	source := contentMap["Source"]
-
-	hint, ok := contentMap["Hint"]
-	if ok {
-		hint = fmt.Sprintf("\n\n## Hint\n\n%s", hint)
+	// 转成 goquery 文档片段
+	srcDoc, err := goquery.NewDocumentFromReader(strings.NewReader(source))
+	if err != nil {
+		return nil, err
 	}
 
-	// 渲染模板（这里简化处理）
-	template := config.GetOjTemplateContent("hdu")
-	description := foundationrender.Render(
-		template, map[string]string{
-			"description":  contentMap["Problem Description"],
-			"input":        contentMap["Input"],
-			"output":       contentMap["Output"],
-			"sampleInput":  contentMap["Sample Input"],
-			"sampleOutput": contentMap["Sample Output"],
-			"hint":         hint,
-		},
-	)
+	// 提取来源链接和文本
+	a := srcDoc.Find("a").First()
+	link, _ := a.Attr("href")
+	sourceName := strings.TrimSpace(a.Text())
 
-	originUrl := fmt.Sprintf("https://acm.hdu.edu.cn/showproblem.php?pid=%s", id)
+	// a 标签后面的文本中包含 author
+	restText := a.Parent().Text()
+	restText = strings.TrimSpace(restText)
+	author := ""
+	// 解析作者
+	if idx := strings.Index(restText, "Author:"); idx >= 0 {
+		author = strings.TrimSpace(restText[idx+len("Author:"):])
+	}
+	// 你最终存储的 source 可以按需求组合：
+	source = fmt.Sprintf("[%s](%s)", sourceName, link)
+
+	originUrl := fmt.Sprintf("http://poj.org/problem?id=%s", id)
 
 	problem := foundationmodel.NewProblemBuilder().
 		Title(title).
@@ -229,7 +349,7 @@ func (s *RemotePojAgent) PostCrawlProblem(ctx context.Context, id string) (*stri
 		Build()
 
 	problemRemote := foundationmodel.NewProblemRemoteBuilder().
-		OriginOj("HDU").
+		OriginOj("POJ").
 		OriginId(id).
 		OriginUrl(originUrl).
 		OriginAuthor(&author).
@@ -243,44 +363,18 @@ func (s *RemotePojAgent) PostCrawlProblem(ctx context.Context, id string) (*stri
 	return &newProblemId, nil
 }
 
-func (s *RemotePojAgent) cleanCodeBeforeSubmit(code string, language foundationjudge.JudgeLanguage) string {
-	return code
+func (s *RemotePojAgent) PostCrawlProblem(ctx context.Context, id string) (*string, error) {
+
+	err := s.login(ctx)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to login")
+	}
+
+	return s.crawlProblem(ctx, id, 0)
 }
 
-func (s *RemotePojAgent) login(ctx context.Context) error {
-	url := "https://acm.hdu.edu.cn/userloginex.php?action=login"
-	method := "POST"
-	username := foundationconfig.GetConfig().Remote.VJudge.Username
-	password := foundationconfig.GetConfig().Remote.VJudge.Password
-
-	payload := strings.NewReader(fmt.Sprintf("username=%s&userpass=%s", username, password))
-	req, err := http.NewRequestWithContext(ctx, method, url, payload)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to create login request")
-	}
-	req.Header.Add("Sec-Fetch-User", "?1")
-	req.Header.Add("Upgrade-Insecure-Requests", "1")
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.hdu.edu.cn")
-	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", "https://acm.hdu.edu.cn/userloginex.php?action=login")
-	res, err := s.goJudgeClient.Do(req)
-	if err != nil {
-		return metaerror.Wrap(err, "login request failed")
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err))
-		}
-	}(res.Body)
-	cookie := res.Header.Get("Set-Cookie")
-	if cookie == "" {
-		return metaerror.New("login failed, no Set-Cookie header")
-	}
-	s.cookie = cookie
-	return nil
+func (s *RemotePojAgent) cleanCodeBeforeSubmit(code string, language foundationjudge.JudgeLanguage) string {
+	return code
 }
 
 func (s *RemotePojAgent) getMaxRunId(ctx context.Context, username string, problemId string) (string, error) {
