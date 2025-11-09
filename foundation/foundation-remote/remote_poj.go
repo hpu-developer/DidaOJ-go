@@ -1,7 +1,6 @@
 package foundationremote
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -16,8 +15,8 @@ import (
 	metapanic "meta/meta-panic"
 	metatime "meta/meta-time"
 	"meta/singleton"
-	"mime/multipart"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -43,7 +42,7 @@ func GetRemotePojAgent() *RemotePojAgent {
 	return singletonRemotePojAgent.GetInstance(
 		func() *RemotePojAgent {
 			s := &RemotePojAgent{}
-
+			jar, _ := cookiejar.New(nil)
 			s.goJudgeClient = &http.Client{
 				Transport: &http.Transport{
 					MaxIdleConns:        100,
@@ -52,6 +51,7 @@ func GetRemotePojAgent() *RemotePojAgent {
 					IdleConnTimeout:     90 * time.Second,
 				},
 				Timeout: 60 * time.Second, // 请求整体超时
+				Jar:     jar,
 			}
 
 			return s
@@ -66,9 +66,9 @@ func (s *RemotePojAgent) getLanguageCode(language foundationjudge.JudgeLanguage)
 	case foundationjudge.JudgeLanguageCpp:
 		return "0"
 	case foundationjudge.JudgeLanguagePascal:
-		return "4"
+		return "3"
 	case foundationjudge.JudgeLanguageJava:
-		return "5"
+		return "2"
 	default:
 		return ""
 	}
@@ -76,7 +76,7 @@ func (s *RemotePojAgent) getLanguageCode(language foundationjudge.JudgeLanguage)
 
 func (s *RemotePojAgent) GetJudgeStatus(status string) foundationjudge.JudgeStatus {
 	switch status {
-	case "Queuing":
+	case "Waiting":
 		return foundationjudge.JudgeStatusQueuing
 	case "Compiling":
 		return foundationjudge.JudgeStatusCompiling
@@ -96,9 +96,11 @@ func (s *RemotePojAgent) GetJudgeStatus(status string) foundationjudge.JudgeStat
 		return foundationjudge.JudgeStatusMLE
 	case "Output Limit Exceeded":
 		return foundationjudge.JudgeStatusOLE
-	case "Compilation Error":
+	case "Compile Error":
 		return foundationjudge.JudgeStatusCE
 	case "System Error":
+		return foundationjudge.JudgeStatusRE
+	case "Validator Error":
 		return foundationjudge.JudgeStatusRE
 	default:
 		return foundationjudge.JudgeStatusJudgeFail
@@ -238,23 +240,18 @@ func (s *RemotePojAgent) login(ctx context.Context) error {
 
 	slog.Info("POJ remote judge login start")
 
-	loginUrl := "https://acm.poj.edu.cn/userloginex.php?action=login"
+	loginUrl := "http://poj.org/login"
 	method := "POST"
 	username := foundationconfig.GetConfig().Remote.Poj.Username
 	password := foundationconfig.GetConfig().Remote.Poj.Password
 
-	payload := strings.NewReader(fmt.Sprintf("username=%s&userpass=%s", username, password))
+	payload := strings.NewReader(fmt.Sprintf("user_id1=%s&password1=%s&B1=login&url=.", username, password))
 	req, err := http.NewRequestWithContext(ctx, method, loginUrl, payload)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to create login request")
 	}
-	req.Header.Add("Sec-Fetch-User", "?1")
 	req.Header.Add("Upgrade-Insecure-Requests", "1")
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.poj.edu.cn")
-	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", "https://acm.poj.edu.cn/userloginex.php?action=login")
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return metaerror.Wrap(err, "login request failed")
@@ -265,29 +262,22 @@ func (s *RemotePojAgent) login(ctx context.Context) error {
 			metapanic.ProcessError(metaerror.Wrap(err))
 		}
 	}(res.Body)
-	cookie := res.Header.Get("Set-Cookie")
-	if cookie == "" {
-		return metaerror.New("login failed, no Set-Cookie header")
-	}
-	s.cookie = cookie
 	return nil
 }
 
 func (s *RemotePojAgent) getMaxRunId(ctx context.Context, username string, problemId string) (string, error) {
 	pojUrl := fmt.Sprintf(
-		"https://acm.poj.edu.cn/status.php?pid=%s&user=%s",
+		"http://poj.org/status?problem_id=%s&user_id=%s",
 		problemId,
 		username,
 	)
-	method := "GET"
-	req, err := http.NewRequestWithContext(ctx, method, pojUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", pojUrl, nil)
 	if err != nil {
 		return "", metaerror.Wrap(err, "failed to create getMaxRunId request")
 	}
 	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.poj.edu.cn")
+	req.Header.Add("Host", "poj.org")
 	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", "https://acm.poj.edu.cn/status.php?first=&pid=&user=&lang=0&status=0")
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return "", metaerror.Wrap(err, "getMaxRunId request failed")
@@ -298,26 +288,22 @@ func (s *RemotePojAgent) getMaxRunId(ctx context.Context, username string, probl
 			metapanic.ProcessError(metaerror.Wrap(err))
 		}
 	}(res.Body)
-	// 解析 HTML，获取最新的 Run ID
 	doc, err := goquery.NewDocumentFromReader(res.Body)
 	if err != nil {
 		return "", metaerror.Wrap(err, "failed to parse getMaxRunId response body")
 	}
-	var runId string
-	doc.Find("div#fixed_table table").First().Find("tr").EachWithBreak(
-		func(i int, s *goquery.Selection) bool {
-			firstTd := s.Find("td").First()
-			if firstTd == nil {
-				return true
-			}
-			text := strings.TrimSpace(firstTd.Text())
-			if text == "" || text == "Run ID" {
-				return true
-			}
-			runId = text
-			return false
-		},
-	)
+	table := doc.Find("table.a").First()
+	if table.Length() == 0 {
+		return "", metaerror.New("no status table found")
+	}
+	firstRow := table.Find("tr").Eq(1)
+	if firstRow.Length() == 0 {
+		return "", metaerror.New("no submissions found")
+	}
+	runId := strings.TrimSpace(firstRow.Find("td").First().Text())
+	if runId == "" {
+		return "", metaerror.New("runId not found")
+	}
 	return runId, nil
 }
 
@@ -328,98 +314,101 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	int,
 	error,
 ) {
-	pojUrl := fmt.Sprintf("https://acm.poj.edu.cn/status.php?first=%s", runId)
-	method := "GET"
-	req, err := http.NewRequestWithContext(ctx, method, pojUrl, nil)
+	pojUrl := fmt.Sprintf("http://poj.org/showsource?solution_id=%s", runId)
+	req, err := http.NewRequestWithContext(ctx, "GET", pojUrl, nil)
 	if err != nil {
 		return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(
 			err,
 			"failed to create GetJudgeJobStatus request",
 		)
 	}
-	req.Header.Add("Cookie", s.cookie)
 	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.poj.edu.cn")
+	req.Header.Add("Host", "poj.org")
 	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", fmt.Sprintf("https://acm.poj.edu.cn/status.php?first=&pid=&user=&lang=0&status=0"))
+
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(err, "GetJudgeJobStatus request failed")
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err))
-		}
-	}(res.Body)
+	defer res.Body.Close()
+
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(err, "failed to read response body")
 	}
+
 	bodyStr := string(body)
-	if strings.Contains(bodyStr, "<title>User Login</title>") {
+	if strings.Contains(bodyStr, "<li>Source request declined.</li>") {
 		if retryCount > 0 {
 			return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.New("POJ remote judge login failed after retry")
 		}
 		// 重新登录
-		err := s.login(ctx)
-		if err != nil {
+		if err := s.login(ctx); err != nil {
 			return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(err, "failed to login")
 		}
 		return s.requestJudgeJobStatus(ctx, runId, retryCount+1)
 	}
+
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(bodyStr))
 	if err != nil {
 		return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(err, "failed to parse response body")
 	}
-	var statusStr, exeTimeStr, exeMemoryStr string
-	doc.Find("div#fixed_table table").First().Find("tr").EachWithBreak(
-		func(i int, s *goquery.Selection) bool {
-			tds := s.Find("td")
-			if tds.Length() < 6 {
-				return true
-			}
-			firstTdText := strings.TrimSpace(tds.Eq(0).Text())
-			if firstTdText == "" || firstTdText == "Run ID" {
-				return true
-			}
-			statusStr = strings.TrimSpace(tds.Eq(2).Text())
-			exeTimeStr = strings.TrimSpace(tds.Eq(4).Text())
-			exeMemoryStr = strings.TrimSpace(tds.Eq(5).Text())
-			return false
-		},
-	)
+
+	table := doc.Find("table").First()
+	if table.Length() == 0 {
+		return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.New("submission table not found")
+	}
+
+	// Result
+	resultTd := table.Find("tr").Eq(2).Find("td").Eq(2) // 第三行第3列
+	statusStr := strings.TrimSpace(resultTd.Text())
+
+	// Time
+	timeTd := table.Find("tr").Eq(1).Find("td").Eq(0)                             // 第二行第1列
+	exeTimeStr := strings.TrimSpace(strings.TrimPrefix(timeTd.Text(), "Memory:")) // "Memory: N/A" -> "N/A"
+
+	// Memory
+	memTd := table.Find("tr").Eq(1).Find("td").Eq(2)                             // 第二行第3列
+	exeMemoryStr := strings.TrimSpace(strings.TrimPrefix(memTd.Text(), "Time:")) // "Time: N/A" -> "N/A"
+
 	status := s.GetJudgeStatus(statusStr)
+
 	score := 0
 	exeTime := 0
-	if strings.HasSuffix(exeTimeStr, "MS") {
-		exeTimeStr = strings.TrimSuffix(exeTimeStr, "MS")
-		exeTimeStr = strings.TrimSpace(exeTimeStr)
-		exeTime, err = strconv.Atoi(exeTimeStr)
-		if err != nil {
-			return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(
-				err,
-				"failed to parse execution time",
-			)
-		}
-		exeTime = exeTime * 1000000
-	}
 	exeMemory := 0
-	if strings.HasSuffix(exeMemoryStr, "K") {
-		exeMemoryStr = strings.TrimSuffix(exeMemoryStr, "K")
-		exeMemoryStr = strings.TrimSpace(exeMemoryStr)
-		exeMemory, err = strconv.Atoi(exeMemoryStr)
-		if err != nil {
-			return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(
-				err,
-				"failed to parse execution memory",
-			)
+
+	if exeTimeStr != "N/A" {
+		exeTimeStr = strings.TrimSpace(strings.TrimSuffix(exeTimeStr, "MS"))
+		if exeTimeStr != "" {
+			exeTime, err = strconv.Atoi(exeTimeStr)
+			if err != nil {
+				return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(
+					err,
+					"failed to parse execution time",
+				)
+			}
+			exeTime *= 1000000
 		}
-		exeMemory = exeMemory * 1024
 	}
+
+	if exeMemoryStr != "N/A" {
+		exeMemoryStr = strings.TrimSpace(strings.TrimSuffix(exeMemoryStr, "K"))
+		if exeMemoryStr != "" {
+			exeMemory, err = strconv.Atoi(exeMemoryStr)
+			if err != nil {
+				return foundationjudge.JudgeStatusJudgeFail, 0, 0, 0, metaerror.Wrap(
+					err,
+					"failed to parse execution memory",
+				)
+			}
+			exeMemory *= 1024
+		}
+	}
+
 	if status == foundationjudge.JudgeStatusAC {
 		score = 1000
 	}
+
 	return status, score, exeTime, exeMemory, nil
 }
 
@@ -441,17 +430,14 @@ func (s *RemotePojAgent) GetJudgeJobExtraMessage(
 	if status != foundationjudge.JudgeStatusCE {
 		return "", nil
 	}
-	pojUrl := fmt.Sprintf("https://acm.poj.edu.cn/viewerror.php?rid=%s", id)
+	pojUrl := fmt.Sprintf("http://poj.org/showcompileinfo?solution_id=%s", id)
 	method := "GET"
 	req, err := http.NewRequestWithContext(ctx, method, pojUrl, nil)
 	if err != nil {
 		return "", metaerror.Wrap(err, "failed to create GetJudgeJobExtraMessage request")
 	}
-	req.Header.Add("Cookie", s.cookie)
-	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.poj.edu.cn")
+	req.Header.Add("Host", "poj.org")
 	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", fmt.Sprintf("https://acm.poj.edu.cn/status.php?first=&pid=&user=&lang=0&status=0"))
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return "", metaerror.Wrap(err, "GetJudgeJobExtraMessage request failed")
@@ -476,53 +462,41 @@ func (s *RemotePojAgent) GetJudgeJobExtraMessage(
 	return compileMessage, nil
 }
 
-func (s *RemotePojAgent) submitImp(
+func (s *RemotePojAgent) submit(
 	ctx context.Context, problemId string,
 	language foundationjudge.JudgeLanguage,
 	code string, retryCount int,
 ) (string, string, error) {
+
+	slog.Info("POJ remote judge submit start", "problemId", problemId, "language", language)
 
 	languageCode := s.getLanguageCode(language)
 	if languageCode == "" {
 		return "", "", metaerror.New("POJ remote judge not support language")
 	}
 
-	pojUrl := "https://acm.poj.edu.cn/submit.php?action=submit"
+	pojUrl := "http://poj.org/submit"
 	method := "POST"
-	payload := &bytes.Buffer{}
-	writer := multipart.NewWriter(payload)
 
 	code = s.cleanCodeBeforeSubmit(code, language)
 
-	urlEncoded := url.QueryEscape(code)
-	base64Encoded := base64.StdEncoding.EncodeToString([]byte(urlEncoded))
+	base64Encoded := base64.StdEncoding.EncodeToString([]byte(code))
 
-	err := writer.WriteField("_usercode", base64Encoded)
-	if err != nil {
-		return "", "", metaerror.Wrap(err, "failed to write _usercode field")
-	}
-	err = writer.WriteField("problemid", problemId)
-	if err != nil {
-		return "", "", metaerror.Wrap(err, "failed to write problemid field")
-	}
-	err = writer.WriteField("language", languageCode)
-	if err != nil {
-		return "", "", metaerror.Wrap(err, "failed to write language field")
-	}
-	err = writer.Close()
-	if err != nil {
-		return "", "", metaerror.Wrap(err, "failed to close writer")
-	}
+	data := url.Values{}
+	data.Set("problem_id", problemId)
+	data.Set("language", languageCode)
+	data.Set("source", base64Encoded)
+	data.Set("submit", "Submit")
+	data.Set("encoded", "1")
+
+	payload := strings.NewReader(data.Encode())
+
 	req, err := http.NewRequestWithContext(ctx, method, pojUrl, payload)
 	if err != nil {
 		return "", "", metaerror.Wrap(err, "failed to create request")
 	}
-	req.Header.Add("Cookie", s.cookie)
-	req.Header.Add("Accept", "*/*")
-	req.Header.Add("Host", "acm.poj.edu.cn")
-	req.Header.Add("Connection", "keep-alive")
-	req.Header.Add("Referer", "https://acm.poj.edu.cn/submit.php?action=submit")
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Add("Upgrade-Insecure-Requests", "1")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res, err := s.goJudgeClient.Do(req)
 	if err != nil {
 		return "", "", metaerror.Wrap(err, "failed to do request")
@@ -547,9 +521,9 @@ func (s *RemotePojAgent) submitImp(
 		if err != nil {
 			return "", "", metaerror.Wrap(err, "failed to login")
 		}
-		return s.submitImp(ctx, problemId, language, code, retryCount+1)
+		return s.submit(ctx, problemId, language, code, retryCount+1)
 	}
-	if !strings.Contains(bodyStr, "<title>Realtime Status</title>") {
+	if !strings.Contains(bodyStr, "Problem Status List</font>") {
 		return "", "", metaerror.New("POJ remote judge submit failed")
 	}
 	username := foundationconfig.GetConfig().Remote.Poj.Username
@@ -560,32 +534,22 @@ func (s *RemotePojAgent) submitImp(
 	return runId, username, nil
 }
 
-func (s *RemotePojAgent) submit(
-	ctx context.Context, problemId string,
-	language foundationjudge.JudgeLanguage,
-	code string, retryCount int,
-) (string, string, error) {
-
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	slog.Info("POJ remote judge submit start", "problemId", problemId, "language", language)
-
-	return s.submitImp(ctx, problemId, language, code, retryCount)
-}
-
 func (s *RemotePojAgent) PostSubmitJudgeJob(
 	ctx context.Context,
 	problemId string,
 	language foundationjudge.JudgeLanguage,
 	code string,
 ) (string, string, error) {
-	//if s.cookie == "" {
-	//	err := s.login(ctx)
-	//	if err != nil {
-	//		return "", "", metaerror.Wrap(err, "failed to login")
-	//	}
-	//}
-	//return s.submit(ctx, problemId, language, code, 0)
-	return "", "", metaerror.New("POJ remote judge is disabled")
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if s.cookie == "" {
+		err := s.login(ctx)
+		if err != nil {
+			return "", "", metaerror.Wrap(err, "failed to login")
+		}
+	}
+
+	return s.submit(ctx, problemId, language, code, 0)
 }

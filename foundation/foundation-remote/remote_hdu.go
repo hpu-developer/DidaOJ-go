@@ -497,11 +497,13 @@ func (s *RemoteHduAgent) GetJudgeJobExtraMessage(
 	return compileMessage, nil
 }
 
-func (s *RemoteHduAgent) submitImp(
+func (s *RemoteHduAgent) submit(
 	ctx context.Context, problemId string,
 	language foundationjudge.JudgeLanguage,
 	code string, retryCount int,
 ) (string, string, error) {
+
+	slog.Info("HDU remote judge submit start", "problemId", problemId, "language", language)
 
 	languageCode := s.getLanguageCode(language)
 	if languageCode == "" {
@@ -568,7 +570,7 @@ func (s *RemoteHduAgent) submitImp(
 		if err != nil {
 			return "", "", metaerror.Wrap(err, "failed to login")
 		}
-		return s.submitImp(ctx, problemId, language, code, retryCount+1)
+		return s.submit(ctx, problemId, language, code, retryCount+1)
 	}
 	if !strings.Contains(bodyStr, "<title>Realtime Status</title>") {
 		return "", "", metaerror.New("HDU remote judge submit failed")
@@ -581,26 +583,16 @@ func (s *RemoteHduAgent) submitImp(
 	return runId, username, nil
 }
 
-func (s *RemoteHduAgent) submit(
-	ctx context.Context, problemId string,
-	language foundationjudge.JudgeLanguage,
-	code string, retryCount int,
-) (string, string, error) {
-
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	slog.Info("HDU remote judge submit start", "problemId", problemId, "language", language)
-
-	return s.submitImp(ctx, problemId, language, code, retryCount)
-}
-
 func (s *RemoteHduAgent) PostSubmitJudgeJob(
 	ctx context.Context,
 	problemId string,
 	language foundationjudge.JudgeLanguage,
 	code string,
 ) (string, string, error) {
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
 	if s.cookie == "" {
 		err := s.login(ctx)
 		if err != nil {
