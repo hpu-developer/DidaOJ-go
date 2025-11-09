@@ -223,7 +223,6 @@ func (d *DiscussDao) PostEdit(ctx *gin.Context, discussId int, discuss *foundati
 	updateData := map[string]interface{}{
 		"title":       discuss.Title,
 		"content":     discuss.Content,
-		"problem_id":  discuss.ProblemId,
 		"modify_time": discuss.ModifyTime,
 		"update_time": discuss.UpdateTime,
 	}
@@ -231,6 +230,11 @@ func (d *DiscussDao) PostEdit(ctx *gin.Context, discussId int, discuss *foundati
 		updateData["problem_id"] = discuss.ProblemId
 	} else {
 		updateData["problem_id"] = nil // GORM 会将其设置为 NULL
+	}
+	if discuss.ContestId != nil {
+		updateData["contest_id"] = discuss.ContestId
+	} else {
+		updateData["contest_id"] = nil // GORM 会将其设置为 NULL
 	}
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Discuss{}).

@@ -43,4 +43,5 @@ const (
 	UserModifyVjudgeVerifyFail           metaerrorcode.ErrorCode = 100038
 	UserModifyOldEmailKeyError           metaerrorcode.ErrorCode = 100039
 	UserModifyEmailKeyError              metaerrorcode.ErrorCode = 100040
+	ContestNotFound                      metaerrorcode.ErrorCode = 100041
 )

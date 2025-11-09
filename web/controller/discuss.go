@@ -397,22 +397,60 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 		return
 	}
 
-	problemId := 0
-	if requestData.ProblemKey != "" {
-		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, requestData.ProblemKey)
+	if requestData.ContestId > 0 {
+		contestService := foundationservice.GetContestService()
+		_, hasAuth, err := contestService.CheckViewAuth(ctx, requestData.ContestId)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
 		}
-		if problemId <= 0 {
-			metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
+		if !hasAuth {
+			metaresponse.NewResponse(ctx, weberrorcode.ContestNotFound, nil)
 			return
+		}
+	}
+
+	problemId := 0
+	if requestData.ProblemKey != "" {
+		if requestData.ContestId > 0 {
+			problemId, err = foundationservice.GetContestService().GetProblemIdByContestIndexKey(
+				ctx,
+				requestData.ContestId,
+				requestData.ProblemKey,
+			)
+			if err != nil {
+				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+				return
+			}
+			if problemId <= 0 {
+				metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
+				return
+			}
+		} else {
+			problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, requestData.ProblemKey)
+			if err != nil {
+				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+				return
+			}
+			if problemId <= 0 {
+				metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
+				return
+			}
 		}
 	}
 
 	discussService := foundationservice.GetDiscussService()
 
 	timeNow := metatime.GetTimeNow()
+
+	var contestIdPtr *int
+	if requestData.ContestId > 0 {
+		contestIdPtr = &requestData.ContestId
+	}
+	var problemIdPtr *int
+	if problemId > 0 {
+		problemIdPtr = &problemId
+	}
 
 	discuss := foundationmodel.NewDiscussBuilder().
 		Title(requestData.Title).
@@ -423,6 +461,8 @@ func (c *DiscussController) PostCreate(ctx *gin.Context) {
 		ModifyTime(timeNow).
 		Updater(userId).
 		UpdateTime(timeNow).
+		ContestId(contestIdPtr).
+		ProblemId(problemIdPtr).
 		Build()
 
 	if problemId > 0 {
@@ -486,14 +526,30 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 
 	problemId := 0
 	if requestData.ProblemKey != "" {
-		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, requestData.ProblemKey)
-		if err != nil {
-			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-			return
-		}
-		if problemId <= 0 {
-			metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
-			return
+		if requestData.ContestId > 0 {
+			problemId, err = foundationservice.GetContestService().GetProblemIdByContestIndexKey(
+				ctx,
+				requestData.ContestId,
+				requestData.ProblemKey,
+			)
+			if err != nil {
+				metaresponse.NewResponse(ctx, weberrorcode.ContestNotFoundProblem, nil)
+				return
+			}
+			if problemId <= 0 {
+				metaresponse.NewResponse(ctx, weberrorcode.ContestNotFoundProblem, nil)
+				return
+			}
+		} else {
+			problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, requestData.ProblemKey)
+			if err != nil {
+				metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+				return
+			}
+			if problemId <= 0 {
+				metaresponse.NewResponse(ctx, weberrorcode.ProblemNotFound, nil)
+				return
+			}
 		}
 	}
 
@@ -526,6 +582,15 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 
 	nowTime := metatime.GetTimeNow()
 
+	var contestIdPtr *int
+	if requestData.ContestId > 0 {
+		contestIdPtr = &requestData.ContestId
+	}
+	var problemIdPtr *int
+	if problemId > 0 {
+		problemIdPtr = &problemId
+	}
+
 	discuss := foundationmodel.NewDiscussBuilder().
 		Id(discussId).
 		Title(requestData.Title).
@@ -534,6 +599,8 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 		ModifyTime(nowTime).
 		Updater(userId).
 		UpdateTime(nowTime).
+		ContestId(contestIdPtr).
+		ProblemId(problemIdPtr).
 		Build()
 
 	if problemId > 0 {
