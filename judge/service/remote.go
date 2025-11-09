@@ -217,17 +217,12 @@ func (s *RemoteService) startRemoteTask(job *foundationmodel.JudgeJob) error {
 		return metaerror.Wrap(err, "remote submit failed")
 	}
 
-	err = foundationdao.GetJudgeJobDao().MarkJudgeJobRemoteSubmit(ctx, jobId, judgerKey, remoteId, remoteAccount)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to mark remote submit info")
-	}
-
 	slog.Info("Remote job submitted", "jobId", jobId, "remoteId", remoteId, "remoteAccount", remoteAccount)
 
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
-	currentStatus := foundationjudge.JudgeStatusCompiling
+	currentStatus := foundationjudge.JudgeStatusQueuing
 
 	for {
 		select {
