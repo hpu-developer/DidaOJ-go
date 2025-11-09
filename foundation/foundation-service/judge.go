@@ -11,10 +11,12 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationremote "foundation/foundation-remote"
 	foundationview "foundation/foundation-view"
+	metaerrorcode "meta/error-code"
 	metaerror "meta/meta-error"
 	metatime "meta/meta-time"
 	"meta/singleton"
 	"time"
+	weberrorcode "web/error-code"
 
 	"github.com/gin-gonic/gin"
 )
@@ -57,12 +59,22 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 			}
 		}
 	}
-	// 如果在比赛中，则以比赛中的权限为准进行一次拦截，即使具有管理源码的权限也无效
+	// 如果在比赛中，则以比赛中的权限为准进行一次拦截
 	var contest *foundationview.ContestViewLock
 	if judgeAuth.ContestId > 0 {
 		hasAuth, err = foundationdao.GetContestDao().CheckContestEditAuth(ctx, judgeAuth.ContestId, userId)
 		if err != nil {
 			return userId, false, false, nil, err
+		}
+		if !hasAuth {
+			hasAuth, err = GetUserService().CheckUserAuthsByUserId(
+				ctx,
+				userId,
+				[]foundationauth.AuthType{foundationauth.AuthTypeManageJudge, foundationauth.AuthTypeManageContest},
+			)
+			if err != nil {
+				return userId, false, false, nil, err
+			}
 		}
 		if !hasAuth {
 			contest, err = foundationdao.GetContestDao().GetContestViewLock(ctx, judgeAuth.ContestId)
@@ -169,9 +181,19 @@ func (s *JudgeService) GetJudgeList(
 			if contest == nil {
 				return nil, nil
 			}
-			hasAuth, err := foundationdao.GetContestDao().CheckContestEditAuth(ctx, contestId, userId)
+			hasAuth, err := GetUserService().CheckUserAuthsByUserId(
+				ctx,
+				userId,
+				[]foundationauth.AuthType{foundationauth.AuthTypeManageJudge, foundationauth.AuthTypeManageContest},
+			)
 			if err != nil {
 				return nil, err
+			}
+			if !hasAuth {
+				hasAuth, err = foundationdao.GetContestDao().CheckContestEditAuth(ctx, contestId, userId)
+				if err != nil {
+					return nil, err
+				}
 			}
 			if !hasAuth {
 				for _, judgeJob := range judgeJobs {
@@ -268,22 +290,29 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 	return
 }
 
-func (s *JudgeService) IsEnableRemoteJudge(oj string, problemId string, language foundationjudge.JudgeLanguage) bool {
-	if !foundationjudge.IsValidJudgeLanguage(int(language)) {
-		return false
-	}
+func (s *JudgeService) IsEnableRemoteJudge(
+	oj string,
+	problemId string,
+	language foundationjudge.JudgeLanguage,
+	code string,
+) int {
+	// 认为是本地评测，认为通过
 	if oj == "" {
-		return true
+		return int(metaerrorcode.Success)
+	}
+
+	if !foundationjudge.IsValidJudgeLanguage(int(language)) {
+		return int(weberrorcode.JudgeApproveCannotLanguage)
 	}
 	agent := foundationremote.GetRemoteAgent(foundationremote.GetRemoteTypeByString(oj))
 	if agent == nil {
-		return false
+		return int(weberrorcode.JudgeApproveCannotOriginOj)
 	}
 	if !agent.IsSupportJudge(problemId, language) {
-		return false
+		return int(weberrorcode.JudgeApproveCannotOriginOj)
 	}
 
-	return true
+	return int(metaerrorcode.Success)
 }
 
 func (s *JudgeService) GetRankAcProblem(

@@ -276,8 +276,12 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 	}
 	language := judgeApprove.Language
 	code := judgeApprove.Code
-	if int(language) < 0 || code == "" {
+	if int(language) < 0 {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	if len(code) < 10 {
+		metaresponse.NewResponse(ctx, weberrorcode.JudgeApproveCodeTooShort, nil)
 		return
 	}
 	problemId := judgeApprove.ProblemId
@@ -344,8 +348,14 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		return
 	}
 
-	if !foundationservice.GetJudgeService().IsEnableRemoteJudge(problem.OriginOj, problem.OriginId, language) {
-		metaresponse.NewResponse(ctx, weberrorcode.JudgeApproveCannotOriginOj, nil)
+	errorCode := foundationservice.GetJudgeService().IsEnableRemoteJudge(
+		problem.OriginOj,
+		problem.OriginId,
+		language,
+		code,
+	)
+	if errorCode != int(metaerrorcode.Success) {
+		metaresponse.NewResponse(ctx, errorCode, nil)
 		return
 	}
 

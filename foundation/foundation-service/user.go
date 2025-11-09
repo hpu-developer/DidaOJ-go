@@ -194,6 +194,24 @@ func (s *UserService) CheckUserAuth(ctx *gin.Context, auth foundationauth.AuthTy
 	return userId, true, nil
 }
 
+func (s *UserService) CheckUserAuths(ctx *gin.Context, auths []foundationauth.AuthType) (
+	bool,
+	error,
+) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		return false, nil
+	}
+	ok, err := s.CheckUserAuthsByUserId(ctx, userId, auths)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, nil
+	}
+	return true, nil
+}
+
 func (s *UserService) CheckUserAuthByUserId(ctx context.Context, userId int, auth foundationauth.AuthType) (
 	bool,
 	error,

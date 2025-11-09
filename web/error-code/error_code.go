@@ -44,4 +44,6 @@ const (
 	UserModifyOldEmailKeyError           metaerrorcode.ErrorCode = 100039
 	UserModifyEmailKeyError              metaerrorcode.ErrorCode = 100040
 	ContestNotFound                      metaerrorcode.ErrorCode = 100041
+	JudgeApproveCannotLanguage           metaerrorcode.ErrorCode = 100042
+	JudgeApproveCodeTooShort             metaerrorcode.ErrorCode = 100043
 )
