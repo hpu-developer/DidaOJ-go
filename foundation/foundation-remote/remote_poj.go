@@ -369,7 +369,8 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	// Result
 	resultTd := table.Find("tr").Eq(2).Find("td").Eq(2) // 第三行第3列
 	statusStr := strings.TrimSpace(resultTd.Text())
-	statusStr = strings.TrimLeft(statusStr, "Result: ")
+	statusStr = strings.TrimPrefix(statusStr, "Result: ")
+	statusStr = strings.TrimSpace(statusStr)
 
 	// Time
 	timeTd := table.Find("tr").Eq(1).Find("td").Eq(0)                             // 第二行第1列
