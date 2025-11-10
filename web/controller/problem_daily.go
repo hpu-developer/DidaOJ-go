@@ -9,11 +9,6 @@ import (
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/mongo"
 	"log"
 	cfr2 "meta/cf-r2"
 	"meta/error-code"
@@ -26,10 +21,16 @@ import (
 	weberrorcode "web/error-code"
 	"web/request"
 	"web/service"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func (c *ProblemController) GetDailyImageToken(ctx *gin.Context) {
-	key := ctx.Query("key")
+	dailyId := ctx.Query("id")
 	_, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblemDaily)
 	if err != nil {
 		metapanic.ProcessError(err)
@@ -51,7 +52,7 @@ func (c *ProblemController) GetDailyImageToken(ctx *gin.Context) {
 	bucketName := "didapipa-oj"
 	objectKey := metahttp.UrlJoin(
 		"uploading/problem-daily",
-		key,
+		dailyId,
 		fmt.Sprintf("%d_%s", time.Now().Unix(), uuid.New().String()),
 	)
 
