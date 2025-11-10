@@ -14,7 +14,6 @@ import (
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/base"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/commonmark"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/strikethrough"
-	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/table"
 )
 
 func Render(template string, data map[string]string) string {
@@ -180,10 +179,11 @@ func HTMLToMarkdown(problemId string, htmlStr string, baseURL string) (string, e
 		converter.WithPlugins(
 			NewFontColorPlugin(),
 			NewMathPlugin(),
+			NewTablePlugin(),
 			base.NewBasePlugin(),
 			commonmark.NewCommonmarkPlugin(),
 			strikethrough.NewStrikethroughPlugin(),
-			table.NewTablePlugin(),
+			//table.NewTablePlugin(),
 		),
 	)
 	markdown, err := conv.ConvertString(fixedHtml, converter.WithDomain(baseURL))
