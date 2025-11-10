@@ -49,11 +49,11 @@ func (b *ttPlugin) Init(conv *converter.Converter) error {
 				if err != nil {
 					return converter.RenderTryNext
 				}
-				_, err := w.WriteString(content)
+				_, err = w.WriteString(content)
 				if err != nil {
 					return converter.RenderTryNext
 				}
-				_, err := w.WriteString("\n```")
+				_, err = w.WriteString("\n```")
 				if err != nil {
 					return converter.RenderTryNext
 				}
