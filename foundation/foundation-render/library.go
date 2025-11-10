@@ -180,10 +180,10 @@ func HTMLToMarkdown(problemId string, htmlStr string, baseURL string) (string, e
 			NewFontColorPlugin(),
 			NewMathPlugin(),
 			NewTablePlugin(),
+			NewTTPlugin(),
 			base.NewBasePlugin(),
 			commonmark.NewCommonmarkPlugin(),
 			strikethrough.NewStrikethroughPlugin(),
-			//table.NewTablePlugin(),
 		),
 	)
 	markdown, err := conv.ConvertString(fixedHtml, converter.WithDomain(baseURL))
