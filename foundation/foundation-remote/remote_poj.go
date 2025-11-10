@@ -80,7 +80,7 @@ func (s *RemotePojAgent) GetJudgeStatus(status string) foundationjudge.JudgeStat
 		return foundationjudge.JudgeStatusQueuing
 	case "Compiling":
 		return foundationjudge.JudgeStatusCompiling
-	case "Running":
+	case "Running & Judging":
 		return foundationjudge.JudgeStatusRunning
 	case "Accepted":
 		return foundationjudge.JudgeStatusAC
