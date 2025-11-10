@@ -71,7 +71,21 @@ func (d *JudgeJobDao) GetJudgeCode(ctx context.Context, id int) (foundationjudge
 		return foundationjudge.JudgeLanguageUnknown, nil, metaerror.Wrap(err, "failed to query judge code")
 	}
 	return m.Language, &m.Code, nil
+}
 
+func (d *JudgeJobDao) GetJudgeInserter(ctx context.Context, id int) (int, error) {
+	var inserter int
+	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
+		Select("inserter").
+		Where("id = ?", id).
+		Pluck("inserter", &inserter).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, nil // 没有找到记录
+		}
+		return 0, metaerror.Wrap(err, "failed to query judge inserter")
+	}
+	return inserter, nil
 }
 
 func (d *JudgeJobDao) GetJudgeJob(ctx context.Context, judgeId int, fields []string) (
@@ -136,7 +150,7 @@ func (d *JudgeJobDao) GetJudgeJobList(
 
 	selectSql := `
 			j.id, j.insert_time, j.language, j.score, j.status,
-			j.time, j.memory, j.problem_id, j.inserter, j.code_length,
+			j.time, j.memory, j.problem_id, j.inserter, j.code_length, j.private,
 			u.username AS inserter_username, u.nickname AS inserter_nickname, u.email AS inserter_email`
 
 	selectSql += ", p.key as problem_key"
@@ -1847,4 +1861,15 @@ func (d *JudgeJobDao) GetContestLanguageStatics(ctx *gin.Context, contestId int)
 		result[r.Language] = r.Cnt
 	}
 	return result, nil
+}
+
+func (d *JudgeJobDao) SetJudgeJobPrivate(ctx *gin.Context, id int, private bool) error {
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.JudgeJob{}).
+		Where("id = ?", id).
+		Update("private", private).Error
+	if err != nil {
+		return metaerror.Wrap(err, "failed to set judge job private")
+	}
+	return nil
 }

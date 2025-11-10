@@ -108,6 +108,10 @@ func (s *JudgeService) GetJudgeCode(ctx context.Context, id int) (
 	return foundationdao.GetJudgeJobDao().GetJudgeCode(ctx, id)
 }
 
+func (s *JudgeService) GetJudgeInserter(ctx context.Context, id int) (int, error) {
+	return foundationdao.GetJudgeJobDao().GetJudgeInserter(ctx, id)
+}
+
 func (s *JudgeService) GetJudgeList(
 	ctx context.Context,
 	userId int,
@@ -444,4 +448,8 @@ func (s *JudgeService) GetContestLanguageStatics(
 	contestId int,
 ) (map[foundationjudge.JudgeLanguage]int, error) {
 	return foundationdao.GetJudgeJobDao().GetContestLanguageStatics(ctx, contestId)
+}
+
+func (s *JudgeService) SetJudgeJobPrivate(ctx *gin.Context, id int, private bool) error {
+	return foundationdao.GetJudgeJobDao().SetJudgeJobPrivate(ctx, id, private)
 }

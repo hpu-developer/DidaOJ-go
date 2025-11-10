@@ -9,6 +9,7 @@ import (
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
 	metapostgresql "meta/meta-postgresql"
+	metastring "meta/meta-string"
 	"meta/singleton"
 	"time"
 
@@ -107,7 +108,7 @@ email, gender, number, slogan, organization, qq,
 vjudge_id, github, codeforces, 
 check_in_count, insert_time, modify_time, accept, attempt`,
 		).
-		Where("username = ?", username).
+		Where("LOWER(username) = LOWER(?)", username).
 		First(&userInfo).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -161,7 +162,7 @@ func (d *UserDao) GetUserAccountInfosByUsername(
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.User{}).
 		Select("id, username, nickname").
-		Where("username IN ?", usernames).
+		Where("LOWER(username) IN ?", metastring.LowerSlice(usernames)).
 		Find(&userAccountInfos).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "get user account infos")
@@ -173,7 +174,7 @@ func (d *UserDao) GetUserIdByUsername(ctx context.Context, username string) (int
 	var userId int
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.User{}).
-		Where("username = ?", username).
+		Where("LOWER(username) = LOWER(?)", username).
 		Pluck("id", &userId).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -191,7 +192,7 @@ func (d *UserDao) GetUserIdsByUsername(ctx context.Context, usernames []string) 
 	var userIds []int
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.User{}).
-		Where("username IN ?", usernames).
+		Where("LOWER(username) IN ?", metastring.LowerSlice(usernames)).
 		Pluck("id", &userIds).Error
 	if err != nil {
 		return nil, metaerror.Wrap(err, "get user ids by username")
@@ -218,7 +219,7 @@ func (d *UserDao) GetEmailByUsername(ctx context.Context, username string) (*str
 	var email string
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.User{}).
-		Where("username = ?", username).
+		Where("LOWER(username) = LOWER(?)", username).
 		Pluck("email", &email).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -270,7 +271,7 @@ func (d *UserDao) FilterValidUserIds(ctx context.Context, ids []int) ([]int, err
 
 func (d *UserDao) UpdatePassword(ctx context.Context, username string, encodePassword string, nowTime time.Time) error {
 	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
-	res := db.Where("username = ?", username).
+	res := db.Where("LOWER(username) = LOWER(?)", username).
 		Update("password", encodePassword).
 		Update("modify_time", nowTime)
 	if res.Error != nil {

@@ -371,6 +371,7 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		Language(language).
 		Code(code).
 		CodeLength(codeLength).
+		Private(judgeApprove.IsPrivate).
 		Status(foundationjudge.JudgeStatusInit).
 		Build()
 	err = judgeService.InsertJudgeJob(ctx, judgeJob)
@@ -379,6 +380,53 @@ func (c *JudgeController) PostApprove(ctx *gin.Context) {
 		return
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, judgeJob)
+}
+
+func (c *JudgeController) PostPrivate(ctx *gin.Context) {
+	var requestData struct {
+		Id        int  `json:"id"`
+		IsPrivate bool `json:"is_private"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id := requestData.Id
+	isPrivate := requestData.IsPrivate
+	if id <= 0 {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	ok, err := foundationservice.GetUserService().CheckUserAuthByUserId(ctx, userId, foundationauth.AuthTypeManageJudge)
+	if err != nil {
+		metapanic.ProcessError(err)
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !ok {
+		// 判断是否为提交者本人
+		inserter, err := foundationservice.GetJudgeService().GetJudgeInserter(ctx, id)
+		if err != nil {
+			metaresponse.NewResponseError(ctx, err)
+			return
+		}
+		if inserter != userId {
+			metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+			return
+		}
+	}
+	err = foundationservice.GetJudgeService().SetJudgeJobPrivate(ctx, id, isPrivate)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }
 
 func (c *JudgeController) PostRejudge(ctx *gin.Context) {

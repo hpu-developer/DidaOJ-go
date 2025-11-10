@@ -8,4 +8,5 @@ type JudgeApprove struct {
 	ProblemIndex int                           `json:"problem_index"`
 	Language     foundationjudge.JudgeLanguage `json:"language"`
 	Code         string                        `json:"code"`
+	IsPrivate    bool                          `json:"is_private"`
 }
