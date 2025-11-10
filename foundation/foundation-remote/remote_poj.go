@@ -372,13 +372,13 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	statusStr = strings.TrimPrefix(statusStr, "Result: ")
 	statusStr = strings.TrimSpace(statusStr)
 
-	// Time
-	timeTd := table.Find("tr").Eq(1).Find("td").Eq(0)                             // 第二行第1列
-	exeTimeStr := strings.TrimSpace(strings.TrimPrefix(timeTd.Text(), "Memory:")) // "Memory: N/A" -> "N/A"
-
 	// Memory
-	memTd := table.Find("tr").Eq(1).Find("td").Eq(2)                             // 第二行第3列
-	exeMemoryStr := strings.TrimSpace(strings.TrimPrefix(memTd.Text(), "Time:")) // "Time: N/A" -> "N/A"
+	memoryTd := table.Find("tr").Eq(1).Find("td").Eq(0)                               // 第二行第1列
+	exeMemoryStr := strings.TrimSpace(strings.TrimPrefix(memoryTd.Text(), "Memory:")) // "Memory: N/A" -> "N/A"
+
+	// Time
+	timeTd := table.Find("tr").Eq(1).Find("td").Eq(2)                           // 第二行第3列
+	exeTimeStr := strings.TrimSpace(strings.TrimPrefix(timeTd.Text(), "Time:")) // "Time: N/A" -> "N/A"
 
 	status := s.GetJudgeStatus(statusStr)
 
@@ -387,7 +387,7 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	exeMemory := 0
 
 	if exeTimeStr != "N/A" {
-		exeTimeStr = strings.TrimSpace(strings.TrimSuffix(exeTimeStr, "MS"))
+		exeTimeStr = strings.TrimSpace(strings.TrimSuffix(exeMemoryStr, "MS"))
 		if exeTimeStr != "" {
 			exeTime, err = strconv.Atoi(exeTimeStr)
 			if err != nil {
