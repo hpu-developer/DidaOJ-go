@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/JohannesKaufmann/html-to-markdown/v2/converter"
+	"github.com/JohannesKaufmann/html-to-markdown/v2/plugin/base"
 	"golang.org/x/net/html"
 )
 
@@ -19,24 +20,8 @@ func (b *mathPlugin) Name() string {
 
 func (b *mathPlugin) Init(conv *converter.Converter) error {
 
-	conv.Register.Renderer(
-		func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
-			if n.Type == html.ElementNode && strings.ToLower(n.Data) == "sup" {
-				_, _ = w.WriteString("<sup>")
-				_, _ = w.WriteString(extractRawText(n))
-				_, _ = w.WriteString("</sup>")
-				return converter.RenderSuccess
-			}
-			if n.Type == html.ElementNode && strings.ToLower(n.Data) == "sub" {
-				_, _ = w.WriteString("<sub>")
-				_, _ = w.WriteString(extractRawText(n))
-				_, _ = w.WriteString("</sub>")
-				return converter.RenderSuccess
-			}
-			return converter.RenderTryNext
-		},
-		converter.PriorityLate,
-	)
+	conv.Register.RendererFor("sup", converter.TagTypeInline, base.RenderAsHTML, converter.PriorityEarly)
+	conv.Register.RendererFor("sub", converter.TagTypeInline, base.RenderAsHTML, converter.PriorityEarly)
 
 	conv.Register.Renderer(
 		func(ctx converter.Context, w converter.Writer, n *html.Node) converter.RenderStatus {
@@ -57,18 +42,6 @@ func (b *mathPlugin) Init(conv *converter.Converter) error {
 	)
 
 	return nil
-}
-
-func extractRawText(n *html.Node) string {
-	var sb strings.Builder
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == html.TextNode {
-			sb.WriteString(c.Data)
-		} else {
-			sb.WriteString(extractRawText(c))
-		}
-	}
-	return sb.String()
 }
 
 // 递归转换 <sub>/<sup> → _{} / ^{}
