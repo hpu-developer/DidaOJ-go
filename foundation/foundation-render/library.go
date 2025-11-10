@@ -169,33 +169,6 @@ func restoreMathBlocks(markdown string, placeholderMap map[string]string) string
 	return markdown
 }
 
-func formatExpression(s string) string {
-	operators := "+-*/"
-	var result strings.Builder
-
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-
-		if strings.ContainsRune(operators, rune(c)) {
-			// 如果前面没有空格，加一个
-			if i > 0 && s[i-1] != ' ' {
-				result.WriteByte(' ')
-			}
-			// 写运算符
-			result.WriteByte(c)
-			// 如果后面没有空格，加一个
-			if i+1 < len(s) && s[i+1] != ' ' {
-				result.WriteByte(' ')
-			}
-		} else {
-			result.WriteByte(c)
-		}
-	}
-
-	// 压缩多余空格
-	return strings.Join(strings.Fields(result.String()), " ")
-}
-
 func HTMLToMarkdown(problemId string, htmlStr string, baseURL string) (string, error) {
 	preprocessedHTML, mathMap := extractMathBlocks(htmlStr)
 	fixedHtml, err := fixAndUploadAllLinks(problemId, preprocessedHTML, baseURL)
@@ -213,7 +186,6 @@ func HTMLToMarkdown(problemId string, htmlStr string, baseURL string) (string, e
 			strikethrough.NewStrikethroughPlugin(),
 		),
 	)
-	fixedHtml = formatExpression(fixedHtml)
 	markdown, err := conv.ConvertString(fixedHtml, converter.WithDomain(baseURL))
 	if err != nil {
 		return "", err
