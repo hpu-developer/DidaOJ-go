@@ -268,7 +268,7 @@ func (d *JudgeJobDao) GetProblemAttemptStatusByKey(
 	if endTime != nil {
 		db = db.Where("insert_time <= ?", *endTime)
 	}
-	db = db.Group("problem_id")
+	db = db.Group("problem_key")
 	var results []Result
 	if err := db.Scan(&results).Error; err != nil {
 		return nil, metaerror.Wrap(err, "failed to query judge job")
