@@ -41,4 +41,5 @@ type JudgeJobRank struct {
 	InserterNickname string                        `json:"inserter_nickname,omitempty"`
 	InserterEmail    string                        `json:"inserter_email,omitempty"`
 	InsertTime       time.Time                     `json:"insert_time" gorm:"column:insert_time;not null"`
+	Private          bool                          `json:"private,omitempty" gorm:"column:private;not null"`
 }

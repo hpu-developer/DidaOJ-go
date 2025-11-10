@@ -1590,7 +1590,7 @@ func (d *JudgeJobDao) GetProblemRank(
 		Select(
 			`
             j.id, j.insert_time, j.language, j.score, j.status,
-            j.time, j.memory, j.problem_id, j.inserter, j.code_length,
+            j.time, j.memory, j.problem_id, j.inserter, j.code_length, j.private,
             u.username AS inserter_username, u.nickname AS inserter_nickname, u.email AS inserter_email,
             p.key AS problem_key
         `,
