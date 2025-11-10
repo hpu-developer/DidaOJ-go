@@ -179,6 +179,7 @@ func HTMLToMarkdown(problemId string, htmlStr string, baseURL string) (string, e
 	conv := converter.NewConverter(
 		converter.WithPlugins(
 			NewFontColorPlugin(),
+			NewMathPlugin(),
 			base.NewBasePlugin(),
 			commonmark.NewCommonmarkPlugin(),
 			strikethrough.NewStrikethroughPlugin(),
