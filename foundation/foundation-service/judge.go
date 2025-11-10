@@ -52,13 +52,6 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 	if judgeAuth == nil {
 		return userId, false, false, nil, nil
 	}
-	if !hasAuth {
-		if judgeAuth.Private {
-			if judgeAuth.Inserter != userId {
-				return userId, false, false, nil, nil
-			}
-		}
-	}
 	// 如果在比赛中，则以比赛中的权限为准进行一次拦截
 	var contest *foundationview.ContestViewLock
 	if judgeAuth.ContestId > 0 {
@@ -85,11 +78,20 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 			hasStatusAuth, hasDetailAuth, hasTaskAuth := s.isContestJudgeHasViewAuth(
 				contest, userId,
 				nowTime,
+				judgeAuth.Private,
 				judgeAuth.Inserter,
 				&judgeAuth.InsertTime,
 			)
 			if !hasStatusAuth || !hasDetailAuth {
 				return userId, false, hasTaskAuth, contest, nil
+			}
+		}
+	} else {
+		if !hasAuth {
+			if judgeAuth.Private {
+				if judgeAuth.Inserter != userId {
+					return userId, false, false, nil, nil
+				}
 			}
 		}
 	}
@@ -218,6 +220,7 @@ func (s *JudgeService) GetJudgeList(
 					hasStatusAuth, hasDetailAuth, _ := s.isContestJudgeHasViewAuth(
 						contest, userId,
 						nowTime,
+						judgeJob.Private,
 						judgeJob.Inserter,
 						&judgeJob.InsertTime,
 					)
@@ -248,6 +251,7 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 	contest *foundationview.ContestViewLock,
 	userId int,
 	nowTime time.Time,
+	isPrivate bool,
 	authorId int,
 	approveTime *time.Time,
 ) (
@@ -279,7 +283,9 @@ func (s *JudgeService) isContestJudgeHasViewAuth(
 		hasTaskAuth = false
 	}
 	if authorId != userId {
-		if isLocked {
+		if isPrivate {
+			hasDetailAuth = false
+		} else if isLocked {
 			hasDetailAuth = false
 		} else {
 			if !isEnd {
