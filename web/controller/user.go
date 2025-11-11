@@ -799,7 +799,8 @@ func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
 		return
 	}
-	loginResponse, err := foundationservice.GetUserService().GetUserLoginResponse(ctx, userId)
+	nowTime := metatime.GetTimeNow()
+	loginResponse, err := foundationservice.GetUserService().GetUserLoginResponse(ctx, userId, nowTime)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err, nil)
 		return
@@ -807,6 +808,16 @@ func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 	if loginResponse == nil {
 		metaresponse.NewResponse(ctx, weberrorcode.UserNotMatch, nil)
 		return
+	}
+	err = foundationservice.GetUserService().PostLoginLog(
+		ctx,
+		loginResponse.Id,
+		nowTime,
+		ctx.RemoteIP(),
+		ctx.Request.UserAgent(),
+	)
+	if err != nil {
+		metapanic.ProcessError(err)
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, loginResponse)
 }
@@ -821,10 +832,14 @@ func (c *UserController) PostLogin(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+
+	nowTime := metatime.GetTimeNow()
+
 	loginResponse, err := foundationservice.GetUserService().Login(
 		ctx,
 		userLoginRequest.Username,
 		userLoginRequest.Password,
+		nowTime,
 	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
@@ -834,5 +849,17 @@ func (c *UserController) PostLogin(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.UserNotMatch, nil)
 		return
 	}
+
+	err = foundationservice.GetUserService().PostLoginLog(
+		ctx,
+		loginResponse.Id,
+		nowTime,
+		ctx.RemoteIP(),
+		ctx.Request.UserAgent(),
+	)
+	if err != nil {
+		metapanic.ProcessError(err)
+	}
+
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, loginResponse)
 }

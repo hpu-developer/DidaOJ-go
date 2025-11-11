@@ -44,7 +44,11 @@ func (s *UserService) GetInfoByUsername(ctx *gin.Context, username string) (*fou
 	return foundationdao.GetUserDao().GetInfoByUsername(ctx, username)
 }
 
-func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*foundationview.UserLogin, error) {
+func (s *UserService) GetUserLoginResponse(
+	ctx context.Context,
+	userId int,
+	nowTime time.Time,
+) (*foundationview.UserLogin, error) {
 	resultUser, err := foundationdao.GetUserDao().GetUserLogin(ctx, userId)
 	if err != nil {
 		return nil, err
@@ -52,7 +56,7 @@ func (s *UserService) GetUserLoginResponse(ctx context.Context, userId int) (*fo
 	if resultUser == nil {
 		return nil, nil
 	}
-	token, err := s.GetTokenByUserId(resultUser.Id, foundationconfig.GetJwtSecret())
+	token, err := s.GetTokenByUserId(resultUser.Id, nowTime, foundationconfig.GetJwtSecret())
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +127,10 @@ func (s *UserService) UpdatePassword(
 	return foundationdao.GetUserDao().UpdatePassword(ctx, username, passwordEncode, nowTime)
 }
 
-func (s *UserService) Login(ctx *gin.Context, username string, password string) (*foundationview.UserLogin, error) {
+func (s *UserService) Login(ctx *gin.Context, username string, password string, nowTime time.Time) (
+	*foundationview.UserLogin,
+	error,
+) {
 	resultUser, err := foundationdao.GetUserDao().GetUserLoginByUsername(ctx, username)
 	if err != nil {
 		return nil, err
@@ -163,7 +170,7 @@ func (s *UserService) Login(ctx *gin.Context, username string, password string) 
 	if err != nil {
 		return nil, err
 	}
-	token, err := s.GetTokenByUserId(resultUser.Id, foundationconfig.GetJwtSecret())
+	token, err := s.GetTokenByUserId(resultUser.Id, nowTime, foundationconfig.GetJwtSecret())
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +178,8 @@ func (s *UserService) Login(ctx *gin.Context, username string, password string) 
 	return resultUser, nil
 }
 
-func (s *UserService) GetTokenByUserId(userId int, secret []byte) (*string, error) {
-	token, err := foundationauth.GetToken(userId, secret)
+func (s *UserService) GetTokenByUserId(userId int, nowTime time.Time, secret []byte) (*string, error) {
+	token, err := foundationauth.GetToken(userId, nowTime, secret)
 	if err != nil {
 		return nil, err
 	}
@@ -294,6 +301,10 @@ func (s *UserService) UpdateUserPassword(
 	return foundationdao.GetUserDao().UpdatePasswordByUserId(ctx, userId, newPasswordEncode, nowTime)
 }
 
-func (s *UserService) UpdateUserEmail(ctx *gin.Context, userId int, email string, now time.Time) error {
+func (s *UserService) UpdateUserEmail(ctx context.Context, userId int, email string, now time.Time) error {
 	return foundationdao.GetUserDao().UpdateUserEmail(ctx, userId, email, now)
+}
+
+func (s *UserService) PostLoginLog(ctx context.Context, userId int, nowTime time.Time, ip string, agent string) error {
+	return foundationdao.GetUserDao().PostLoginLog(ctx, userId, nowTime, ip, agent)
 }

@@ -1,23 +1,24 @@
 package foundationauth
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"meta/auth"
 	metaerror "meta/meta-error"
-	goTime "time"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
-func GetToken(userId int, secret []byte) (*string, error) {
-	duration := goTime.Hour * 24 * 7
-	return GetTokenExpiration(userId, duration, secret)
+func GetToken(userId int, nowTime time.Time, secret []byte) (*string, error) {
+	duration := time.Hour * 24 * 7
+	return GetTokenExpiration(userId, nowTime, duration, secret)
 }
 
-func GetTokenExpiration(userId int, duration goTime.Duration, secret []byte) (
+func GetTokenExpiration(userId int, nowTime time.Time, duration time.Duration, secret []byte) (
 	*string,
 	error,
 ) {
-	expirationTime := goTime.Now().Add(duration)
+	expirationTime := nowTime.Add(duration)
 	var claims = &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),

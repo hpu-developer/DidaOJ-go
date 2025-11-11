@@ -356,7 +356,7 @@ func (d *UserDao) UpdateUserVjudgeUsername(ctx *gin.Context, id int, vjudgeId st
 	return nil
 }
 
-func (d *UserDao) UpdateUserEmail(ctx *gin.Context, id int, email string, now time.Time) error {
+func (d *UserDao) UpdateUserEmail(ctx context.Context, id int, email string, now time.Time) error {
 	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
 	res := db.Where("id = ?", id).
 		Updates(
@@ -370,6 +370,16 @@ func (d *UserDao) UpdateUserEmail(ctx *gin.Context, id int, email string, now ti
 	}
 	if res.RowsAffected == 0 {
 		return metaerror.New("no rows affected, user not found")
+	}
+	return nil
+}
+
+func (d *UserDao) PostLoginLog(ctx context.Context, userId int, nowTime time.Time, ip string, agent string) error {
+	loginLog := foundationmodel.NewUserLoginBuilder().
+		UserId(userId).InsertTime(nowTime).IP(ip).UserAgent(agent).Build()
+	db := d.db.WithContext(ctx).Model(loginLog)
+	if err := db.Create(loginLog).Error; err != nil {
+		return metaerror.Wrap(err, "insert user login log")
 	}
 	return nil
 }
