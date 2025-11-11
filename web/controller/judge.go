@@ -222,7 +222,7 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 	}
 
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
-	list, err := judgeService.GetJudgeList(
+	list, contestInserter, err := judgeService.GetJudgeList(
 		ctx, userId,
 		problemKey, contestId,
 		username, language, status,
@@ -233,11 +233,19 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 		return
 	}
 	responseData := struct {
-		HasAuth bool                       `json:"has_auth"`
-		List    []*foundationview.JudgeJob `json:"list"`
+		HasAuth bool `json:"has_auth"`
+		Contest struct {
+			Inserter int `json:"inserter"`
+		} `json:"contest"`
+		List []*foundationview.JudgeJob `json:"list"`
 	}{
 		HasAuth: true,
-		List:    list,
+		Contest: struct {
+			Inserter int `json:"inserter"`
+		}{
+			Inserter: contestInserter,
+		},
+		List: list,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }

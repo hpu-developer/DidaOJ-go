@@ -124,16 +124,16 @@ func (s *JudgeService) GetJudgeList(
 	status foundationjudge.JudgeStatus,
 	page int,
 	pageSize int,
-) ([]*foundationview.JudgeJob, error) {
+) ([]*foundationview.JudgeJob, int, error) {
 	var err error
 	searchUserId := -1
 	if username != "" {
 		searchUserId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
 		if err != nil {
-			return nil, err
+			return nil, -1, err
 		}
 		if searchUserId <= 0 {
-			return nil, nil
+			return nil, -1, nil
 		}
 	}
 
@@ -142,7 +142,7 @@ func (s *JudgeService) GetJudgeList(
 		if problemKey != "" {
 			problemIndex := foundationcontest.GetContestProblemIndex(problemKey)
 			if problemIndex <= 0 {
-				return nil, metaerror.NewCode(foundationerrorcode.ParamError)
+				return nil, -1, metaerror.NewCode(foundationerrorcode.ParamError)
 			}
 			problemId, err = GetContestService().GetProblemIdByContestIndex(
 				ctx,
@@ -150,14 +150,14 @@ func (s *JudgeService) GetJudgeList(
 				problemIndex,
 			)
 			if err != nil {
-				return nil, metaerror.Wrap(err, "get problem id by contest index error")
+				return nil, -1, metaerror.Wrap(err, "get problem id by contest index error")
 			}
 		}
 	} else {
 		if problemKey != "" {
 			problemId, err = GetProblemService().GetProblemIdByKey(ctx, problemKey)
 			if err != nil {
-				return nil, metaerror.Wrap(err, "get problem id by key error")
+				return nil, -1, metaerror.Wrap(err, "get problem id by key error")
 			}
 		}
 	}
@@ -173,32 +173,35 @@ func (s *JudgeService) GetJudgeList(
 		pageSize,
 	)
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 
 	nowTime := metatime.GetTimeNow()
+
+	contestInserter := -1
 
 	if len(judgeJobs) > 0 {
 		if contestId > 0 {
 			contest, err := foundationdao.GetContestDao().GetContestViewLock(ctx, contestId)
 			if err != nil {
-				return nil, err
+				return nil, -1, err
 			}
 			if contest == nil {
-				return nil, nil
+				return nil, -1, nil
 			}
+			contestInserter = contest.Inserter
 			hasAuth, err := GetUserService().CheckUserAuthsByUserId(
 				ctx,
 				userId,
 				[]foundationauth.AuthType{foundationauth.AuthTypeManageJudge, foundationauth.AuthTypeManageContest},
 			)
 			if err != nil {
-				return nil, err
+				return nil, -1, err
 			}
 			if !hasAuth {
 				hasAuth, err = foundationdao.GetContestDao().CheckContestEditAuth(ctx, contestId, userId)
 				if err != nil {
-					return nil, err
+					return nil, -1, err
 				}
 			}
 			if !hasAuth {
@@ -240,7 +243,7 @@ func (s *JudgeService) GetJudgeList(
 			}
 		}
 	}
-	return judgeJobs, nil
+	return judgeJobs, contestInserter, nil
 }
 
 func (s *JudgeService) GetJudgeTaskList(ctx *gin.Context, id int) ([]*foundationmodel.JudgeTask, error) {
