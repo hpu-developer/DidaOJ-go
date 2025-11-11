@@ -387,7 +387,7 @@ func (s *RemotePojAgent) requestJudgeJobStatus(ctx context.Context, runId string
 	exeMemory := 0
 
 	if exeTimeStr != "N/A" {
-		exeTimeStr = strings.TrimSpace(strings.TrimSuffix(exeMemoryStr, "MS"))
+		exeTimeStr = strings.TrimSpace(strings.TrimSuffix(exeTimeStr, "MS"))
 		if exeTimeStr != "" {
 			exeTime, err = strconv.Atoi(exeTimeStr)
 			if err != nil {
