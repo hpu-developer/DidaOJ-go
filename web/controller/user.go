@@ -813,7 +813,7 @@ func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 		ctx,
 		loginResponse.Id,
 		nowTime,
-		ctx.RemoteIP(),
+		ctx.ClientIP(),
 		ctx.Request.UserAgent(),
 	)
 	if err != nil {
