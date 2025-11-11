@@ -6,6 +6,7 @@ type UserModifyInfo struct {
 	RealName     string `json:"real_name,omitempty"`
 	Gender       string `json:"gender,omitempty"`
 	Organization string `json:"organization,omitempty"`
+	Blog         string `json:"blog,omitempty"`
 }
 
 type UserModifyPassword struct {

@@ -25,6 +25,7 @@ type UserInfo struct {
 	Number       *string                   `json:"number,omitempty" gorm:"type:varchar(20);comment:身份标识"`
 	Slogan       *string                   `json:"slogan,omitempty" gorm:"type:varchar(50);comment:签名"`
 	Organization *string                   `json:"organization,omitempty" gorm:"type:varchar(80);comment:组织"`
+	Blog         *string                   `json:"blog,omitempty" gorm:"type:varchar(100);comment:个人主页"`
 	QQ           *string                   `json:"qq,omitempty" gorm:"type:varchar(15);comment:QQ"`
 	VjudgeId     *string                   `json:"vjudge_id,omitempty" gorm:"type:varchar(15);comment:VjudgeId"`
 	Github       *string                   `json:"github,omitempty" gorm:"type:varchar(15);comment:Github"`
@@ -50,6 +51,7 @@ type UserModifyInfo struct {
 	Number       *string                   `json:"number,omitempty" gorm:"type:varchar(20);comment:身份标识"`
 	Slogan       *string                   `json:"slogan,omitempty" gorm:"type:varchar(50);comment:签名"`
 	Organization *string                   `json:"organization,omitempty" gorm:"type:varchar(80);comment:组织"`
+	Blog         *string                   `json:"blog,omitempty" gorm:"type:varchar(100);comment:个人主页"`
 	QQ           *string                   `json:"qq,omitempty" gorm:"type:varchar(15);comment:QQ"`
 	VjudgeId     *string                   `json:"vjudge_id,omitempty" gorm:"type:varchar(15);comment:VjudgeId"`
 	Github       *string                   `json:"github,omitempty" gorm:"type:varchar(15);comment:Github"`

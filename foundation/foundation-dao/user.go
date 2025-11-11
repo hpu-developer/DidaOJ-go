@@ -84,7 +84,7 @@ func (d *UserDao) GetModifyInfo(ctx context.Context, userId int) (*foundationvie
 		Model(&foundationmodel.User{}).
 		Select(
 			`id, username, nickname, real_name, 
-email, gender, number, slogan, organization, qq, 
+email, gender, number, slogan, organization, qq, blog,
 vjudge_id, github, codeforces`,
 		).
 		Where("id = ?", userId).
@@ -104,7 +104,7 @@ func (d *UserDao) GetInfoByUsername(ctx context.Context, username string) (*foun
 		Model(&foundationmodel.User{}).
 		Select(
 			`id, username, nickname, real_name, 
-email, gender, number, slogan, organization, qq, 
+email, gender, number, slogan, organization, qq, blog,
 vjudge_id, github, codeforces, 
 check_in_count, insert_time, modify_time, accept, attempt`,
 		).
@@ -301,6 +301,7 @@ func (d *UserDao) UpdateUserInfo(
 				"real_name":    request.RealName,
 				"gender":       gender,
 				"organization": request.Organization,
+				"blog":         request.Blog,
 				"modify_time":  modifyTime,
 			},
 		)
