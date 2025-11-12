@@ -8,19 +8,21 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"math"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
 	foundationconfig "foundation/foundation-config"
 	foundationdao "foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
-	"foundation/foundation-request"
+	foundationrequest "foundation/foundation-request"
 	foundationview "foundation/foundation-view"
-	"io"
 	metaerror "meta/meta-error"
 	"meta/singleton"
-	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 type UserService struct {
@@ -303,6 +305,59 @@ func (s *UserService) UpdateUserPassword(
 
 func (s *UserService) UpdateUserEmail(ctx context.Context, userId int, email string, now time.Time) error {
 	return foundationdao.GetUserDao().UpdateUserEmail(ctx, userId, email, now)
+}
+
+// CalculateUserLevel 根据经验值计算用户等级
+// 使用非线性公式：level = floor(log10(experience/100 + 1) * 10)
+// 这样随着等级提升，所需经验值会增加，但不会过于夸张
+func (s *UserService) CalculateUserLevel(experience int) int {
+	if experience <= 0 {
+		return 1 // 最低等级为1
+	}
+	// 基础计算公式
+	base := float64(experience)/100.0 + 1.0
+	level := math.Log10(base) * 10.0
+	return int(math.Floor(level)) + 1
+}
+
+// AddUserExperience 更新用户经验值
+func (s *UserService) AddUserExperience(ctx context.Context, userId int, expGain int, nowTime time.Time) error {
+	// 调用dao层方法更新经验值
+	err := foundationdao.GetUserDao().AddUserExperience(ctx, userId, expGain, nowTime)
+	if err != nil {
+		return err
+	}
+
+	// 获取更新后的经验值
+	updatedExp, err := foundationdao.GetUserDao().GetUserExperience(ctx, userId)
+	if err != nil {
+		return err
+	}
+
+	// 在service层计算新等级（业务逻辑）
+	newLevel := s.CalculateUserLevel(updatedExp)
+
+	// 更新等级
+	return foundationdao.GetUserDao().UpdateUserLevel(ctx, userId, newLevel)
+}
+
+// AddExperienceForSubmission 为提交代码添加经验值
+func (s *UserService) AddExperienceForSubmission(ctx context.Context, userId int, isCorrect bool, nowTime time.Time) error {
+	// 根据提交结果给予不同的经验值
+	var expGain int
+	if isCorrect {
+		expGain = 50 // 正确提交获得50经验
+	} else {
+		expGain = 5 // 错误提交获得5经验
+	}
+
+	return s.AddUserExperience(ctx, userId, expGain, nowTime)
+}
+
+// AddExperienceForCheckIn 为签到添加经验值
+func (s *UserService) AddExperienceForCheckIn(ctx context.Context, userId int, nowTime time.Time) error {
+	expGain := 20 // 签到获得20经验
+	return s.AddUserExperience(ctx, userId, expGain, nowTime)
 }
 
 func (s *UserService) PostLoginLog(ctx context.Context, userId int, nowTime time.Time, ip string, agent string) error {

@@ -26,6 +26,8 @@ type User struct {
 	ModifyTime   time.Time                 `json:"modify_time" gorm:"type:datetime;not null"`
 	Accept       int                       `json:"accept,omitempty"`
 	Attempt      int                       `json:"attempt,omitempty"`
+	Level        int                       `json:"level,omitempty" gorm:"comment:用户等级"`
+	Experience   int                       `json:"experience,omitempty" gorm:"comment:用户经验值"`
 }
 
 func (u *User) TableName() string {
@@ -132,6 +134,16 @@ func (b *UserBuilder) Accept(accept int) *UserBuilder {
 
 func (b *UserBuilder) Attempt(attempt int) *UserBuilder {
 	b.item.Attempt = attempt
+	return b
+}
+
+func (b *UserBuilder) Level(level int) *UserBuilder {
+	b.item.Level = level
+	return b
+}
+
+func (b *UserBuilder) Experience(experience int) *UserBuilder {
+	b.item.Experience = experience
 	return b
 }
 

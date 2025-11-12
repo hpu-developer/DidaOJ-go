@@ -5,7 +5,7 @@ import (
 	"errors"
 	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
-	"foundation/foundation-request"
+	foundationrequest "foundation/foundation-request"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
 	metapostgresql "meta/meta-postgresql"
@@ -106,7 +106,8 @@ func (d *UserDao) GetInfoByUsername(ctx context.Context, username string) (*foun
 			`id, username, nickname, real_name, 
 email, gender, number, slogan, organization, qq, blog,
 vjudge_id, github, codeforces, 
-check_in_count, insert_time, modify_time, accept, attempt`,
+check_in_count, insert_time, modify_time, accept, attempt,
+level, experience`,
 		).
 		Where("LOWER(username) = LOWER(?)", username).
 		First(&userInfo).Error
@@ -381,6 +382,42 @@ func (d *UserDao) PostLoginLog(ctx context.Context, userId int, nowTime time.Tim
 	db := d.db.WithContext(ctx).Model(loginLog)
 	if err := db.Create(loginLog).Error; err != nil {
 		return metaerror.Wrap(err, "insert user login log")
+	}
+	return nil
+}
+
+// AddUserExperience 更新用户经验值
+func (d *UserDao) AddUserExperience(ctx context.Context, userId int, expGain int, nowTime time.Time) error {
+	// 使用原子操作更新经验值，直接在数据库层面增加
+	res := d.db.WithContext(ctx).Model(&foundationmodel.User{}).Where("id = ?", userId).
+		Updates(map[string]interface{}{
+			"experience":  gorm.Expr("experience + ?", expGain),
+			"modify_time": nowTime,
+		})
+	if res.Error != nil {
+		return metaerror.Wrap(res.Error, "更新用户经验值失败")
+	}
+	if res.RowsAffected == 0 {
+		return metaerror.New("用户不存在")
+	}
+	return nil
+}
+
+// GetUserExperience 获取用户经验值
+func (d *UserDao) GetUserExperience(ctx context.Context, userId int) (int, error) {
+	var exp int
+	err := d.db.WithContext(ctx).Model(&foundationmodel.User{}).Where("id = ?", userId).Pluck("experience", &exp).Error
+	if err != nil {
+		return 0, metaerror.Wrap(err, "获取用户经验值失败")
+	}
+	return exp, nil
+}
+
+// UpdateUserLevel 更新用户等级
+func (d *UserDao) UpdateUserLevel(ctx context.Context, userId int, level int) error {
+	res := d.db.WithContext(ctx).Model(&foundationmodel.User{}).Where("id = ?", userId).Update("level", level)
+	if res.Error != nil {
+		return metaerror.Wrap(res.Error, "更新用户等级失败")
 	}
 	return nil
 }

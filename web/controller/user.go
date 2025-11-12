@@ -7,20 +7,20 @@ import (
 	foundationauth "foundation/foundation-auth"
 	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
-	"foundation/foundation-request"
+	foundationrequest "foundation/foundation-request"
 	foundationservice "foundation/foundation-service"
 	foundationuser "foundation/foundation-user"
 	foundationview "foundation/foundation-view"
 	"io"
 	cfturnstile "meta/cf-turnstile"
 	metacontroller "meta/controller"
-	"meta/error-code"
+	metaerrorcode "meta/error-code"
 	metaemail "meta/meta-email"
 	metaerror "meta/meta-error"
 	metamath "meta/meta-math"
 	metapanic "meta/meta-panic"
 	metaredis "meta/meta-redis"
-	"meta/meta-response"
+	metaresponse "meta/meta-response"
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	"net/http"
@@ -661,6 +661,8 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 		Organization(&organization).
 		InsertTime(nowTime).
 		ModifyTime(nowTime).
+		Level(1).      // 默认初始等级为1
+		Experience(0). // 默认初始经验为0
 		Build()
 
 	err = foundationservice.GetUserService().InsertUser(ctx, user)
@@ -809,6 +811,7 @@ func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.UserNotMatch, nil)
 		return
 	}
+	// 记录登录日志
 	err = foundationservice.GetUserService().PostLoginLog(
 		ctx,
 		loginResponse.Id,
@@ -819,6 +822,7 @@ func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 	if err != nil {
 		metapanic.ProcessError(err)
 	}
+
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, loginResponse)
 }
 

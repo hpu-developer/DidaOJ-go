@@ -35,6 +35,8 @@ type UserInfo struct {
 	ModifyTime   time.Time                 `json:"modify_time" gorm:"type:datetime;not null"`
 	Accept       int                       `json:"accept,omitempty"`
 	Attempt      int                       `json:"attempt,omitempty"`
+	Level        int                       `json:"level,omitempty" gorm:"comment:用户等级"`
+	Experience   int                       `json:"experience,omitempty" gorm:"comment:用户经验值"`
 }
 
 type UserAccountInfo struct {
