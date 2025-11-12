@@ -48,7 +48,7 @@ func GetLevelByExperience(experience int) int {
 
 	for low <= high {
 		mid := (low + high) / 2
-		requiredExp := getTotalExperienceForLevel(mid)
+		requiredExp := GetTotalExperienceForLevel(mid)
 
 		if requiredExp <= experience {
 			// 当前经验可以达到mid级，尝试更高等级
@@ -63,12 +63,12 @@ func GetLevelByExperience(experience int) int {
 	return bestLevel
 }
 
-// getTotalExperienceForLevel 计算达到指定等级所需的总经验
+// GetTotalExperienceForLevel 计算达到指定等级所需的总经验
 // 使用数学公式直接计算，避免循环累加，时间复杂度O(1)
 // 第1级不需要经验
 // 第2级需要500经验 ((2-1)*200+500)
 // 第3级需要1200经验 (500 + (3-1)*200+500)
-func getTotalExperienceForLevel(level int) int {
+func GetTotalExperienceForLevel(level int) int {
 	if level <= 1 {
 		return 0
 	}

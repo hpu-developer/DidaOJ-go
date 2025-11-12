@@ -70,8 +70,8 @@ func TestLevelAndExperienceConsistency(t *testing.T) {
 	// 测试从1级到10级的一致性
 	for level := 1; level <= 10; level++ {
 		expRequired := GetExperienceForUpgrade(level)
-		currentTotalExp := getTotalExperienceForLevel(level)
-		nextLevelTotalExp := getTotalExperienceForLevel(level + 1)
+		currentTotalExp := GetTotalExperienceForLevel(level)
+		nextLevelTotalExp := GetTotalExperienceForLevel(level + 1)
 
 		// 验证升级所需经验等于下一等级总经验减去当前等级总经验
 		if nextLevelTotalExp-currentTotalExp != expRequired {

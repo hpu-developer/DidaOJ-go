@@ -54,6 +54,19 @@ func (c *UserController) GetInfo(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
 		return
 	}
+
+	// 计算升级相关的经验值信息
+	if userInfo.Experience >= 0 && userInfo.Level >= 0 {
+		// 使用foundationuser包中的通用函数计算总经验
+		// 计算当前等级升级所需总经验
+		userInfo.ExperienceUpgrade = foundationuser.GetTotalExperienceForLevel(userInfo.Level + 1)
+		// 计算当前等级段已积攒经验（当前总经验 - 上一等级升级所需总经验）
+		userInfo.ExperienceCurrentLevel = userInfo.Experience - foundationuser.GetTotalExperienceForLevel(userInfo.Level)
+		// 确保当前等级进度不为负数
+		if userInfo.ExperienceCurrentLevel < 0 {
+			userInfo.ExperienceCurrentLevel = 0
+		}
+	}
 	acProblems, attemptProblems, err := foundationservice.GetJudgeService().GetUserAttemptProblems(ctx, userInfo.Id)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
