@@ -20,7 +20,8 @@ type ExperienceType int
 
 const (
 	ExperienceTypeUnknown ExperienceType = 0
-	ExperienceTypeCheckIn ExperienceType = 1
+	ExperienceTypeSystem  ExperienceType = 1
+	ExperienceTypeCheckIn ExperienceType = 2
 )
 
 // GetExperienceForUpgrade 计算指定等级升级所需的经验

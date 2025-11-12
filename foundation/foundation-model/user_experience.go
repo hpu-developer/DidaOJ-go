@@ -7,7 +7,6 @@ import (
 
 // UserExperience 用户经验记录模型
 type UserExperience struct {
-	Id           int                           `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
 	UserId       int                           `json:"user_id" gorm:"column:user_id;not null;index:idx_user_type_param,unique"`
 	Value        int                           `json:"value" gorm:"column:value;not null;comment:经验值变化量（正值增加，负值减少）"`
 	InserterTime time.Time                     `json:"inserter_time" gorm:"column:inserter_time;not null;default:CURRENT_TIMESTAMP"`
@@ -30,12 +29,6 @@ func NewUserExperienceBuilder() *UserExperienceBuilder {
 	return &UserExperienceBuilder{
 		item: &UserExperience{},
 	}
-}
-
-// Id 设置ID
-func (b *UserExperienceBuilder) Id(id int) *UserExperienceBuilder {
-	b.item.Id = id
-	return b
 }
 
 // UserId 设置用户ID
