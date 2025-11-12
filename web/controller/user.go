@@ -844,17 +844,17 @@ func (c *UserController) GetCheckinToday(ctx *gin.Context) {
 	// 获取当前日期，格式为"2006-01-02"
 	nowTime := metatime.GetTimeNow()
 	today := nowTime.Format("2006-01-02")
-	
+
 	// 查询今日签到人数
 	count, err := foundationservice.GetUserService().GetCheckinCount(ctx, today)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	
+
 	// 默认签到状态为false
 	checkIn := false
-	
+
 	// 尝试获取用户ID并检查签到状态
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err == nil {
@@ -864,7 +864,7 @@ func (c *UserController) GetCheckinToday(ctx *gin.Context) {
 			return
 		}
 	}
-	
+
 	// 返回新的结构 {count: 人数, check_in: 是否签到}
 	responseData := struct {
 		Count   int  `json:"count"`
@@ -873,11 +873,11 @@ func (c *UserController) GetCheckinToday(ctx *gin.Context) {
 		Count:   count,
 		CheckIn: checkIn,
 	}
-	
+
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
-func (c *UserController) PostCheckin(ctx *gin.Context) {
+func (c *UserController) in(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
 		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
@@ -893,7 +893,7 @@ func (c *UserController) PostCheckin(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.UserCheckinAlreadyDone, nil)
 		return
 	}
-	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, hasDuplicate)
 }
 
 func (c *UserController) PostLogin(ctx *gin.Context) {
