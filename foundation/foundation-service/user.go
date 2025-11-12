@@ -333,3 +333,13 @@ func (s *UserService) AddExperienceForCheckIn(ctx context.Context, userId int, n
 func (s *UserService) PostLoginLog(ctx context.Context, userId int, nowTime time.Time, ip string, agent string) error {
 	return foundationdao.GetUserDao().PostLoginLog(ctx, userId, nowTime, ip, agent)
 }
+
+// GetCheckinCount 获取指定日期的签到人数
+func (s *UserService) GetCheckinCount(ctx context.Context, date string) (int, error) {
+	return foundationdao.GetUserDao().GetCheckinCount(ctx, date)
+}
+
+// IsUserCheckedIn 检查用户在指定日期是否已签到
+func (s *UserService) IsUserCheckedIn(ctx context.Context, userId int, date string) (bool, error) {
+	return foundationdao.GetUserDao().IsUserCheckedIn(ctx, userId, date)
+}

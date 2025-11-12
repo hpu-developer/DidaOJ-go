@@ -839,6 +839,44 @@ func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, loginResponse)
 }
 
+// GetCheckinToday 获取今日签到人数和用户签到状态
+func (c *UserController) GetCheckinToday(ctx *gin.Context) {
+	// 获取当前日期，格式为"2006-01-02"
+	nowTime := metatime.GetTimeNow()
+	today := nowTime.Format("2006-01-02")
+	
+	// 查询今日签到人数
+	count, err := foundationservice.GetUserService().GetCheckinCount(ctx, today)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	
+	// 默认签到状态为false
+	checkIn := false
+	
+	// 尝试获取用户ID并检查签到状态
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err == nil {
+		checkIn, err = foundationservice.GetUserService().IsUserCheckedIn(ctx, userId, today)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+	}
+	
+	// 返回新的结构 {count: 人数, check_in: 是否签到}
+	responseData := struct {
+		Count   int  `json:"count"`
+		CheckIn bool `json:"check_in"`
+	}{
+		Count:   count,
+		CheckIn: checkIn,
+	}
+	
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
 func (c *UserController) PostCheckin(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {

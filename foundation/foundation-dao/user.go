@@ -552,6 +552,30 @@ func (d *UserDao) GetUserExperienceTotal(ctx context.Context, userId int) (int, 
 	return total, nil
 }
 
+// GetCheckinCount 获取指定日期的签到人数
+func (d *UserDao) GetCheckinCount(ctx context.Context, date string) (int, error) {
+	var count int64
+	err := d.db.WithContext(ctx).Model(&foundationmodel.UserExperience{}).
+		Where("type = ? AND param = ?", foundationuser.ExperienceTypeCheckIn, date).
+		Count(&count).Error
+	if err != nil {
+		return 0, metaerror.Wrap(err, "查询签到人数失败")
+	}
+	return int(count), nil
+}
+
+// IsUserCheckedIn 检查用户在指定日期是否已签到
+func (d *UserDao) IsUserCheckedIn(ctx context.Context, userId int, date string) (bool, error) {
+	var count int64
+	err := d.db.WithContext(ctx).Model(&foundationmodel.UserExperience{}).
+		Where("user_id = ? AND type = ? AND param = ?", userId, foundationuser.ExperienceTypeCheckIn, date).
+		Count(&count).Error
+	if err != nil {
+		return false, metaerror.Wrap(err, "查询用户签到状态失败")
+	}
+	return count > 0, nil
+}
+
 // AddUserCheckInCount 增加用户签到次数并添加经验值（带防重复签到检查）
 func (d *UserDao) AddUserCheckInCount(ctx context.Context, userId int, checkInCount int, expGain int, param string, nowTime time.Time) (bool, error) {
 	// 检查用户是否已经签到过（基于唯一约束）
