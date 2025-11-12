@@ -130,12 +130,12 @@ func (d *DiscussDao) GetDiscussList(
 
 	// title 模糊匹配，等价于 Mongo 的 "$regex" + "$options: i"
 	if title != "" {
-		db = db.Where("title ILIKE ?", "%"+title+"%")
+		db = db.Where("discuss.title ILIKE ?", "%"+title+"%")
 	}
 
-	// author_id 条件
+	// inserter 条件
 	if userId > 0 {
-		db = db.Where("author_id = ?", userId)
+		db = db.Where("discuss.inserter = ?", userId)
 	}
 
 	// 统计总数
