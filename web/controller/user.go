@@ -826,6 +826,25 @@ func (c *UserController) PostLoginRefresh(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, loginResponse)
 }
 
+func (c *UserController) PostCheckin(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
+	nowTime := metatime.GetTimeNow()
+	hasDuplicate, err := foundationservice.GetUserService().AddExperienceForCheckIn(ctx, userId, nowTime)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err, nil)
+		return
+	}
+	if hasDuplicate {
+		metaresponse.NewResponse(ctx, weberrorcode.UserCheckinAlreadyDone, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
 func (c *UserController) PostLogin(ctx *gin.Context) {
 	var userLoginRequest request.UserLogin
 	if err := ctx.ShouldBindJSON(&userLoginRequest); err != nil {

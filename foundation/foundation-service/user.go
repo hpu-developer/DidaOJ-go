@@ -320,44 +320,14 @@ func (s *UserService) CalculateUserLevel(experience int) int {
 	return int(math.Floor(level)) + 1
 }
 
-// AddUserExperience 更新用户经验值
-func (s *UserService) AddUserExperience(ctx context.Context, userId int, expGain int, nowTime time.Time) error {
-	// 调用dao层方法更新经验值
-	err := foundationdao.GetUserDao().AddUserExperience(ctx, userId, expGain, nowTime)
-	if err != nil {
-		return err
-	}
-
-	// 获取更新后的经验值
-	updatedExp, err := foundationdao.GetUserDao().GetUserExperience(ctx, userId)
-	if err != nil {
-		return err
-	}
-
-	// 在service层计算新等级（业务逻辑）
-	newLevel := s.CalculateUserLevel(updatedExp)
-
-	// 更新等级
-	return foundationdao.GetUserDao().UpdateUserLevel(ctx, userId, newLevel)
-}
-
-// AddExperienceForSubmission 为提交代码添加经验值
-func (s *UserService) AddExperienceForSubmission(ctx context.Context, userId int, isCorrect bool, nowTime time.Time) error {
-	// 根据提交结果给予不同的经验值
-	var expGain int
-	if isCorrect {
-		expGain = 50 // 正确提交获得50经验
-	} else {
-		expGain = 5 // 错误提交获得5经验
-	}
-
-	return s.AddUserExperience(ctx, userId, expGain, nowTime)
-}
-
 // AddExperienceForCheckIn 为签到添加经验值
-func (s *UserService) AddExperienceForCheckIn(ctx context.Context, userId int, nowTime time.Time) error {
-	expGain := 20 // 签到获得20经验
-	return s.AddUserExperience(ctx, userId, expGain, nowTime)
+func (s *UserService) AddExperienceForCheckIn(ctx context.Context, userId int, nowTime time.Time) (bool, error) {
+	// 签到获得20经验
+	expGain := 20
+	// 使用年月日作为参数，确保每天只能签到一次
+	param := nowTime.Format("2006-01-02")
+
+	return foundationdao.GetUserDao().AddUserCheckInCount(ctx, userId, 1, expGain, param, nowTime)
 }
 
 func (s *UserService) PostLoginLog(ctx context.Context, userId int, nowTime time.Time, ip string, agent string) error {

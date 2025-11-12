@@ -6,6 +6,7 @@ import (
 	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
 	foundationrequest "foundation/foundation-request"
+	foundationuser "foundation/foundation-user"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
 	metapostgresql "meta/meta-postgresql"
@@ -22,6 +23,32 @@ type UserDao struct {
 }
 
 var singletonUserDao = singleton.Singleton[UserDao]{}
+
+// GetDB 获取数据库连接
+func (dao *UserDao) GetDB(ctx context.Context) *gorm.DB {
+	return dao.db.WithContext(ctx)
+}
+
+// WithTransaction 在事务中执行操作
+func (dao *UserDao) WithTransaction(ctx context.Context, fn func(tx *gorm.DB) error) error {
+	tx := dao.GetDB(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	if err := fn(tx); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
 
 func GetUserDao() *UserDao {
 	return singletonUserDao.GetInstance(
@@ -403,12 +430,38 @@ func (d *UserDao) AddUserExperience(ctx context.Context, userId int, expGain int
 	return nil
 }
 
+// AddUserExperienceWithTx 在事务中更新用户经验值
+func (d *UserDao) AddUserExperienceWithTx(tx *gorm.DB, userId int, expGain int, nowTime time.Time) error {
+	res := tx.Model(&foundationmodel.User{}).Where("id = ?", userId).
+		Updates(map[string]interface{}{
+			"experience":  gorm.Expr("experience + ?", expGain),
+			"modify_time": nowTime,
+		})
+	if res.Error != nil {
+		return metaerror.Wrap(res.Error, "在事务中更新用户经验值失败")
+	}
+	if res.RowsAffected == 0 {
+		return metaerror.New("用户不存在")
+	}
+	return nil
+}
+
 // GetUserExperience 获取用户经验值
 func (d *UserDao) GetUserExperience(ctx context.Context, userId int) (int, error) {
 	var exp int
 	err := d.db.WithContext(ctx).Model(&foundationmodel.User{}).Where("id = ?", userId).Pluck("experience", &exp).Error
 	if err != nil {
 		return 0, metaerror.Wrap(err, "获取用户经验值失败")
+	}
+	return exp, nil
+}
+
+// GetUserExperienceWithTx 在事务中获取用户经验值
+func (d *UserDao) GetUserExperienceWithTx(tx *gorm.DB, userId int) (int, error) {
+	var exp int
+	err := tx.Model(&foundationmodel.User{}).Where("id = ?", userId).Pluck("experience", &exp).Error
+	if err != nil {
+		return 0, metaerror.Wrap(err, "在事务中获取用户经验值失败")
 	}
 	return exp, nil
 }
@@ -420,4 +473,131 @@ func (d *UserDao) UpdateUserLevel(ctx context.Context, userId int, level int) er
 		return metaerror.Wrap(res.Error, "更新用户等级失败")
 	}
 	return nil
+}
+
+// UpdateUserLevelWithTx 在事务中更新用户等级
+func (d *UserDao) UpdateUserLevelWithTx(tx *gorm.DB, userId int, level int) error {
+	res := tx.Model(&foundationmodel.User{}).Where("id = ?", userId).Update("level", level)
+	if res.Error != nil {
+		return metaerror.Wrap(res.Error, "在事务中更新用户等级失败")
+	}
+	return nil
+}
+
+// InsertUserExperience 插入用户经验记录
+func (d *UserDao) InsertUserExperience(ctx context.Context, expRecord *foundationmodel.UserExperience) error {
+	if expRecord == nil {
+		return metaerror.New("experience record is nil")
+	}
+	if err := d.db.WithContext(ctx).Create(expRecord).Error; err != nil {
+		return metaerror.Wrap(err, "insert user experience record")
+	}
+	return nil
+}
+
+// InsertUserExperienceWithTx 在事务中插入用户经验记录
+func (d *UserDao) InsertUserExperienceWithTx(tx *gorm.DB, expRecord *foundationmodel.UserExperience) error {
+	if expRecord == nil {
+		return metaerror.New("experience record is nil")
+	}
+	if err := tx.Create(expRecord).Error; err != nil {
+		return metaerror.Wrap(err, "insert user experience record in transaction")
+	}
+	return nil
+}
+
+// CheckUserExperienceExists 检查用户经验记录是否存在（基于user_id, type, param的唯一约束）
+func (d *UserDao) CheckUserExperienceExists(ctx context.Context, userId int, expType foundationuser.ExperienceType, param string) (bool, error) {
+	var count int64
+	err := d.db.WithContext(ctx).Model(&foundationmodel.UserExperience{}).
+		Where("user_id = ? AND type = ? AND param = ?", userId, expType, param).
+		Count(&count).Error
+	if err != nil {
+		return false, metaerror.Wrap(err, "check user experience exists")
+	}
+	return count > 0, nil
+}
+
+// GetUserExperiences 获取用户的经验记录列表
+func (d *UserDao) GetUserExperiences(ctx context.Context, userId int, limit int) ([]*foundationmodel.UserExperience, error) {
+	var experiences []*foundationmodel.UserExperience
+	db := d.db.WithContext(ctx).Model(&foundationmodel.UserExperience{}).
+		Where("user_id = ?", userId).
+		Order("inserter_time DESC")
+
+	if limit > 0 {
+		db = db.Limit(limit)
+	}
+
+	if err := db.Find(&experiences).Error; err != nil {
+		return nil, metaerror.Wrap(err, "get user experiences")
+	}
+	return experiences, nil
+}
+
+// GetUserExperienceTotal 获取用户的总经验值变化
+func (d *UserDao) GetUserExperienceTotal(ctx context.Context, userId int) (int, error) {
+	var total int
+	err := d.db.WithContext(ctx).Model(&foundationmodel.UserExperience{}).
+		Select("COALESCE(SUM(value), 0) as total").
+		Where("user_id = ?", userId).
+		Scan(&total).Error
+	if err != nil {
+		return 0, metaerror.Wrap(err, "get user experience total")
+	}
+	return total, nil
+}
+
+// AddUserCheckInCount 增加用户签到次数并添加经验值（带防重复签到检查）
+func (d *UserDao) AddUserCheckInCount(ctx context.Context, userId int, checkInCount int, expGain int, param string, nowTime time.Time) (bool, error) {
+	// 检查用户是否已经签到过（基于唯一约束）
+	exists, err := d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeCheckIn, param)
+	if err != nil {
+		return false, metaerror.Wrap(err, "检查用户签到记录失败")
+	}
+	if exists {
+		return true, nil
+	}
+
+	hasDuplicate := false
+
+	err = d.WithTransaction(ctx, func(tx *gorm.DB) error {
+		// 插入经验记录
+		expRecord := foundationmodel.NewUserExperienceBuilder().
+			UserId(userId).
+			Value(expGain).
+			Type(foundationuser.ExperienceTypeCheckIn).
+			Param(param).
+			InserterTime(nowTime).
+			Build()
+		insertErr := d.InsertUserExperienceWithTx(tx, expRecord)
+		if insertErr != nil {
+			// 判断是否是重复插入错误
+			if errors.Is(insertErr, gorm.ErrDuplicatedKey) {
+				hasDuplicate = true
+				return nil
+			}
+			return insertErr
+		}
+
+		// 更新用户签到次数
+		res := tx.Model(&foundationmodel.User{}).Where("id = ?", userId).
+			Updates(map[string]interface{}{
+				"check_in_count": gorm.Expr("check_in_count + ?", checkInCount),
+			})
+		if res.Error != nil {
+			return metaerror.Wrap(res.Error, "更新用户签到次数失败")
+		}
+		if res.RowsAffected == 0 {
+			return metaerror.New("用户不存在")
+		}
+
+		// 更新用户经验值
+		if insertErr := d.AddUserExperienceWithTx(tx, userId, expGain, nowTime); insertErr != nil {
+			return insertErr
+		}
+		return nil
+	})
+
+	return hasDuplicate, err
 }

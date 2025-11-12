@@ -1,6 +1,6 @@
 package weberrorcode
 
-import "meta/error-code"
+import metaerrorcode "meta/error-code"
 
 const (
 	UserNotMatch                         metaerrorcode.ErrorCode = 100001
@@ -46,4 +46,5 @@ const (
 	ContestNotFound                      metaerrorcode.ErrorCode = 100041
 	JudgeApproveCannotLanguage           metaerrorcode.ErrorCode = 100042
 	JudgeApproveCodeTooShort             metaerrorcode.ErrorCode = 100043
+	UserCheckinAlreadyDone               metaerrorcode.ErrorCode = 100044
 )
