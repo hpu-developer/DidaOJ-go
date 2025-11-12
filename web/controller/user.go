@@ -877,7 +877,7 @@ func (c *UserController) GetCheckinToday(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
-func (c *UserController) in(ctx *gin.Context) {
+func (c *UserController) PostCheckin(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {
 		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
