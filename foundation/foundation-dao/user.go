@@ -413,36 +413,40 @@ func (d *UserDao) PostLoginLog(ctx context.Context, userId int, nowTime time.Tim
 	return nil
 }
 
-// AddUserExperience 更新用户经验值
-func (d *UserDao) AddUserExperience(ctx context.Context, userId int, expGain int, nowTime time.Time) error {
-	// 使用原子操作更新经验值，直接在数据库层面增加
-	res := d.db.WithContext(ctx).Model(&foundationmodel.User{}).Where("id = ?", userId).
-		Updates(map[string]interface{}{
-			"experience":  gorm.Expr("experience + ?", expGain),
-			"modify_time": nowTime,
-		})
-	if res.Error != nil {
-		return metaerror.Wrap(res.Error, "更新用户经验值失败")
-	}
-	if res.RowsAffected == 0 {
-		return metaerror.New("用户不存在")
-	}
-	return nil
-}
-
-// AddUserExperienceWithTx 在事务中更新用户经验值
+// AddUserExperienceWithTx 在事务中更新用户经验值并自动更新等级
+// 使用数据库行级锁确保在高并发环境下的数据一致性
 func (d *UserDao) AddUserExperienceWithTx(tx *gorm.DB, userId int, expGain int, nowTime time.Time) error {
-	res := tx.Model(&foundationmodel.User{}).Where("id = ?", userId).
+	// 使用FOR UPDATE获取行级锁，确保其他事务无法同时修改该记录
+	var user foundationmodel.User
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Model(&foundationmodel.User{}).
+		Where("id = ?", userId).
+		First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return metaerror.New("用户不存在")
+		}
+		return metaerror.Wrap(err, "获取用户信息失败")
+	}
+
+	// 计算更新后的经验值
+	updatedExp := user.Experience + expGain
+
+	// 计算新等级（使用简化公式：等级 = 经验值 / 100）
+	newLevel := foundationuser.GetLevelByExperience(updatedExp)
+
+	// 更新用户经验值和等级
+	res := tx.Model(&foundationmodel.User{}).
+		Where("id = ?", userId). // 由于已获取行级锁，不需要额外的乐观锁条件
 		Updates(map[string]interface{}{
-			"experience":  gorm.Expr("experience + ?", expGain),
+			"experience":  updatedExp,
+			"level":       newLevel,
 			"modify_time": nowTime,
 		})
+
 	if res.Error != nil {
-		return metaerror.Wrap(res.Error, "在事务中更新用户经验值失败")
+		return metaerror.Wrap(res.Error, "更新用户经验值和等级失败")
 	}
-	if res.RowsAffected == 0 {
-		return metaerror.New("用户不存在")
-	}
+
 	return nil
 }
 
