@@ -4,9 +4,7 @@ package foundationuser
 type CoinType int
 
 const (
-	CoinTypeUnknown  CoinType = 0
-	CoinTypeSystem   CoinType = 1
-	CoinTypeCheckIn  CoinType = 2
-	CoinTypeReward   CoinType = 3
-	CoinTypePurchase CoinType = 4
+	CoinTypeUnknown CoinType = 0
+	CoinTypeSystem  CoinType = 1
+	CoinTypeCheckIn CoinType = 2
 )
