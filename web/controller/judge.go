@@ -8,6 +8,7 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationservice "foundation/foundation-service"
+	foundationuser "foundation/foundation-user"
 	foundationview "foundation/foundation-view"
 	"log/slog"
 	metacontroller "meta/controller"
@@ -608,4 +609,50 @@ func (c *JudgeController) GetReward(ctx *gin.Context) {
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, rewardProblems)
+}
+
+// PostReward 为用户发放奖励经验值
+func (c *JudgeController) PostReward(ctx *gin.Context) {
+	// 获取当前用户ID
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+
+	// 获取当前时间
+	nowTime := metatime.GetTimeNow()
+
+	// 添加奖励经验值（每天只能领取一次）
+	hasDuplicate, level, experience, err := foundationservice.GetUserService().AddUserRewardExperience(ctx, userId, nowTime)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err, nil)
+		return
+	}
+
+	// 如果已经领取过奖励
+	if hasDuplicate {
+		metaresponse.NewResponse(ctx, weberrorcode.UserRewardAlreadyDone, nil)
+		return
+	}
+
+	// 计算当前等级的经验值（当前总经验 - 上一等级的总经验）
+	// 计算当前等级升级所需的经验值
+	experienceUpgrade := foundationuser.GetExperienceForUpgrade(level)
+
+	// 计算当前等级已获得的经验值
+	experienceCurrentLevel := experience
+	for i := 1; i < level; i++ {
+		experienceCurrentLevel -= foundationuser.GetExperienceForUpgrade(i)
+	}
+
+	// 构建响应数据
+	responseData := map[string]interface{}{
+		"has_duplicate":            hasDuplicate,
+		"level":                    level,
+		"experience_current_level": experienceCurrentLevel,
+		"experience_upgrade":       experienceUpgrade,
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	foundationenum "foundation/foundation-enum"
+	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationrequest "foundation/foundation-request"
 	foundationuser "foundation/foundation-user"
@@ -415,7 +416,7 @@ func (d *UserDao) PostLoginLog(ctx context.Context, userId int, nowTime time.Tim
 
 // AddUserExperienceWithTx 在事务中更新用户经验值并自动更新等级
 // 使用数据库行级锁确保在高并发环境下的数据一致性
-func (d *UserDao) AddUserExperienceWithTx(tx *gorm.DB, userId int, expGain int, nowTime time.Time) error {
+func (d *UserDao) AddUserExperienceWithTx(tx *gorm.DB, userId int, expGain int, nowTime time.Time) (int, int, error) {
 	// 使用FOR UPDATE获取行级锁，确保其他事务无法同时修改该记录
 	var user foundationmodel.User
 	if err := tx.Set("gorm:query_option", "FOR UPDATE").
@@ -423,9 +424,9 @@ func (d *UserDao) AddUserExperienceWithTx(tx *gorm.DB, userId int, expGain int, 
 		Where("id = ?", userId).
 		First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return metaerror.New("用户不存在")
+			return 0, 0, metaerror.New("用户不存在")
 		}
-		return metaerror.Wrap(err, "获取用户信息失败")
+		return 0, 0, metaerror.Wrap(err, "获取用户信息失败")
 	}
 
 	// 计算更新后的经验值
@@ -444,10 +445,10 @@ func (d *UserDao) AddUserExperienceWithTx(tx *gorm.DB, userId int, expGain int, 
 		})
 
 	if res.Error != nil {
-		return metaerror.Wrap(res.Error, "更新用户经验值和等级失败")
+		return 0, 0, metaerror.Wrap(res.Error, "更新用户经验值和等级失败")
 	}
 
-	return nil
+	return newLevel, updatedExp, nil
 }
 
 // GetUserExperience 获取用户经验值
@@ -520,6 +521,97 @@ func (d *UserDao) CheckUserExperienceExists(ctx context.Context, userId int, exp
 		return false, metaerror.Wrap(err, "check user experience exists")
 	}
 	return count > 0, nil
+}
+
+// GetUserUnrewardedACProblems 获取用户尚未获得经验的AC题目
+func (d *UserDao) GetUserUnrewardedACProblems(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
+	var results []struct {
+		ProblemId int    `gorm:"column:problem_id"`
+		ProblemKey string `gorm:"column:key"`
+	}
+	
+	// 使用子查询获取用户已AC的题目ID
+	acProblemIds := d.db.Table("judge_job").
+		Select("DISTINCT problem_id").
+		Where("inserter = ? AND status = ?", userId, foundationjudge.JudgeStatusAC)
+	
+	// 使用LEFT JOIN查询用户已AC但未获得经验的题目
+	err := d.db.WithContext(ctx).
+		Table("problem").
+		Select("id AS problem_id, key").
+		Where("id IN (?)", acProblemIds).
+		Joins("LEFT JOIN user_experience ON user_experience.user_id = ? AND user_experience.type = ? AND user_experience.param = CAST(problem.id AS VARCHAR)", userId, foundationuser.ExperienceTypeAccepted).
+		Where("user_experience.user_id IS NULL").
+		Scan(&results).Error
+	
+	if err != nil {
+		return nil, metaerror.Wrap(err, "get user unrewarded ac problems")
+	}
+	
+	// 转换为ProblemViewKey结构
+	var problems []*foundationview.ProblemViewKey
+	for _, r := range results {
+		problems = append(problems, &foundationview.ProblemViewKey{
+			Id:  r.ProblemId,
+			Key: r.ProblemKey,
+		})
+	}
+	
+	return problems, nil
+}
+
+// AddUserRewardExperience 为用户添加奖励经验值（带防重复检查）
+func (d *UserDao) AddUserRewardExperience(ctx context.Context, userId int, expGain int, nowTime time.Time) (bool, int, int, error) {
+	// 检查用户是否已经领取过奖励（基于唯一约束）
+	// 使用当天日期作为param，确保每天只能领取一次
+	param := nowTime.Format("2006-01-02")
+	exists, err := d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeReward, param)
+	if err != nil {
+		return false, 0, 0, metaerror.Wrap(err, "检查用户奖励记录失败")
+	}
+	if exists {
+		return true, 0, 0, nil
+	}
+
+	var newLevel, newExp int
+	// 使用事务确保数据一致性
+	err = d.WithTransaction(ctx, func(tx *gorm.DB) error {
+		// 插入经验记录
+		expRecord := foundationmodel.NewUserExperienceBuilder().
+			UserId(userId).
+			Value(expGain).
+			Type(foundationuser.ExperienceTypeReward).
+			Param(param).
+			InserterTime(nowTime).
+			Build()
+		insertErr := d.InsertUserExperienceWithTx(tx, expRecord)
+		if insertErr != nil {
+			// 判断是否是重复插入错误
+			if errors.Is(insertErr, gorm.ErrDuplicatedKey) {
+				return nil
+			}
+			return insertErr
+		}
+
+		// 更新用户经验值和等级
+		var updateErr error
+		newLevel, newExp, updateErr = d.AddUserExperienceWithTx(tx, userId, expGain, nowTime)
+		if updateErr != nil {
+			return updateErr
+		}
+		return nil
+	})
+
+	// 如果事务成功执行，检查是否存在重复记录（可能在事务执行期间有其他请求同时插入）
+	if err == nil {
+		exists, err = d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeReward, param)
+		if err != nil {
+			return false, 0, 0, metaerror.Wrap(err, "检查用户奖励记录失败")
+		}
+		return exists, newLevel, newExp, nil
+	}
+
+	return false, 0, 0, err
 }
 
 // GetUserExperiences 获取用户的经验记录列表
@@ -621,7 +713,8 @@ func (d *UserDao) AddUserCheckInCount(ctx context.Context, userId int, checkInCo
 		}
 
 		// 更新用户经验值
-		if insertErr := d.AddUserExperienceWithTx(tx, userId, expGain, nowTime); insertErr != nil {
+		_, _, insertErr = d.AddUserExperienceWithTx(tx, userId, expGain, nowTime)
+		if insertErr != nil {
 			return insertErr
 		}
 		return nil

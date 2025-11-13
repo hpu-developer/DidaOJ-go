@@ -47,4 +47,5 @@ const (
 	JudgeApproveCannotLanguage           metaerrorcode.ErrorCode = 100042
 	JudgeApproveCodeTooShort             metaerrorcode.ErrorCode = 100043
 	UserCheckinAlreadyDone               metaerrorcode.ErrorCode = 100044
+	UserRewardAlreadyDone                metaerrorcode.ErrorCode = 100045
 )
