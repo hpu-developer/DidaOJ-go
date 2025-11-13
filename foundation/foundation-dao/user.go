@@ -634,8 +634,8 @@ func (d *UserDao) GetUserUnrewardedACProblems(ctx context.Context, userId int) (
 	return problems, nil
 }
 
-// AddUserRewardExperience 为用户添加奖励经验值（按问题，带防重复检查）
-func (d *UserDao) AddUserRewardExperience(ctx context.Context, userId int, problemId int, expGain int, nowTime time.Time) (bool, int, int, error) {
+// AddUserAcceptedExperience 为用户添加奖励经验值（按问题，带防重复检查）
+func (d *UserDao) AddUserAcceptedExperience(ctx context.Context, userId int, problemId int, expGain int, nowTime time.Time) (bool, int, int, error) {
 	// 检查用户是否已经领取过该问题的奖励（基于唯一约束）
 	param := fmt.Sprintf("%d", problemId)
 	exists, err := d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeAccepted, param)
@@ -675,16 +675,11 @@ func (d *UserDao) AddUserRewardExperience(ctx context.Context, userId int, probl
 		return nil
 	})
 
-	// 如果事务成功执行，检查是否存在重复记录（可能在事务执行期间有其他请求同时插入）
-	if err == nil {
-		exists, err = d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeAccepted, param)
-		if err != nil {
-			return false, 0, 0, metaerror.Wrap(err, "检查用户奖励记录失败")
-		}
-		return exists, newLevel, newExp, nil
+	if err != nil {
+		return false, 0, 0, metaerror.Wrap(err, "在事务中添加用户奖励经验值失败")
 	}
 
-	return false, 0, 0, err
+	return false, newLevel, newExp, nil
 }
 
 // GetUserExperiences 获取用户的经验记录列表

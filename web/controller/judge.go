@@ -644,7 +644,7 @@ func (c *JudgeController) PostReward(ctx *gin.Context) {
 	nowTime := metatime.GetTimeNow()
 
 	// 添加奖励经验值（每个问题只能领取一次）
-	hasDuplicate, level, experience, err := foundationservice.GetUserService().AddUserRewardExperience(ctx, userId, request.ProblemId, nowTime)
+	hasDuplicate, level, experience, err := foundationservice.GetUserService().AddUserAcceptedExperience(ctx, userId, request.ProblemId, nowTime)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err, nil)
 		return
@@ -652,7 +652,7 @@ func (c *JudgeController) PostReward(ctx *gin.Context) {
 
 	// 如果已经领取过奖励
 	if hasDuplicate {
-		metaresponse.NewResponse(ctx, weberrorcode.UserRewardAlreadyDone, nil)
+		metaresponse.NewResponse(ctx, weberrorcode.UserRewardAlreadyDone, true)
 		return
 	}
 
@@ -668,7 +668,6 @@ func (c *JudgeController) PostReward(ctx *gin.Context) {
 
 	// 构建响应数据
 	responseData := map[string]interface{}{
-		"has_duplicate":            hasDuplicate,
 		"level":                    level,
 		"experience_current_level": experienceCurrentLevel,
 		"experience_upgrade":       experienceUpgrade,

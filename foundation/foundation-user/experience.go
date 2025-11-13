@@ -23,7 +23,6 @@ const (
 	ExperienceTypeSystem   ExperienceType = 1
 	ExperienceTypeCheckIn  ExperienceType = 2
 	ExperienceTypeAccepted ExperienceType = 3
-	ExperienceTypeReward   ExperienceType = 4
 )
 
 // GetExperienceForUpgrade 计算指定等级升级所需的经验
