@@ -11,10 +11,10 @@ import (
 	foundationview "foundation/foundation-view"
 	"log/slog"
 	metacontroller "meta/controller"
-	"meta/error-code"
+	metaerrorcode "meta/error-code"
 	metapanic "meta/meta-panic"
 	metaredis "meta/meta-redis"
-	"meta/meta-response"
+	metaresponse "meta/meta-response"
 	metatime "meta/meta-time"
 	"strconv"
 	"time"
@@ -589,4 +589,23 @@ func (c *JudgeController) PostRejudgeAll(ctx *gin.Context) {
 	}
 
 	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
+// GetJudgeReward 获取用户已通过但未获得经验的题目列表
+func (c *JudgeController) GetReward(ctx *gin.Context) {
+	// 获取当前用户ID
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+
+	// 获取用户尚未获得经验的AC题目（优化为单次数据库查询）
+	rewardProblems, err := foundationservice.GetUserService().GetUserUnrewardedACProblems(ctx, userId)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, rewardProblems)
 }

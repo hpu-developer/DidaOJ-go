@@ -19,9 +19,10 @@ package foundationuser
 type ExperienceType int
 
 const (
-	ExperienceTypeUnknown ExperienceType = 0
-	ExperienceTypeSystem  ExperienceType = 1
-	ExperienceTypeCheckIn ExperienceType = 2
+	ExperienceTypeUnknown  ExperienceType = 0
+	ExperienceTypeSystem   ExperienceType = 1
+	ExperienceTypeCheckIn  ExperienceType = 2
+	ExperienceTypeAccepted ExperienceType = 3
 )
 
 // GetExperienceForUpgrade 计算指定等级升级所需的经验

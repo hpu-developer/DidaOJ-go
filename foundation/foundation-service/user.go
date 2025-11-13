@@ -20,6 +20,7 @@ import (
 	foundationdao "foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	foundationrequest "foundation/foundation-request"
+	foundationuser "foundation/foundation-user"
 	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
 	"meta/singleton"
@@ -342,4 +343,14 @@ func (s *UserService) GetCheckinCount(ctx context.Context, date string) (int, er
 // IsUserCheckedIn 检查用户在指定日期是否已签到
 func (s *UserService) IsUserCheckedIn(ctx context.Context, userId int, date string) (bool, error) {
 	return foundationdao.GetUserDao().IsUserCheckedIn(ctx, userId, date)
+}
+
+// CheckUserExperienceExists 检查用户是否已获得特定类型和参数的经验
+func (s *UserService) CheckUserExperienceExists(ctx context.Context, userId int, expType foundationuser.ExperienceType, param string) (bool, error) {
+	return foundationdao.GetUserDao().CheckUserExperienceExists(ctx, userId, expType, param)
+}
+
+// GetUserUnrewardedACProblems 获取用户尚未获得经验的AC题目
+func (s *UserService) GetUserUnrewardedACProblems(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
+	return foundationdao.GetUserDao().GetUserUnrewardedACProblems(ctx, userId)
 }
