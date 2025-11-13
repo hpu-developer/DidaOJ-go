@@ -845,13 +845,6 @@ func (c *UserController) GetCheckinToday(ctx *gin.Context) {
 	nowTime := metatime.GetTimeNow()
 	today := nowTime.Format("2006-01-02")
 
-	// 查询今日签到人数
-	count, err := foundationservice.GetUserService().GetCheckinCount(ctx, today)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-
 	// 默认签到状态为false
 	checkIn := false
 
@@ -859,6 +852,16 @@ func (c *UserController) GetCheckinToday(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err == nil {
 		checkIn, err = foundationservice.GetUserService().IsUserCheckedIn(ctx, userId, today)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+	}
+
+	count := -1
+	if checkIn {
+		// 查询今日签到人数
+		count, err = foundationservice.GetUserService().GetCheckinCount(ctx, today)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
