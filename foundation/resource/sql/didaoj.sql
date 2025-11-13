@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 28/10/2025 00:46:11
+ Date: 13/11/2025 10:37:27
 */
 
 
@@ -120,6 +120,28 @@ CACHE 1;
 -- ----------------------------
 DROP SEQUENCE IF EXISTS "didaoj"."user_id_seq";
 CREATE SEQUENCE "didaoj"."user_id_seq" 
+INCREMENT 1
+MINVALUE  1
+MAXVALUE 9223372036854775807
+START 1
+CACHE 1;
+
+-- ----------------------------
+-- Sequence structure for user_login_id_seq
+-- ----------------------------
+DROP SEQUENCE IF EXISTS "didaoj"."user_login_id_seq";
+CREATE SEQUENCE "didaoj"."user_login_id_seq" 
+INCREMENT 1
+MINVALUE  1
+MAXVALUE 9223372036854775807
+START 1
+CACHE 1;
+
+-- ----------------------------
+-- Sequence structure for user_role_id_seq
+-- ----------------------------
+DROP SEQUENCE IF EXISTS "didaoj"."user_role_id_seq";
+CREATE SEQUENCE "didaoj"."user_role_id_seq" 
 INCREMENT 1
 MINVALUE  1
 MAXVALUE 9223372036854775807
@@ -395,7 +417,7 @@ CREATE TABLE "didaoj"."problem" (
   "key" varchar(15) COLLATE "pg_catalog"."default",
   "title" varchar(50) COLLATE "pg_catalog"."default" NOT NULL,
   "description" text COLLATE "pg_catalog"."default" NOT NULL,
-  "source" varchar(250) COLLATE "pg_catalog"."default",
+  "source" varchar(300) COLLATE "pg_catalog"."default",
   "time_limit" int8 NOT NULL,
   "memory_limit" int8 NOT NULL,
   "judge_type" int2 NOT NULL,
@@ -514,7 +536,36 @@ CREATE TABLE "didaoj"."user" (
   "insert_time" timestamptz(6) NOT NULL,
   "modify_time" timestamptz(6) NOT NULL,
   "accept" int8 NOT NULL,
-  "attempt" int8 NOT NULL
+  "attempt" int8 NOT NULL,
+  "blog" varchar(100) COLLATE "pg_catalog"."default",
+  "level" int4,
+  "experience" int4
+)
+;
+
+-- ----------------------------
+-- Table structure for user_experience
+-- ----------------------------
+DROP TABLE IF EXISTS "didaoj"."user_experience";
+CREATE TABLE "didaoj"."user_experience" (
+  "user_id" int8,
+  "value" int4,
+  "inserter_time" timestamp(6),
+  "type" int4,
+  "param" varchar(255) COLLATE "pg_catalog"."default"
+)
+;
+
+-- ----------------------------
+-- Table structure for user_login
+-- ----------------------------
+DROP TABLE IF EXISTS "didaoj"."user_login";
+CREATE TABLE "didaoj"."user_login" (
+  "id" int8 NOT NULL DEFAULT nextval('user_login_id_seq'::regclass),
+  "user_id" int4 NOT NULL,
+  "insert_time" timestamptz(6) NOT NULL,
+  "ip" inet NOT NULL,
+  "user_agent" text COLLATE "pg_catalog"."default"
 )
 ;
 
@@ -523,7 +574,7 @@ CREATE TABLE "didaoj"."user" (
 -- ----------------------------
 DROP TABLE IF EXISTS "didaoj"."user_role";
 CREATE TABLE "didaoj"."user_role" (
-  "id" int8 NOT NULL,
+  "id" int8 NOT NULL DEFAULT nextval('user_role_id_seq'::regclass),
   "role_id" varchar(10) COLLATE "pg_catalog"."default" NOT NULL
 )
 ;
@@ -597,6 +648,18 @@ SELECT setval('"didaoj"."tag_id_seq"', 1, false);
 ALTER SEQUENCE "didaoj"."user_id_seq"
 OWNED BY "didaoj"."user"."id";
 SELECT setval('"didaoj"."user_id_seq"', 1, false);
+
+-- ----------------------------
+-- Alter sequences owned by
+-- ----------------------------
+ALTER SEQUENCE "didaoj"."user_login_id_seq"
+OWNED BY "didaoj"."user_login"."id";
+SELECT setval('"didaoj"."user_login_id_seq"', 1, true);
+
+-- ----------------------------
+-- Alter sequences owned by
+-- ----------------------------
+SELECT setval('"didaoj"."user_role_id_seq"', 1, true);
 
 -- ----------------------------
 -- Primary Key structure for table collection
@@ -845,6 +908,31 @@ ALTER TABLE "didaoj"."user" ADD CONSTRAINT "user_pk_2" UNIQUE ("username");
 ALTER TABLE "didaoj"."user" ADD CONSTRAINT "user_pk" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Uniques structure for table user_experience
+-- ----------------------------
+ALTER TABLE "didaoj"."user_experience" ADD CONSTRAINT "user_experience_pk" UNIQUE ("type", "user_id", "param");
+
+-- ----------------------------
+-- Indexes structure for table user_login
+-- ----------------------------
+CREATE INDEX "user_login_insert_time_index" ON "didaoj"."user_login" USING btree (
+  "insert_time" "pg_catalog"."timestamptz_ops" ASC NULLS LAST
+);
+CREATE INDEX "user_login_user_id_index" ON "didaoj"."user_login" USING btree (
+  "user_id" "pg_catalog"."int4_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table user_login
+-- ----------------------------
+ALTER TABLE "didaoj"."user_login" ADD CONSTRAINT "user_login_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
 -- Primary Key structure for table user_role
 -- ----------------------------
 ALTER TABLE "didaoj"."user_role" ADD CONSTRAINT "user_role_pk" PRIMARY KEY ("role_id", "id");
+
+-- ----------------------------
+-- Foreign Keys structure for table user_experience
+-- ----------------------------
+ALTER TABLE "didaoj"."user_experience" ADD CONSTRAINT "user_experience_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "didaoj"."user" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
