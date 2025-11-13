@@ -887,16 +887,16 @@ func (c *UserController) PostCheckin(ctx *gin.Context) {
 		return
 	}
 	nowTime := metatime.GetTimeNow()
-	hasDuplicate, err := foundationservice.GetUserService().AddExperienceForCheckIn(ctx, userId, nowTime)
+	award, err := foundationservice.GetUserService().AddExperienceForCheckIn(ctx, userId, nowTime)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err, nil)
 		return
 	}
-	if hasDuplicate {
-		metaresponse.NewResponse(ctx, weberrorcode.UserCheckinAlreadyDone, nil)
+	if award == nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserCheckinAlreadyDone, true)
 		return
 	}
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, hasDuplicate)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, award)
 }
 
 func (c *UserController) PostLogin(ctx *gin.Context) {

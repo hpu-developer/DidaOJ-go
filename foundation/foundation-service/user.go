@@ -321,14 +321,25 @@ func (s *UserService) CalculateUserLevel(experience int) int {
 	return int(math.Floor(level)) + 1
 }
 
-// AddExperienceForCheckIn 为签到添加经验值
-func (s *UserService) AddExperienceForCheckIn(ctx context.Context, userId int, nowTime time.Time) (bool, error) {
-	// 签到获得20经验
+// AddExperienceForCheckIn 为签到添加经验值和金币
+func (s *UserService) AddExperienceForCheckIn(ctx context.Context, userId int, nowTime time.Time) (*foundationuser.Award, error) {
+	// 签到获得20经验和1金币
 	expGain := 20
+	coinGain := 1
 	// 使用年月日作为参数，确保每天只能签到一次
 	param := nowTime.Format("2006-01-02")
-
-	return foundationdao.GetUserDao().AddUserCheckInCount(ctx, userId, 1, expGain, param, nowTime)
+	hasDuplicate, err := foundationdao.GetUserDao().AddUserCheckInCount(ctx, userId, 1, expGain, coinGain, param, nowTime)
+	if err != nil {
+		return nil, err
+	}
+	if hasDuplicate {
+		return nil, nil
+	}
+	award := &foundationuser.Award{
+		Experience: expGain,
+		Coin:       coinGain,
+	}
+	return award, nil
 }
 
 func (s *UserService) PostLoginLog(ctx context.Context, userId int, nowTime time.Time, ip string, agent string) error {

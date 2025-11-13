@@ -28,6 +28,7 @@ type User struct {
 	Attempt      int                       `json:"attempt,omitempty"`
 	Level        int                       `json:"level,omitempty" gorm:"comment:用户等级"`
 	Experience   int                       `json:"experience,omitempty" gorm:"comment:用户经验值"`
+	Coin         int                       `json:"coin,omitempty" gorm:"comment:用户金币"`
 }
 
 func (u *User) TableName() string {
@@ -144,6 +145,11 @@ func (b *UserBuilder) Level(level int) *UserBuilder {
 
 func (b *UserBuilder) Experience(experience int) *UserBuilder {
 	b.item.Experience = experience
+	return b
+}
+
+func (b *UserBuilder) Coin(coin int) *UserBuilder {
+	b.item.Coin = coin
 	return b
 }
 

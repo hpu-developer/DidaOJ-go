@@ -511,6 +511,79 @@ func (d *UserDao) InsertUserExperienceWithTx(tx *gorm.DB, expRecord *foundationm
 	return nil
 }
 
+// AddUserCoinWithTx 在事务中更新用户金币
+// 使用数据库行级锁确保在高并发环境下的数据一致性
+func (d *UserDao) AddUserCoinWithTx(tx *gorm.DB, userId int, coinGain int, nowTime time.Time) (int, error) {
+	// 检查用户是否存在
+	var existingCoin int
+	if err := tx.Model(&foundationmodel.User{}).Where("id = ?", userId).Pluck("coin", &existingCoin).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, metaerror.New("用户不存在")
+		}
+		return 0, metaerror.Wrap(err, "获取用户金币失败")
+	}
+
+	// 检查金币是否会变为负数
+	if existingCoin+coinGain < 0 {
+		return 0, metaerror.New("金币不足")
+	}
+
+	// 直接在SQL中使用+操作符更新金币值
+	res := tx.Model(&foundationmodel.User{}).
+		Where("id = ?", userId).
+		Update("coin", gorm.Expr("coin + ?", coinGain)).
+		Update("modify_time", nowTime)
+
+	if res.Error != nil {
+		return 0, metaerror.Wrap(res.Error, "更新用户金币失败")
+	}
+
+	// 返回更新后的金币值
+	return existingCoin + coinGain, nil
+}
+
+// GetUserCoin 获取用户金币
+func (d *UserDao) GetUserCoin(ctx context.Context, userId int) (int, error) {
+	var coin int
+	err := d.db.WithContext(ctx).Model(&foundationmodel.User{}).Where("id = ?", userId).Pluck("coin", &coin).Error
+	if err != nil {
+		return 0, metaerror.Wrap(err, "获取用户金币失败")
+	}
+	return coin, nil
+}
+
+// GetUserCoinWithTx 在事务中获取用户金币
+func (d *UserDao) GetUserCoinWithTx(tx *gorm.DB, userId int) (int, error) {
+	var coin int
+	err := tx.Model(&foundationmodel.User{}).Where("id = ?", userId).Pluck("coin", &coin).Error
+	if err != nil {
+		return 0, metaerror.Wrap(err, "在事务中获取用户金币失败")
+	}
+	return coin, nil
+}
+
+// InsertUserCoin 插入用户金币记录
+func (d *UserDao) InsertUserCoin(ctx context.Context, coinRecord *foundationmodel.UserCoin) error {
+	if coinRecord == nil {
+		return metaerror.New("coin record is nil")
+	}
+	if err := d.db.WithContext(ctx).Create(coinRecord).Error; err != nil {
+		return metaerror.Wrap(err, "insert user coin record")
+	}
+	return nil
+}
+
+// InsertUserCoinWithTx 在事务中插入用户金币记录
+func (d *UserDao) InsertUserCoinWithTx(tx *gorm.DB, coinRecord *foundationmodel.UserCoin) error {
+	if coinRecord == nil {
+		return metaerror.New("coin record is nil")
+	}
+	if err := tx.Create(coinRecord).Error; err != nil {
+		return metaerror.Wrap(err, "insert user coin record in transaction")
+	}
+	return nil
+}
+
 // CheckUserExperienceExists 检查用户经验记录是否存在（基于user_id, type, param的唯一约束）
 func (d *UserDao) CheckUserExperienceExists(ctx context.Context, userId int, expType foundationuser.ExperienceType, param string) (bool, error) {
 	var count int64
@@ -526,15 +599,15 @@ func (d *UserDao) CheckUserExperienceExists(ctx context.Context, userId int, exp
 // GetUserUnrewardedACProblems 获取用户尚未获得经验的AC题目
 func (d *UserDao) GetUserUnrewardedACProblems(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
 	var results []struct {
-		ProblemId int    `gorm:"column:problem_id"`
+		ProblemId  int    `gorm:"column:problem_id"`
 		ProblemKey string `gorm:"column:key"`
 	}
-	
+
 	// 使用子查询获取用户已AC的题目ID
 	acProblemIds := d.db.Table("judge_job").
 		Select("DISTINCT problem_id").
 		Where("inserter = ? AND status = ?", userId, foundationjudge.JudgeStatusAC)
-	
+
 	// 使用LEFT JOIN查询用户已AC但未获得经验的题目
 	err := d.db.WithContext(ctx).
 		Table("problem").
@@ -543,11 +616,11 @@ func (d *UserDao) GetUserUnrewardedACProblems(ctx context.Context, userId int) (
 		Joins("LEFT JOIN user_experience ON user_experience.user_id = ? AND user_experience.type = ? AND user_experience.param = CAST(problem.id AS VARCHAR)", userId, foundationuser.ExperienceTypeAccepted).
 		Where("user_experience.user_id IS NULL").
 		Scan(&results).Error
-	
+
 	if err != nil {
 		return nil, metaerror.Wrap(err, "get user unrewarded ac problems")
 	}
-	
+
 	// 转换为ProblemViewKey结构
 	var problems []*foundationview.ProblemViewKey
 	for _, r := range results {
@@ -556,7 +629,7 @@ func (d *UserDao) GetUserUnrewardedACProblems(ctx context.Context, userId int) (
 			Key: r.ProblemKey,
 		})
 	}
-	
+
 	return problems, nil
 }
 
@@ -668,8 +741,8 @@ func (d *UserDao) IsUserCheckedIn(ctx context.Context, userId int, date string) 
 	return count > 0, nil
 }
 
-// AddUserCheckInCount 增加用户签到次数并添加经验值（带防重复签到检查）
-func (d *UserDao) AddUserCheckInCount(ctx context.Context, userId int, checkInCount int, expGain int, param string, nowTime time.Time) (bool, error) {
+// AddUserCheckInCount 增加用户签到次数并添加经验值和金币（带防重复签到检查）
+func (d *UserDao) AddUserCheckInCount(ctx context.Context, userId int, checkInCount int, expGain int, coinGain int, param string, nowTime time.Time) (bool, error) {
 	// 检查用户是否已经签到过（基于唯一约束）
 	exists, err := d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeCheckIn, param)
 	if err != nil {
@@ -700,6 +773,24 @@ func (d *UserDao) AddUserCheckInCount(ctx context.Context, userId int, checkInCo
 			return insertErr
 		}
 
+		// 插入金币记录
+		coinRecord := foundationmodel.NewUserCoinBuilder().
+			UserId(userId).
+			Value(coinGain).
+			Type(foundationuser.CoinTypeCheckIn).
+			Param(param).
+			InserterTime(nowTime).
+			Build()
+		insertErr = d.InsertUserCoinWithTx(tx, coinRecord)
+		if insertErr != nil {
+			// 判断是否是重复插入错误
+			if errors.Is(insertErr, gorm.ErrDuplicatedKey) {
+				hasDuplicate = true
+				return nil
+			}
+			return insertErr
+		}
+
 		// 更新用户签到次数
 		res := tx.Model(&foundationmodel.User{}).Where("id = ?", userId).
 			Updates(map[string]interface{}{
@@ -714,6 +805,12 @@ func (d *UserDao) AddUserCheckInCount(ctx context.Context, userId int, checkInCo
 
 		// 更新用户经验值
 		_, _, insertErr = d.AddUserExperienceWithTx(tx, userId, expGain, nowTime)
+		if insertErr != nil {
+			return insertErr
+		}
+
+		// 更新用户金币
+		_, insertErr = d.AddUserCoinWithTx(tx, userId, coinGain, nowTime)
 		if insertErr != nil {
 			return insertErr
 		}
