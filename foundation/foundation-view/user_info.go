@@ -37,6 +37,7 @@ type UserInfo struct {
 	Attempt      int                       `json:"attempt,omitempty"`
 	Level        int                       `json:"level,omitempty" gorm:"comment:用户等级"`
 	Experience   int                       `json:"experience,omitempty" gorm:"comment:用户经验值"`
+	Coin         int                       `json:"coin,omitempty" gorm:"comment:用户金币"`
 
 	ExperienceUpgrade int `json:"experience_upgrade,omitempty" gorm:"-;comment:当前等级升级所需总经验"`
 	ExperienceCurrentLevel     int `json:"experience_current_level,omitempty" gorm:"-;comment:当前等级段已积攒经验"`

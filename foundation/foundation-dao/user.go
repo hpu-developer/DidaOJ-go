@@ -133,9 +133,9 @@ func (d *UserDao) GetInfoByUsername(ctx context.Context, username string) (*foun
 		Select(
 			`id, username, nickname, real_name, 
 email, gender, number, slogan, organization, qq, blog,
-vjudge_id, github, codeforces, 
+			vjudge_id, github, codeforces, 
 check_in_count, insert_time, modify_time, accept, attempt,
-level, experience`,
+			level, experience, coin`,
 		).
 		Where("LOWER(username) = LOWER(?)", username).
 		First(&userInfo).Error
