@@ -34,6 +34,11 @@ func GetJudgeService() *JudgeService {
 	)
 }
 
+// CheckUserProblemAC 检查用户是否通过了某个问题
+func (s *JudgeService) CheckUserProblemAC(ctx context.Context, userId int, problemId int) (bool, error) {
+	return foundationdao.GetJudgeJobDao().CheckUserProblemAC(ctx, userId, problemId)
+}
+
 func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 	int,
 	bool, // 是否具有查看权限

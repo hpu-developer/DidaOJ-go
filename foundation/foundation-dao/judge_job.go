@@ -299,6 +299,18 @@ func (d *JudgeJobDao) GetProblemAttemptStatusByKey(
 	return statusMap, nil
 }
 
+// CheckUserProblemAC 检查用户是否通过了某个问题
+func (d *JudgeJobDao) CheckUserProblemAC(ctx context.Context, userId int, problemId int) (bool, error) {
+	var count int64
+	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).
+		Where("inserter = ? AND problem_id = ? AND status = ?", userId, problemId, foundationjudge.JudgeStatusAC).
+		Count(&count).Error
+	if err != nil {
+		return false, metaerror.Wrap(err, "检查用户是否通过该问题失败")
+	}
+	return count > 0, nil
+}
+
 func (d *JudgeJobDao) GetUserAcProblems(ctx context.Context, userId int) ([]*foundationview.ProblemViewKey, error) {
 	var problemIds []*foundationview.ProblemViewKey
 	err := d.db.WithContext(ctx).Model(&foundationmodel.JudgeJob{}).

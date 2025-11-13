@@ -611,7 +611,7 @@ func (c *JudgeController) GetReward(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, rewardProblems)
 }
 
-// PostReward 为用户发放奖励经验值
+// PostReward 为用户发放奖励经验值（按问题）
 func (c *JudgeController) PostReward(ctx *gin.Context) {
 	// 获取当前用户ID
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
@@ -620,11 +620,31 @@ func (c *JudgeController) PostReward(ctx *gin.Context) {
 		return
 	}
 
+	// 获取问题ID参数
+	var request struct {
+		ProblemId int `json:"id" binding:"required"`
+	}
+	if err = ctx.ShouldBindJSON(&request); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	// 检查用户是否通过了该问题
+	ac, err := foundationservice.GetJudgeService().CheckUserProblemAC(ctx, userId, request.ProblemId)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if !ac {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
 	// 获取当前时间
 	nowTime := metatime.GetTimeNow()
 
-	// 添加奖励经验值（每天只能领取一次）
-	hasDuplicate, level, experience, err := foundationservice.GetUserService().AddUserRewardExperience(ctx, userId, nowTime)
+	// 添加奖励经验值（每个问题只能领取一次）
+	hasDuplicate, level, experience, err := foundationservice.GetUserService().AddUserRewardExperience(ctx, userId, request.ProblemId, nowTime)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err, nil)
 		return

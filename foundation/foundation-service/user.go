@@ -366,9 +366,9 @@ func (s *UserService) GetUserUnrewardedACProblems(ctx context.Context, userId in
 	return foundationdao.GetUserDao().GetUserUnrewardedACProblems(ctx, userId)
 }
 
-// AddUserRewardExperience 为用户添加奖励经验值
-func (s *UserService) AddUserRewardExperience(ctx context.Context, userId int, nowTime time.Time) (bool, int, int, error) {
+// AddUserRewardExperience 为用户添加奖励经验值（按问题）
+func (s *UserService) AddUserRewardExperience(ctx context.Context, userId int, problemId int, nowTime time.Time) (bool, int, int, error) {
 	// 奖励获得50经验
 	expGain := 50
-	return foundationdao.GetUserDao().AddUserRewardExperience(ctx, userId, expGain, nowTime)
+	return foundationdao.GetUserDao().AddUserRewardExperience(ctx, userId, problemId, expGain, nowTime)
 }

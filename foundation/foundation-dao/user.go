@@ -3,6 +3,7 @@ package foundationdao
 import (
 	"context"
 	"errors"
+	"fmt"
 	foundationenum "foundation/foundation-enum"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
@@ -633,12 +634,11 @@ func (d *UserDao) GetUserUnrewardedACProblems(ctx context.Context, userId int) (
 	return problems, nil
 }
 
-// AddUserRewardExperience 为用户添加奖励经验值（带防重复检查）
-func (d *UserDao) AddUserRewardExperience(ctx context.Context, userId int, expGain int, nowTime time.Time) (bool, int, int, error) {
-	// 检查用户是否已经领取过奖励（基于唯一约束）
-	// 使用当天日期作为param，确保每天只能领取一次
-	param := nowTime.Format("2006-01-02")
-	exists, err := d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeReward, param)
+// AddUserRewardExperience 为用户添加奖励经验值（按问题，带防重复检查）
+func (d *UserDao) AddUserRewardExperience(ctx context.Context, userId int, problemId int, expGain int, nowTime time.Time) (bool, int, int, error) {
+	// 检查用户是否已经领取过该问题的奖励（基于唯一约束）
+	param := fmt.Sprintf("%d", problemId)
+	exists, err := d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeAccepted, param)
 	if err != nil {
 		return false, 0, 0, metaerror.Wrap(err, "检查用户奖励记录失败")
 	}
@@ -653,7 +653,7 @@ func (d *UserDao) AddUserRewardExperience(ctx context.Context, userId int, expGa
 		expRecord := foundationmodel.NewUserExperienceBuilder().
 			UserId(userId).
 			Value(expGain).
-			Type(foundationuser.ExperienceTypeReward).
+			Type(foundationuser.ExperienceTypeAccepted).
 			Param(param).
 			InserterTime(nowTime).
 			Build()
@@ -677,7 +677,7 @@ func (d *UserDao) AddUserRewardExperience(ctx context.Context, userId int, expGa
 
 	// 如果事务成功执行，检查是否存在重复记录（可能在事务执行期间有其他请求同时插入）
 	if err == nil {
-		exists, err = d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeReward, param)
+		exists, err = d.CheckUserExperienceExists(ctx, userId, foundationuser.ExperienceTypeAccepted, param)
 		if err != nil {
 			return false, 0, 0, metaerror.Wrap(err, "检查用户奖励记录失败")
 		}
