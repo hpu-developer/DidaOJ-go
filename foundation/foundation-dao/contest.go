@@ -53,6 +53,28 @@ func (d *ContestDao) CheckContestEditAuth(ctx context.Context, id int, userId in
 	return dummy == 1, nil
 }
 
+func (d *ContestDao) HasContestViewAuthWithoutStartTime(ctx context.Context, id int, userId int) (bool, error) {
+	var exists int
+	err := d.db.WithContext(ctx).
+		Table("contest").
+		Select("1").
+		Where("id = ?", id).
+		Where(
+			d.db.Table("contest").
+				Where("inserter = ?", userId).
+				Or("private = FALSE").
+				Or("? IN (SELECT user_id FROM contest_member WHERE id = contest.id)", userId).
+				Or("? IN (SELECT user_id FROM contest_member_auth WHERE id = contest.id)", userId),
+		).
+		Limit(1).
+		Scan(&exists).Error
+
+	if err != nil {
+		return false, err
+	}
+	return exists == 1, nil
+}
+
 func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int) (bool, error) {
 	now := metatime.GetTimeNow()
 	var exists int
