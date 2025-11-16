@@ -51,6 +51,7 @@ func (d *RunJobDao) GetRunJob(ctx context.Context, id int, userId int) (*foundat
 	return &runJob, nil
 }
 
+// RequestRunJobListPending 获取待本地评测的 RunJob 列表，优先取最小的
 func (d *RunJobDao) RequestRunJobListPending(
 	ctx context.Context,
 	maxCount int,
