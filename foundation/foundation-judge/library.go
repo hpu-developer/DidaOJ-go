@@ -150,7 +150,6 @@ func CompileCode(
 			}
 		}
 		copyOutCached = []string{"a"}
-		break
 	case JudgeLanguageCpp:
 		args = []string{
 			"g++", "-fno-asm", "-fmax-errors=10", "-O2", "-Wall", "--static",
@@ -168,7 +167,6 @@ func CompileCode(
 			}
 		}
 		copyOutCached = []string{"a"}
-		break
 	case JudgeLanguageJava:
 		className := GetJavaClass(code)
 		if className == "" {
@@ -187,7 +185,6 @@ func CompileCode(
 			},
 		}
 		copyOutCached = []string{jarFileName}
-		break
 	case JudgeLanguagePython:
 		args = []string{"python3", "-c", "import py_compile; py_compile.compile(r'a.py')"}
 		copyIns = map[string]interface{}{
@@ -360,9 +357,9 @@ func CompileCode(
 		}
 	}
 	errorMessage = metastring.GetTextEllipsis(errorMessage, 1000)
-	if responseData.Status != gojudge.StatusAccepted {
-		if responseData.Status != gojudge.StatusNonzeroExit &&
-			responseData.Status != gojudge.StatusFileError {
+
+	if responseData.Status != gojudge.StatusAccepted || (language == JudgeLanguagePython && errorMessage != "") {
+		if responseData.Status != gojudge.StatusAccepted && responseData.Status != gojudge.StatusNonzeroExit && responseData.Status != gojudge.StatusFileError {
 			slog.Warn("compile error", "job", jobKey, "responseData", responseData)
 			return nil, errorMessage, JudgeStatusCLE, nil
 		} else {
