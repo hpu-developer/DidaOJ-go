@@ -1,7 +1,7 @@
 /*
  Navicat Premium Dump SQL
 
- Source Server         : aliyun
+ Source Server         : pgm-2zeej00ms7k64wypko.pg.rds.aliyuncs.com
  Source Server Type    : PostgreSQL
  Source Server Version : 170006 (170006)
  Source Host           : pgm-2zeej00ms7k64wypko.pg.rds.aliyuncs.com:5432
@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 13/11/2025 10:37:27
+ Date: 16/11/2025 21:36:16
 */
 
 
@@ -98,6 +98,17 @@ CACHE 1;
 -- ----------------------------
 DROP SEQUENCE IF EXISTS "didaoj"."problem_remote_id_seq";
 CREATE SEQUENCE "didaoj"."problem_remote_id_seq" 
+INCREMENT 1
+MINVALUE  1
+MAXVALUE 9223372036854775807
+START 1
+CACHE 1;
+
+-- ----------------------------
+-- Sequence structure for run_job_id_seq
+-- ----------------------------
+DROP SEQUENCE IF EXISTS "didaoj"."run_job_id_seq";
+CREATE SEQUENCE "didaoj"."run_job_id_seq" 
 INCREMENT 1
 MINVALUE  1
 MAXVALUE 9223372036854775807
@@ -504,6 +515,24 @@ CREATE TABLE "didaoj"."problem_tag" (
 ;
 
 -- ----------------------------
+-- Table structure for run_job
+-- ----------------------------
+DROP TABLE IF EXISTS "didaoj"."run_job";
+CREATE TABLE "didaoj"."run_job" (
+  "id" int8 NOT NULL DEFAULT nextval('run_job_id_seq'::regclass),
+  "inserter" int8 NOT NULL,
+  "code" text COLLATE "pg_catalog"."default" NOT NULL,
+  "input" text COLLATE "pg_catalog"."default",
+  "language" int2 NOT NULL,
+  "content" text COLLATE "pg_catalog"."default",
+  "status" int2 NOT NULL DEFAULT 0,
+  "time" int8 DEFAULT 0,
+  "memory" int8 DEFAULT 0,
+  "insert_time" timestamptz(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+;
+
+-- ----------------------------
 -- Table structure for tag
 -- ----------------------------
 DROP TABLE IF EXISTS "didaoj"."tag";
@@ -539,7 +568,21 @@ CREATE TABLE "didaoj"."user" (
   "attempt" int8 NOT NULL,
   "blog" varchar(100) COLLATE "pg_catalog"."default",
   "level" int4,
-  "experience" int4
+  "experience" int4,
+  "coin" int4 NOT NULL DEFAULT 0
+)
+;
+
+-- ----------------------------
+-- Table structure for user_coin
+-- ----------------------------
+DROP TABLE IF EXISTS "didaoj"."user_coin";
+CREATE TABLE "didaoj"."user_coin" (
+  "user_id" int8,
+  "value" int4,
+  "inserter_time" timestamp(6),
+  "type" int4,
+  "param" varchar(255) COLLATE "pg_catalog"."default"
 )
 ;
 
@@ -634,6 +677,13 @@ SELECT setval('"didaoj"."problem_local_id_seq"', 1, false);
 ALTER SEQUENCE "didaoj"."problem_remote_id_seq"
 OWNED BY "didaoj"."problem_remote"."id";
 SELECT setval('"didaoj"."problem_remote_id_seq"', 1, false);
+
+-- ----------------------------
+-- Alter sequences owned by
+-- ----------------------------
+ALTER SEQUENCE "didaoj"."run_job_id_seq"
+OWNED BY "didaoj"."run_job"."id";
+SELECT setval('"didaoj"."run_job_id_seq"', 1, true);
 
 -- ----------------------------
 -- Alter sequences owned by
@@ -874,6 +924,21 @@ ALTER TABLE "didaoj"."problem_remote" ADD CONSTRAINT "problem_remote_pk" PRIMARY
 ALTER TABLE "didaoj"."problem_tag" ADD CONSTRAINT "problem_tag_pk" PRIMARY KEY ("id", "tag_id");
 
 -- ----------------------------
+-- Indexes structure for table run_job
+-- ----------------------------
+CREATE INDEX "idx_run_job_insert_time" ON "didaoj"."run_job" USING btree (
+  "insert_time" "pg_catalog"."timestamptz_ops" ASC NULLS LAST
+);
+CREATE INDEX "idx_run_job_user_id" ON "didaoj"."run_job" USING btree (
+  "inserter" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table run_job
+-- ----------------------------
+ALTER TABLE "didaoj"."run_job" ADD CONSTRAINT "run_job_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
 -- Indexes structure for table tag
 -- ----------------------------
 CREATE INDEX "idx_tag_name_trgm" ON "didaoj"."tag" USING gin (
@@ -906,6 +971,13 @@ ALTER TABLE "didaoj"."user" ADD CONSTRAINT "user_pk_2" UNIQUE ("username");
 -- Primary Key structure for table user
 -- ----------------------------
 ALTER TABLE "didaoj"."user" ADD CONSTRAINT "user_pk" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table user_coin
+-- ----------------------------
+CREATE INDEX "user_coin_user_id_index" ON "didaoj"."user_coin" USING btree (
+  "user_id" "pg_catalog"."int8_ops" ASC NULLS LAST
+);
 
 -- ----------------------------
 -- Uniques structure for table user_experience
