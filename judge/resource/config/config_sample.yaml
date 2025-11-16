@@ -10,6 +10,7 @@ go-judge-url: ""
 #同时评测的job数
 max-job: 2
 max-job-remote: 10
+max-job-run: 1
 
 judge-data:
   url: ""

@@ -48,5 +48,10 @@ func (s *Subsystem) startSubSystem() error {
 		return err
 	}
 
+	err = service.GetRunService().Start()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

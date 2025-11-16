@@ -5,11 +5,12 @@ import (
 	foundationauth "foundation/foundation-auth"
 	foundationservice "foundation/foundation-service"
 	foundationrouter "foundation/router"
-	"github.com/gin-gonic/gin"
 	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
 	metaresponse "meta/meta-response"
 	"web/controller"
+
+	"github.com/gin-gonic/gin"
 )
 
 func AuthCheckMiddleware(auth foundationauth.AuthType) gin.HandlerFunc {
@@ -58,5 +59,6 @@ func RegisterRoutes(r *gin.Engine) {
 	metahttp.AutoRegisterRoute(r, "/discuss", new(controller.DiscussController), metahttp.AuthMiddlewareTypeOptional)
 	metahttp.AutoRegisterRoute(r, "/rank", new(controller.RankController), metahttp.AuthMiddlewareTypeNone)
 	metahttp.AutoRegisterRoute(r, "/system", new(controller.SystemController), metahttp.AuthMiddlewareTypeOptional)
+	metahttp.AutoRegisterRoute(r, "/run", new(controller.RunController), metahttp.AuthMiddlewareTypeRequire)
 
 }
