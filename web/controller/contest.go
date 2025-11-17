@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
@@ -10,17 +11,20 @@ import (
 	foundationr2 "foundation/foundation-r2"
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
+	"io"
 	"log"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
-	"meta/error-code"
+	metaerrorcode "meta/error-code"
 	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
-	"meta/meta-response"
+	metaresponse "meta/meta-response"
 	metaslice "meta/meta-slice"
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	"meta/set"
+	"net/http"
+	"sort"
 	"strconv"
 	"time"
 	weberrorcode "web/error-code"
@@ -150,6 +154,101 @@ func (c *ContestController) GetList(ctx *gin.Context) {
 		List:       list,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
+func (c *ContestController) GetRecently(ctx *gin.Context) {
+	contestList := []*foundationview.ContestRemoteList{}
+
+	codeforceUrl := "https://codeforces.com/api/contest.list?gym=false"
+	resp, err := http.Get(codeforceUrl)
+	if err == nil {
+		defer resp.Body.Close()
+		// 把codeforce的json解析到contestList
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			metaresponse.NewResponseError(ctx, err)
+			return
+		}
+		var codeforceResp struct {
+			Status string `json:"status"`
+			Result []struct {
+				Id                  int    `json:"id"`
+				Name                string `json:"name"`
+				Type                string `json:"type"`
+				Phase               string `json:"phase"`
+				Frozen              bool   `json:"frozen"`
+				DurationSeconds     int    `json:"durationSeconds"`
+				StartTimeSeconds    int64  `json:"startTimeSeconds"`
+				RelativeTimeSeconds int64  `json:"relativeTimeSeconds"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(body, &codeforceResp); err != nil {
+			metaresponse.NewResponseError(ctx, err)
+			return
+		}
+		for _, item := range codeforceResp.Result {
+			contestList = append(contestList, &foundationview.ContestRemoteList{
+				Title:     item.Name,
+				StartTime: metatime.GetTimeByTimestamp(item.StartTimeSeconds),
+				EndTime:   metatime.GetTimeByTimestamp(item.StartTimeSeconds + int64(item.DurationSeconds)),
+				Status:    item.Phase,
+				Type:      item.Type,
+				Source:    "codeforce",
+				Link:      fmt.Sprintf("https://codeforces.com/contests/%d", item.Id),
+			})
+		}
+	}
+
+	algcontestUrl := "https://algcontest.rainng.com/contests"
+	resp, err = http.Get(algcontestUrl)
+	if err == nil {
+		defer resp.Body.Close()
+		// 把algcontest的json解析到contestList
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			metaresponse.NewResponseError(ctx, err)
+			return
+		}
+		var algcontestResp []struct {
+			Oj             string `json:"oj"`
+			Name           string `json:"name"`
+			StartTimeStamp int64  `json:"startTimeStamp"`
+			EndTimeStamp   int64  `json:"endTimeStamp"`
+			Status         string `json:"status"`
+			OiContest      bool   `json:"oiContest"`
+			Link           string `json:"link"`
+		}
+		if err := json.Unmarshal(body, &algcontestResp); err == nil {
+			for _, item := range algcontestResp {
+				contest := &foundationview.ContestRemoteList{
+					Title:     item.Name,
+					StartTime: metatime.GetTimeByTimestamp(item.StartTimeStamp),
+					EndTime:   metatime.GetTimeByTimestamp(item.EndTimeStamp),
+					Status:    item.Status,
+					Source:    item.Oj,
+					Link:      item.Link,
+				}
+				if item.OiContest {
+					contest.Type = "oi"
+				} else {
+					contest.Type = "acm"
+				}
+				contestList = append(contestList, contest)
+			}
+		}
+	}
+
+	// 对contestList根据start_time排序
+	sort.Slice(contestList, func(i, j int) bool {
+		return contestList[i].StartTime.After(contestList[j].StartTime)
+	})
+
+	// 仅保留前20个
+	if len(contestList) > 20 {
+		contestList = contestList[:20]
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, contestList)
 }
 
 func (c *ContestController) GetProblem(ctx *gin.Context) {
