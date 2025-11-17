@@ -1,7 +1,7 @@
 /*
  Navicat Premium Dump SQL
 
- Source Server         : pgm-2zeej00ms7k64wypko.pg.rds.aliyuncs.com
+ Source Server         : aliyun
  Source Server Type    : PostgreSQL
  Source Server Version : 170006 (170006)
  Source Host           : pgm-2zeej00ms7k64wypko.pg.rds.aliyuncs.com:5432
@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 16/11/2025 21:36:16
+ Date: 17/11/2025 10:33:08
 */
 
 
@@ -528,7 +528,8 @@ CREATE TABLE "didaoj"."run_job" (
   "status" int2 NOT NULL DEFAULT 0,
   "time" int8 DEFAULT 0,
   "memory" int8 DEFAULT 0,
-  "insert_time" timestamptz(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  "insert_time" timestamptz(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "judger" varchar(10) COLLATE "pg_catalog"."default"
 )
 ;
 
