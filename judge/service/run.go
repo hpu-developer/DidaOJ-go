@@ -398,20 +398,9 @@ func (s *RunService) startRunJob(job *foundationmodel.RunJob) error {
 		}
 		realStatus := foundationrun.RunStatusRunning
 		if compileStatus != foundationjudge.JudgeStatusAC {
-			realStatus := foundationrun.RunStatusCE
+			realStatus = foundationrun.RunStatusCE
 			if compileStatus != foundationjudge.JudgeStatusCE {
 				realStatus = foundationrun.RunStatusCLE
-			}
-			err := foundationdao.GetRunJobDao().MarkRunJobRunStatus(
-				ctx,
-				job.Id,
-				config.GetConfig().Judger.Key,
-				realStatus,
-				extraMessage,
-				0, 0,
-			)
-			if err != nil {
-				return err
 			}
 		}
 		slog.Info("compile code success", "run job", job.Id, "execFileIds", execFileIds)
@@ -425,6 +414,9 @@ func (s *RunService) startRunJob(job *foundationmodel.RunJob) error {
 		)
 		if err != nil {
 			return err
+		}
+		if realStatus != foundationrun.RunStatusRunning {
+			return nil
 		}
 	}
 
