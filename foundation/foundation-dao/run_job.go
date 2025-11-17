@@ -112,7 +112,7 @@ func (d *RunJobDao) RequestRunJobListPending(
 
 func (d *RunJobDao) StartProcessRunJob(ctx context.Context, id int, judger string) (bool, error) {
 	tx := d.db.WithContext(ctx).
-		Model(&foundationmodel.JudgeJob{}).
+		Model(&foundationmodel.RunJob{}).
 		Where("id = ? AND judger = ?", id, judger).
 		Update("status", foundationrun.RunStatusCompiling)
 	if tx.Error != nil {
