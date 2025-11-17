@@ -486,18 +486,20 @@ func (c *JudgeController) PostRejudgeSearch(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	ProblemKey := requestData.ProblemKey
+	problemKey := requestData.ProblemKey
 	language := requestData.Language
 	status := requestData.Status
 	problemId := 0
-	if ProblemKey == "" &&
-		!foundationjudge.IsValidJudgeLanguage(int(language)) &&
-		!foundationjudge.IsValidJudgeStatus(int(status)) {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
+	if problemKey == "" {
+		// 保证至少传了一种筛选条件
+		if !foundationjudge.IsValidJudgeLanguage(int(language)) &&
+			!foundationjudge.IsValidJudgeStatus(int(status)) {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
 	} else {
 		var err error
-		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, ProblemKey)
+		problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, problemKey)
 		if err != nil {
 			metaresponse.NewResponseError(ctx, err)
 			return
