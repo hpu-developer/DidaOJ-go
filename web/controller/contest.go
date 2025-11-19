@@ -182,20 +182,18 @@ func (c *ContestController) GetRecently(ctx *gin.Context) {
 				RelativeTimeSeconds int64  `json:"relativeTimeSeconds"`
 			} `json:"result"`
 		}
-		if err := json.Unmarshal(body, &codeforceResp); err != nil {
-			metaresponse.NewResponseError(ctx, err)
-			return
-		}
-		for _, item := range codeforceResp.Result {
-			contestList = append(contestList, &foundationview.ContestRemoteList{
-				Title:     item.Name,
-				StartTime: metatime.GetTimeByTimestamp(item.StartTimeSeconds),
-				EndTime:   metatime.GetTimeByTimestamp(item.StartTimeSeconds + int64(item.DurationSeconds)),
-				Status:    item.Phase,
-				Type:      item.Type,
-				Source:    "codeforce",
-				Link:      fmt.Sprintf("https://codeforces.com/contests/%d", item.Id),
-			})
+		if err := json.Unmarshal(body, &codeforceResp); err == nil {
+			for _, item := range codeforceResp.Result {
+				contestList = append(contestList, &foundationview.ContestRemoteList{
+					Title:     item.Name,
+					StartTime: metatime.GetTimeByTimestamp(item.StartTimeSeconds),
+					EndTime:   metatime.GetTimeByTimestamp(item.StartTimeSeconds + int64(item.DurationSeconds)),
+					Status:    item.Phase,
+					Type:      item.Type,
+					Source:    "codeforce",
+					Link:      fmt.Sprintf("https://codeforces.com/contests/%d", item.Id),
+				})
+			}
 		}
 	}
 
