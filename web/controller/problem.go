@@ -846,7 +846,6 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		problem.JudgeMd5,
 		config.GetConfig().GoJudge.Url,
 		c.goJudgeConfigFiles,
-		false,
 	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerror.GetErrorCodeFromError(err), nil)

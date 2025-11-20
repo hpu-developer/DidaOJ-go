@@ -58,7 +58,8 @@ type ProblemJudgeData struct {
 
 	ModifyTime time.Time `json:"modify_time"`
 
-	JudgeMd5 *string `json:"judge_md5"`
+	JudgeMd5 *string                         `json:"judge_md5"`
+	JudgeJob *foundationjudge.JudgeJobConfig `json:"judge_job"`
 }
 
 type ProblemViewApproveJudge struct {

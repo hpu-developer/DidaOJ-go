@@ -11,7 +11,6 @@ import (
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"io"
 	"log/slog"
 	cfr2 "meta/cf-r2"
 	metaerrorcode "meta/error-code"
@@ -406,7 +405,6 @@ func (s *ProblemService) PostJudgeData(
 	oldMd5 *string,
 	goJudgeUrl string,
 	goJudgeConfigFiles map[string]string,
-	checkR2FileCount bool,
 ) error {
 	// 如果包含文件夹，认为失败
 	err := filepath.Walk(
@@ -688,7 +686,7 @@ func (s *ProblemService) PostJudgeData(
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataProcessWrapLineFail)
 	}
 
-	var uploadFiles []string
+	var allFiles []string
 	err = filepath.Walk(
 		unzipDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -697,12 +695,15 @@ func (s *ProblemService) PostJudgeData(
 			if info.IsDir() {
 				return nil
 			}
-			uploadFiles = append(uploadFiles, path)
+			allFiles = append(allFiles, path)
 			return nil
 		},
 	)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataProcessMd5Fail)
+	}
 
-	judgeDataMd5, err := metamd5.MultiFileMD5(uploadFiles)
+	judgeDataMd5, err := metamd5.MultiFileMD5(allFiles)
 	if err != nil {
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataProcessMd5Fail)
 	}
@@ -714,135 +715,6 @@ func (s *ProblemService) PostJudgeData(
 		return metaerror.NewCode(metaerrorcode.CommonError)
 	}
 
-	if oldMd5 != nil && *oldMd5 == judgeDataMd5 {
-		if checkR2FileCount {
-			var oldKeys []string
-			input := &s3.ListObjectsV2Input{
-				Bucket: aws.String("didaoj-judge"),
-				Prefix: aws.String(path.Join(strconv.Itoa(problemId), *oldMd5)),
-			}
-			err = r2Client.ListObjectsV2PagesWithContext(
-				ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
-					for _, obj := range page.Contents {
-						oldKeys = append(oldKeys, *obj.Key)
-					}
-					return true
-				},
-			)
-			// 正常情况下R2中应该存在所有文件+1个汇总的压缩包
-			if len(uploadFiles)+1 == len(oldKeys) {
-				return nil
-			}
-		} else {
-			return nil
-		}
-	}
-
-	var maxConcurrency = 10
-
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, maxConcurrency)
-	errChan := make(chan error, 1)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	for _, uploadFile := range uploadFiles {
-		// 如果已经有错误，取消后续任务
-		select {
-		case <-ctx.Done():
-			break
-		default:
-		}
-
-		wg.Add(1)
-		sem <- struct{}{} // acquire
-		goPath := uploadFile
-
-		go func(path string) {
-			defer wg.Done()
-			defer func() { <-sem }() // release
-
-			relativePath, err := filepath.Rel(unzipDir, path)
-			if err != nil {
-				select {
-				case errChan <- err:
-				default:
-				}
-				cancel()
-				return
-			}
-
-			key := filepath.ToSlash(filepath.Join(strconv.Itoa(problemId), judgeDataMd5, relativePath))
-
-			// 多次尝试打开文件（理论上文件打开失败重试意义不大，但为防止临时FS问题）
-			var file *os.File
-			for i := 0; i < 3; i++ {
-				file, err = os.Open(path)
-				if err == nil {
-					break
-				}
-				time.Sleep(2 * time.Second)
-			}
-			if err != nil {
-				select {
-				case errChan <- fmt.Errorf("open file error (%s): %w", path, err):
-				default:
-				}
-				cancel()
-				return
-			}
-			defer func(file *os.File) {
-				err := file.Close()
-				if err != nil {
-					metapanic.ProcessError(metaerror.Wrap(err, "close file error"))
-				}
-			}(file)
-
-			slog.Info("put object start", "key", key)
-
-			var uploadErr error
-			for i := 0; i < 3; i++ {
-				// 重置文件偏移，否则重试时 Body 是空的
-				if _, err := file.Seek(0, io.SeekStart); err != nil {
-					uploadErr = fmt.Errorf("seek file error (%s): %w", path, err)
-					break
-				}
-				_, uploadErr = r2Client.PutObjectWithContext(
-					ctx, &s3.PutObjectInput{
-						Bucket: aws.String("didaoj-judge"),
-						Key:    aws.String(key),
-						Body:   file,
-					},
-				)
-				if uploadErr == nil {
-					break // success
-				}
-				slog.Warn("put object retry", "attempt", i+1, "key", key, "error", uploadErr)
-				time.Sleep(3 * time.Second)
-			}
-
-			if uploadErr != nil {
-				slog.Error("put object failed", "key", key, "error", uploadErr)
-				select {
-				case errChan <- uploadErr:
-				default:
-				}
-				cancel()
-				return
-			}
-
-			slog.Info("put object success", "key", key)
-		}(goPath)
-	}
-
-	wg.Wait()
-	close(errChan)
-
-	if err, ok := <-errChan; ok {
-		metapanic.ProcessError(err)
-		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
-	}
-
 	zipFileName := fmt.Sprintf("%d-%s.zip", problemId, judgeDataMd5)
 	err = metazip.PackagePath(unzipDir, zipFileName)
 	if err != nil {
@@ -850,10 +722,13 @@ func (s *ProblemService) PostJudgeData(
 	}
 	zipFile, err := os.Open(path.Join(unzipDir, zipFileName))
 	defer func() {
-		if err := zipFile.Close(); err != nil {
-			metapanic.ProcessError(metaerror.Wrap(err, "close zip file error"))
+		if closeErr := zipFile.Close(); closeErr != nil {
+			metapanic.ProcessError(metaerror.Wrap(closeErr, "close zip file error"))
 		}
 	}()
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
+	}
 	zipKey := filepath.ToSlash(filepath.Join(strconv.Itoa(problemId), judgeDataMd5, zipFileName))
 	_, err = r2Client.PutObjectWithContext(
 		ctx, &s3.PutObjectInput{
@@ -866,9 +741,19 @@ func (s *ProblemService) PostJudgeData(
 		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
 	}
 
-	err = s.UpdateProblemJudgeInfo(ctx, problemId, judgeType, judgeDataMd5)
+	err = s.UpdateProblemJudgeInfo(ctx, problemId, judgeType, judgeDataMd5, jobConfig)
 	if err != nil {
-		return err
+		// 删除上传的zip文件
+		_, err = r2Client.DeleteObjectWithContext(
+			ctx, &s3.DeleteObjectInput{
+				Bucket: aws.String("didaoj-judge"),
+				Key:    aws.String(zipKey),
+			},
+		)
+		if err != nil {
+			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
+		}
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
 	}
 
 	// 删除旧的路径
@@ -889,8 +774,13 @@ func (s *ProblemService) PostJudgeData(
 			return true
 		},
 	)
+	if err != nil {
+		return metaerror.NewCode(weberrorcode.ProblemJudgeDataSubmitFail)
+	}
 
 	if len(deleteKeys) > 0 {
+		var maxConcurrency = 10
+
 		routine.SafeGo(
 			"delete judge data object", func() error {
 				var wg sync.WaitGroup
@@ -971,6 +861,7 @@ func (s *ProblemService) UpdateProblemJudgeInfo(
 	id int,
 	judgeType foundationjudge.JudgeType,
 	md5 string,
+	jobConfig foundationjudge.JudgeJobConfig,
 ) error {
-	return foundationdao.GetProblemDao().UpdateProblemJudgeInfo(ctx, id, judgeType, md5)
+	return foundationdao.GetProblemDao().UpdateProblemJudgeInfo(ctx, id, judgeType, md5, jobConfig)
 }

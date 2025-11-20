@@ -453,7 +453,7 @@ func (d *ProblemDao) GetProblemViewJudgeData(ctx context.Context, id int) (*foun
 			p.id, p.key, p.title, p.judge_type,p.inserter, p.insert_time, p.modifier, p.modify_time,
 			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
 			u2.username AS modifier_username, u2.nickname AS modifier_nickname,
-			r.judge_md5
+			r.judge_md5, r.judge_job
 		`,
 		).
 		Joins(`LEFT JOIN "user" u1 ON u1.id = p.inserter`).
@@ -480,7 +480,7 @@ func (d *ProblemDao) GetProblemViewJudgeDataByKey(ctx context.Context, key strin
 			p.id, p.key, p.title, p.judge_type,p.inserter, p.insert_time, p.modifier, p.modify_time,
 			u1.username AS inserter_username, u1.nickname AS inserter_nickname,
 			u2.username AS modifier_username, u2.nickname AS modifier_nickname,
-			r.judge_md5
+			r.judge_md5, r.judge_job
 		`,
 		).
 		Joins(`LEFT JOIN "user" u1 ON u1.id = p.inserter`).
@@ -677,6 +677,7 @@ func (d *ProblemDao) UpdateProblemJudgeInfo(
 	id int,
 	judgeType foundationjudge.JudgeType,
 	md5 string,
+	jobConfig foundationjudge.JudgeJobConfig,
 ) error {
 	nowTime := metatime.GetTimeNow()
 	err := d.db.WithContext(ctx).Transaction(
@@ -697,7 +698,12 @@ func (d *ProblemDao) UpdateProblemJudgeInfo(
 			}
 			err = tx.Model(&foundationmodel.ProblemLocal{}).
 				Where("problem_id = ?", id).
-				Update("judge_md5", md5).Error
+				Updates(
+					map[string]interface{}{
+						"judge_md5": md5,
+						"judge_job": jobConfig,
+					},
+				).Error
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					return metaerror.New("problem local not found")
