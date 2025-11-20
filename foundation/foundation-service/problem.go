@@ -591,6 +591,11 @@ func (s *ProblemService) PostJudgeData(
 			}
 			if hasInFiles[key] {
 				judgeTaskConfig.InFile = key + ".in"
+				inFile, err := os.Stat(path.Join(unzipDir, judgeTaskConfig.InFile))
+				if err != nil {
+					return metaerror.NewCode(weberrorcode.ProblemJudgeDataTaskLoadFail)
+				}
+				judgeTaskConfig.InFileSize = inFile.Size()
 			}
 			if hasOutFiles[key] {
 				judgeTaskConfig.OutFile = key + ".out"
@@ -598,6 +603,7 @@ func (s *ProblemService) PostJudgeData(
 				if err != nil {
 					return metaerror.NewCode(weberrorcode.ProblemJudgeDataTaskLoadFail)
 				}
+				judgeTaskConfig.OutFileSize = outFile.Size()
 				judgeTaskConfig.OutLimit = metamath.Max(outFile.Size()*2, 1024)
 			} else {
 				// 考虑到SpecialJudge的情况可能也需要输出，这里默认给个大小

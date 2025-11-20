@@ -477,43 +477,10 @@ func (c *ProblemController) GetJudge(ctx *gin.Context) {
 		return
 	}
 
-	r2Client := cfr2.GetSubsystem().GetClient("judge-data")
-	if r2Client == nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-	prefixKey := filepath.ToSlash(strconv.Itoa(problemId) + "/")
-	input := &s3.ListObjectsV2Input{
-		Bucket: aws.String("didaoj-judge"),
-		Prefix: aws.String(prefixKey),
-	}
-
-	var judges []*ProblemJudgeData
-
-	err = r2Client.ListObjectsV2PagesWithContext(
-		ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
-			for _, obj := range page.Contents {
-				judgeData := &ProblemJudgeData{
-					Key:          strings.TrimPrefix(*obj.Key, prefixKey),
-					Size:         obj.Size,
-					LastModified: obj.LastModified,
-				}
-				judges = append(judges, judgeData)
-			}
-			return true
-		},
-	)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
-
 	responseData := struct {
 		Problem *foundationview.ProblemJudgeData `json:"problem"`
-		Judges  []*ProblemJudgeData              `json:"judges"`
 	}{
 		Problem: problem,
-		Judges:  judges,
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
@@ -526,11 +493,6 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 	}
 	problemId, err := strconv.Atoi(problemIdStr)
 	if err != nil || problemId <= 0 {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
-		return
-	}
-	key := ctx.Query("key")
-	if key == "" {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
@@ -563,7 +525,7 @@ func (c *ProblemController) GetJudgeDataDownload(ctx *gin.Context) {
 		return
 	}
 	// 生成预签名链接
-	objectKey := filepath.ToSlash(path.Join(strconv.Itoa(problemId), key))
+	objectKey := filepath.ToSlash(path.Join(strconv.Itoa(problemId), *problem.JudgeMd5, fmt.Sprintf("%d-%s.zip", problemId, *problem.JudgeMd5)))
 	req, _ := r2Client.GetObjectRequest(
 		&s3.GetObjectInput{
 			Bucket: aws.String("didaoj-judge"),

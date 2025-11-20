@@ -7,11 +7,13 @@ import (
 )
 
 type JudgeTaskConfig struct {
-	Key      string `json:"key"`                                          // 任务标识
-	Score    int    `json:"score"`                                        // 代码分数
-	InFile   string `json:"in_file,omitempty" yaml:"in-file,omitempty"`   // 输入文件
-	OutFile  string `json:"out_file,omitempty" yaml:"out-file,omitempty"` // 输出文件
-	OutLimit int64  `json:"out_limit" yaml:"out-limit"`                   // 输出长度限制
+	Key         string `json:"key"`                                                    // 任务标识
+	Score       int    `json:"score"`                                                  // 代码分数
+	InFile      string `json:"in_file,omitempty" yaml:"in-file,omitempty"`             // 输入文件
+	InFileSize  int64  `json:"in_file_size,omitempty" yaml:"in-file-size,omitempty"`   // 输入文件大小
+	OutFile     string `json:"out_file,omitempty" yaml:"out-file,omitempty"`           // 输出文件
+	OutFileSize int64  `json:"out_file_size,omitempty" yaml:"out-file-size,omitempty"` // 输出文件大小
+	OutLimit    int64  `json:"out_limit" yaml:"out-limit"`                             // 输出长度限制
 }
 
 type SpecialJudgeConfig struct {
