@@ -14,6 +14,7 @@ import (
 	metapostgresql "meta/meta-postgresql"
 	metastring "meta/meta-string"
 	"meta/singleton"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -761,7 +762,8 @@ func (d *UserDao) AddUserCheckInCount(ctx context.Context, userId int, checkInCo
 		insertErr := d.InsertUserExperienceWithTx(tx, expRecord)
 		if insertErr != nil {
 			// 判断是否是重复插入错误
-			if errors.Is(insertErr, gorm.ErrDuplicatedKey) {
+			if errors.Is(insertErr, gorm.ErrDuplicatedKey) ||
+				strings.Contains(insertErr.Error(), "duplicate key value violates unique constraint") {
 				hasDuplicate = true
 				return nil
 			}
