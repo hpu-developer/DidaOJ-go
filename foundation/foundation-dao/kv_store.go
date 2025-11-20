@@ -85,3 +85,44 @@ func (d *KVStoreDao) GetValue(ctx context.Context, key string) (*json.RawMessage
 	}
 	return &kvStore.Value, nil
 }
+
+func (d *KVStoreDao) DeleteValue(ctx context.Context, key string) error {
+	return d.db.WithContext(ctx).
+		Where("key = ?", key).
+		Delete(&foundationmodel.KVStore{}).Error
+}
+
+// SetNXValue 尝试设置一个键值对，如果键已存在但未过期，则认为失败；如果键已存在且已过期，则更新
+func (d *KVStoreDao) SetNXValue(ctx context.Context, key string, value json.RawMessage, expiration time.Duration) (bool, error) {
+	// 处理过期时间
+	expireExpr := gorm.Expr("NULL") // 默认永不过期
+	if expiration > 0 {
+		// 过期时间大于0，使用数据库时间作为基准计算过期时间
+		expireExpr = gorm.Expr("NOW() + ?::interval", expiration.String())
+	}
+
+	// 使用 ON CONFLICT DO UPDATE 实现原子操作，只有当记录已过期时才更新
+	result := d.db.WithContext(ctx).
+		Model(&foundationmodel.KVStore{}).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "key"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"value":       value,
+				"expire_time": expireExpr,
+			}),
+			// 只有当记录已过期时才执行更新
+			Where: clause.Where{Exprs: []clause.Expression{clause.Expr{SQL: "kv_store.expire_time IS NOT NULL AND kv_store.expire_time <= CURRENT_TIMESTAMP"}}},
+		}).
+		Create(map[string]interface{}{
+			"key":         key,
+			"value":       value,
+			"expire_time": expireExpr,
+		})
+
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	// 返回是否成功插入或更新（受影响行数为1表示成功）
+	return result.RowsAffected == 1, nil
+}

@@ -1,10 +1,10 @@
 package controller
 
 import (
-	"errors"
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
+	foundationdao "foundation/foundation-dao"
 	foundationenum "foundation/foundation-enum"
 	foundationmodel "foundation/foundation-model"
 	foundationrequest "foundation/foundation-request"
@@ -19,7 +19,6 @@ import (
 	metaerror "meta/meta-error"
 	metamath "meta/meta-math"
 	metapanic "meta/meta-panic"
-	metaredis "meta/meta-redis"
 	metaresponse "meta/meta-response"
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
@@ -32,7 +31,6 @@ import (
 	"web/request"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
 
 type UserController struct {
@@ -176,25 +174,25 @@ func (c *UserController) PostModifyEmail(ctx *gin.Context) {
 		return
 	}
 	// 判断验证码是否正确
-	redisClient := metaredis.GetSubsystem().GetClient()
+	kvStoreDao := foundationdao.GetKVStoreDao()
 	oldCodeKey := fmt.Sprintf("modify_email_old_key_%d", userId)
-	storedOldCode, err := redisClient.Get(ctx, oldCodeKey).Result()
-	if storedOldCode != requestDatastruct.EmailKey {
+	storedOldCode, err := kvStoreDao.GetValue(ctx, oldCodeKey)
+	if storedOldCode == nil || string(*storedOldCode) != requestDatastruct.EmailKey {
 		metaresponse.NewResponse(ctx, weberrorcode.UserModifyOldEmailKeyError, nil)
 		return
 	}
 	newCodeKey := fmt.Sprintf("modify_email_key_%d_%s", userId, requestDatastruct.NewEmail)
-	storedNewCode, err := redisClient.Get(ctx, newCodeKey).Result()
-	if storedNewCode != requestDatastruct.NewEmailKey {
+	storedNewCode, err := kvStoreDao.GetValue(ctx, newCodeKey)
+	if storedNewCode == nil || string(*storedNewCode) != requestDatastruct.NewEmailKey {
 		metaresponse.NewResponse(ctx, weberrorcode.UserModifyEmailKeyError, nil)
 		return
 	}
 	// 删除所有的验证码
-	if err := redisClient.Del(ctx, oldCodeKey).Err(); err != nil {
+	if err := kvStoreDao.DeleteValue(ctx, oldCodeKey); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	if err := redisClient.Del(ctx, newCodeKey).Err(); err != nil {
+	if err := kvStoreDao.DeleteValue(ctx, newCodeKey); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -243,12 +241,12 @@ func (c *UserController) PostModifyEmailKey(ctx *gin.Context) {
 		return
 	}
 
-	redisClient := metaredis.GetSubsystem().GetClient()
+	kvStoreDao := foundationdao.GetKVStoreDao()
 	flagKey := fmt.Sprintf("modify_email_dup_%d_%s", userId, email)
 	codeKey := fmt.Sprintf("modify_email_key_%d_%s", userId, email)
 
 	// 检查是否在 1 分钟内重复发送
-	ok, err := redisClient.SetNX(ctx, flagKey, 1, time.Minute).Result()
+	ok, err := kvStoreDao.SetNXValue(ctx, flagKey, []byte("1"), time.Minute)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -258,9 +256,9 @@ func (c *UserController) PostModifyEmailKey(ctx *gin.Context) {
 		return
 	}
 
-	// 生成验证码并存入 Redis，设置10分钟过期
+	// 生成验证码并存入 KV 存储，设置10分钟过期
 	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
-	if err := redisClient.Set(ctx, codeKey, code, 10*time.Minute).Err(); err != nil {
+	if err := kvStoreDao.SetValue(ctx, codeKey, []byte(code), 10*time.Minute); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -329,12 +327,12 @@ func (c *UserController) PostModifyEmailKeyOld(ctx *gin.Context) {
 		return
 	}
 
-	redisClient := metaredis.GetSubsystem().GetClient()
+	kvStoreDao := foundationdao.GetKVStoreDao()
 	flagKey := fmt.Sprintf("modify_email_old_dup_%d", userId)
 	codeKey := fmt.Sprintf("modify_email_old_key_%d", userId)
 
 	// 检查是否在 1 分钟内重复发送
-	ok, err := redisClient.SetNX(ctx, flagKey, 1, time.Minute).Result()
+	ok, err := kvStoreDao.SetNXValue(ctx, flagKey, []byte("1"), time.Minute)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -344,9 +342,9 @@ func (c *UserController) PostModifyEmailKeyOld(ctx *gin.Context) {
 		return
 	}
 
-	// 生成验证码并存入 Redis，设置10分钟过期
+	// 生成验证码并存入 KV 存储，设置10分钟过期
 	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
-	if err := redisClient.Set(ctx, codeKey, code, 10*time.Minute).Err(); err != nil {
+	if err := kvStoreDao.SetValue(ctx, codeKey, []byte(code), 10*time.Minute); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -402,19 +400,20 @@ func (c *UserController) PostModifyVjudge(ctx *gin.Context) {
 		return
 	}
 
-	redisClient := metaredis.GetSubsystem().GetClient()
-	if redisClient == nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
+	kvStoreDao := foundationdao.GetKVStoreDao()
 	codeKey := fmt.Sprintf("modify_vjudge_%d", userId)
 
 	if requestData.Approved {
-		randomKey, err := redisClient.Get(ctx, codeKey).Result()
+		randomKeyBytes, err := kvStoreDao.GetValue(ctx, codeKey)
 		if err != nil {
 			metaresponse.NewResponse(ctx, weberrorcode.UserModifyVjudgeReload, nil)
 			return
 		}
+		if randomKeyBytes == nil {
+			metaresponse.NewResponse(ctx, weberrorcode.UserModifyVjudgeReload, nil)
+			return
+		}
+		randomKey := string(*randomKeyBytes)
 		if randomKey == "" {
 			metaresponse.NewResponse(ctx, weberrorcode.UserModifyVjudgeReload, nil)
 			return
@@ -450,7 +449,7 @@ func (c *UserController) PostModifyVjudge(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, metaerrorcode.Success)
 	} else {
 		randomString := metastring.GetRandomString(16)
-		_, err = redisClient.Set(ctx, codeKey, randomString, 10*time.Minute).Result()
+		err = kvStoreDao.SetValue(ctx, codeKey, []byte(randomString), 10*time.Minute)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
@@ -531,12 +530,12 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 		return
 	}
 
-	redisClient := metaredis.GetSubsystem().GetClient()
+	kvStoreDao := foundationdao.GetKVStoreDao()
 	flagKey := fmt.Sprintf("register_email_dup_%s", email)
 	codeKey := fmt.Sprintf("register_email_key_%s", email)
 
 	// 检查是否在 1 分钟内重复发送
-	ok, err := redisClient.SetNX(ctx, flagKey, 1, time.Minute).Result()
+	ok, err := kvStoreDao.SetNXValue(ctx, flagKey, []byte("1"), time.Minute)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -546,9 +545,9 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 		return
 	}
 
-	// 生成验证码并存入 Redis，设置10分钟过期
+	// 生成验证码并存入 KV 存储，设置10分钟过期
 	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
-	if err := redisClient.Set(ctx, codeKey, code, 10*time.Minute).Err(); err != nil {
+	if err := kvStoreDao.SetValue(ctx, codeKey, []byte(code), 10*time.Minute); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -632,24 +631,22 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 		return
 	}
 
+	kvStoreDao := foundationdao.GetKVStoreDao()
 	codeKey := fmt.Sprintf("register_email_key_%s", email)
-	redisClient := metaredis.GetSubsystem().GetClient()
 
-	storedCode, err := redisClient.Get(ctx, codeKey).Result()
-	if errors.Is(err, redis.Nil) {
-		metaresponse.NewResponse(ctx, weberrorcode.RegisterMailKeyError, nil)
-		return
-	} else if err != nil {
+	// 获取存储的验证码
+	storedCodeRaw, err := kvStoreDao.GetValue(ctx, codeKey)
+	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	if storedCode != requestData.Key {
-		metaresponse.NewResponse(ctx, weberrorcode.RegisterMailKeyError, nil)
+	if storedCodeRaw == nil || string(*storedCodeRaw) != requestData.Key {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
 
 	// 删除验证码
-	if err := redisClient.Del(ctx, codeKey).Err(); err != nil {
+	if err := kvStoreDao.DeleteValue(ctx, codeKey); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -720,12 +717,12 @@ func (c *UserController) PostForget(ctx *gin.Context) {
 		return
 	}
 
-	redisClient := metaredis.GetSubsystem().GetClient()
+	kvStoreDao := foundationdao.GetKVStoreDao()
 	codeKey := fmt.Sprintf("forget_password_key_%s", username)
 
-	// 生成验证码并存入 Redis，设置10分钟过期
+	// 生成验证码并存入 KV 存储，设置10分钟过期
 	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
-	if err := redisClient.Set(ctx, codeKey, code, 10*time.Minute).Err(); err != nil {
+	if err := kvStoreDao.SetValue(ctx, codeKey, []byte(code), 10*time.Minute); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -774,23 +771,19 @@ func (c *UserController) PostPasswordForget(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
+	kvStoreDao := foundationdao.GetKVStoreDao()
 	codeKey := fmt.Sprintf("forget_password_key_%s", username)
-	redisClient := metaredis.GetSubsystem().GetClient()
-	storedCode, err := redisClient.Get(ctx, codeKey).Result()
-	if errors.Is(err, redis.Nil) {
-		metaresponse.NewResponse(ctx, weberrorcode.ForgetUserMailKeyError, nil)
-		return
-	}
+	storedCodeRaw, err := kvStoreDao.GetValue(ctx, codeKey)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	if storedCode != requestData.Key {
+	if storedCodeRaw == nil || string(*storedCodeRaw) != requestData.Key {
 		metaresponse.NewResponse(ctx, weberrorcode.ForgetUserMailKeyError, nil)
 		return
 	}
 	// 删除验证码
-	if err := redisClient.Del(ctx, codeKey).Err(); err != nil {
+	if err := kvStoreDao.DeleteValue(ctx, codeKey); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}

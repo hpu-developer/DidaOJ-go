@@ -21,7 +21,6 @@ import (
 	metamd5 "meta/meta-md5"
 	metapanic "meta/meta-panic"
 	metapath "meta/meta-path"
-	metaredis "meta/meta-redis"
 	metaslice "meta/meta-slice"
 	metastring "meta/meta-string"
 	metazip "meta/meta-zip"
@@ -306,15 +305,15 @@ func (s *ProblemService) GetProblemRecommend(
 	hasAuth bool,
 	problemId int,
 ) ([]*foundationview.ProblemViewList, error) {
-	redisKey := fmt.Sprintf("problem_recommend_%d", userId)
+	kvKey := fmt.Sprintf("problem_recommend_%d", userId)
 	if problemId > 0 {
-		redisKey += "_" + strconv.Itoa(problemId)
+		kvKey += "_" + strconv.Itoa(problemId)
 	}
-	redisClient := metaredis.GetSubsystem().GetClient()
-	cached, err := redisClient.Get(ctx, redisKey).Result()
-	if err == nil && cached != "" {
+	kvStoreDao := foundationdao.GetKVStoreDao()
+	cached, err := kvStoreDao.GetValue(ctx, kvKey)
+	if err == nil && cached != nil {
 		var statics []*foundationview.ProblemViewList
-		if err := json.Unmarshal([]byte(cached), &statics); err == nil {
+		if err := json.Unmarshal(*cached, &statics); err == nil {
 			return statics, nil
 		}
 	}
@@ -328,7 +327,8 @@ func (s *ProblemService) GetProblemRecommend(
 		return nil, err
 	}
 	if len(problemIds) == 0 {
-		err := redisClient.Set(ctx, redisKey, "[]", time.Hour).Err()
+		emptyArray := json.RawMessage("[]")
+		err := kvStoreDao.SetValue(ctx, kvKey, emptyArray, time.Hour)
 		if err != nil {
 			return nil, err
 		}
@@ -339,7 +339,8 @@ func (s *ProblemService) GetProblemRecommend(
 		return nil, err
 	}
 	if len(problemList) == 0 {
-		err := redisClient.Set(ctx, redisKey, "[]", time.Hour).Err()
+		emptyArray := json.RawMessage("[]")
+		err := kvStoreDao.SetValue(ctx, kvKey, emptyArray, time.Hour)
 		if err != nil {
 			return nil, err
 		}
@@ -358,7 +359,7 @@ func (s *ProblemService) GetProblemRecommend(
 	if err != nil {
 		return nil, metaerror.Wrap(err, "marshal problem list error")
 	}
-	err = redisClient.Set(ctx, redisKey, jsonString, time.Hour).Err()
+	err = kvStoreDao.SetValue(ctx, kvKey, jsonString, time.Hour)
 	if err != nil {
 		return nil, err
 	}
