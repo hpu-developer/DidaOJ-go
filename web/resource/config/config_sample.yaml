@@ -9,10 +9,6 @@ mongo:
   username: ""
   password: ""
 
-redis:
-  addr: ""
-  password: ""
-
 go-judge:
   url: ""
 
