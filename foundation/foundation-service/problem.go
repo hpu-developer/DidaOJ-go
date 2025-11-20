@@ -15,17 +15,14 @@ import (
 	cfr2 "meta/cf-r2"
 	metaerrorcode "meta/error-code"
 	metaerror "meta/meta-error"
-	metahttp "meta/meta-http"
 	metamath "meta/meta-math"
 	metamd5 "meta/meta-md5"
 	metapanic "meta/meta-panic"
 	metapath "meta/meta-path"
 	metaslice "meta/meta-slice"
-	metastring "meta/meta-string"
 	metazip "meta/meta-zip"
 	"meta/routine"
 	"meta/singleton"
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -39,7 +36,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -403,8 +399,6 @@ func (s *ProblemService) PostJudgeData(
 	problemId int,
 	unzipDir string,
 	oldMd5 *string,
-	goJudgeUrl string,
-	goJudgeConfigFiles map[string]string,
 ) error {
 	// 如果包含文件夹，认为失败
 	err := filepath.Walk(
@@ -491,7 +485,6 @@ func (s *ProblemService) PostJudgeData(
 	}
 
 	if jobConfig.SpecialJudge != nil {
-		runUrl := metahttp.UrlJoin(goJudgeUrl, "run")
 
 		language := foundationjudge.GetLanguageByKey(jobConfig.SpecialJudge.Language)
 		if !foundationjudge.IsValidJudgeLanguage(int(language)) {
@@ -501,44 +494,6 @@ func (s *ProblemService) PostJudgeData(
 		// 考虑编译机性能影响，暂时仅允许部分语言
 		if !foundationjudge.IsValidSpecialJudgeLanguage(language) {
 			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSpjLanguageNotValid)
-		}
-
-		codeFilePath := filepath.Join(unzipDir, jobConfig.SpecialJudge.Source)
-		codeContent, err := metastring.GetStringFromOpenFile(codeFilePath)
-		if err != nil {
-			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSpjContentNotValid)
-
-		}
-
-		jobKey := uuid.New().String()
-
-		goJudgeClient := http.DefaultClient
-
-		execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
-			goJudgeClient,
-			jobKey,
-			runUrl,
-			language,
-			codeContent,
-			goJudgeConfigFiles,
-			true,
-		)
-		if extraMessage != "" {
-			slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
-		}
-		if compileStatus != foundationjudge.JudgeStatusAC {
-			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSpjCompileFail)
-		}
-		if err != nil {
-			metapanic.ProcessError(err)
-			return metaerror.NewCode(weberrorcode.ProblemJudgeDataSpjCompileFail)
-		}
-		for _, fileId := range execFileIds {
-			deleteUrl := metahttp.UrlJoin(goJudgeUrl, "file", fileId)
-			err := foundationjudge.DeleteFile(goJudgeClient, jobKey, deleteUrl)
-			if err != nil {
-				metapanic.ProcessError(err)
-			}
 		}
 		judgeType = foundationjudge.JudgeTypeSpecial
 	}

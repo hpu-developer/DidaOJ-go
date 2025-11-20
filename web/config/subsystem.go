@@ -1,7 +1,6 @@
 package config
 
 import (
-	foundationjudge "foundation/foundation-judge"
 	cfr2 "meta/cf-r2"
 	"meta/engine"
 	metaconfig "meta/meta-config"
@@ -18,10 +17,6 @@ type Config struct {
 	AllowedOrigins []string `yaml:"allowed-origins"` // 允许的跨域请求来源
 
 	PostgreSql map[string]*metapostgresql.Config `yaml:"postgresql"`
-
-	GoJudge foundationjudge.GoJudgeConfig `yaml:"go-judge"` // GoJudge 数据服务地址
-
-	TestlibFile string `yaml:"testlib-file"` // 测试库文件路径
 
 	CfTurnstile string `yaml:"cf-turnstile"` // Cloudflare Turnstile 密钥
 

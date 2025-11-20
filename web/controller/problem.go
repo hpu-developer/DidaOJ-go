@@ -24,7 +24,6 @@ import (
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	metazip "meta/meta-zip"
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -50,8 +49,6 @@ type ProblemJudgeData struct {
 
 type ProblemController struct {
 	metacontroller.Controller
-
-	goJudgeConfigFiles map[string]string
 }
 
 func (c *ProblemController) Get(ctx *gin.Context) {
@@ -784,30 +781,11 @@ func (c *ProblemController) PostJudgeData(ctx *gin.Context) {
 		return
 	}
 
-	if c.goJudgeConfigFiles == nil {
-		c.goJudgeConfigFiles = make(map[string]string)
-	}
-	_, ok = c.goJudgeConfigFiles["testlib"]
-	if !ok {
-		fileId, err := foundationjudge.UploadFile(
-			http.DefaultClient,
-			config.GetConfig().GoJudge.Url,
-			config.GetConfig().TestlibFile,
-		)
-		if err != nil {
-			metaresponse.NewResponseWrapCode(ctx, err, metaerrorcode.CommonError, nil)
-			return
-		}
-		c.goJudgeConfigFiles["testlib"] = *fileId
-	}
-
 	err = problemService.PostJudgeData(
 		ctx,
 		problemId,
 		unzipDir,
 		problem.JudgeMd5,
-		config.GetConfig().GoJudge.Url,
-		c.goJudgeConfigFiles,
 	)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerror.GetErrorCodeFromError(err), nil)

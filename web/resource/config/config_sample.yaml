@@ -4,9 +4,6 @@ env:
 allowed-origins:
   - "*"
 
-go-judge:
-  url: ""
-
 cf-turnstile: ""
 
 cf-r2:
@@ -22,8 +19,6 @@ cf-r2:
     secret: ""
 
 r2-url: ""
-
-testlib-file: ""
 
 email:
   email: ""
