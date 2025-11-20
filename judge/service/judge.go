@@ -21,6 +21,7 @@ import (
 	metapanic "meta/meta-panic"
 	metapath "meta/meta-path"
 	metastring "meta/meta-string"
+	metazip "meta/meta-zip"
 	"meta/retry"
 	"meta/routine"
 	"meta/singleton"
@@ -302,7 +303,7 @@ func (s *JudgeService) startJudgeJob(job *foundationmodel.JudgeJob) error {
 		return metaerror.Wrap(err, "failed to get problem")
 	}
 	if problem == nil {
-		return metaerror.New("problem not found: %s", job.ProblemId)
+		return metaerror.New("problem not found: %d", job.ProblemId)
 	}
 	if problem.JudgeMd5 == nil {
 		return metaerror.New("problem judge md5 is nil: %d", job.ProblemId)
@@ -429,63 +430,107 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId int, md5
 		delete(s.specialFileIds, problemId)
 	}
 
-	// 1. 列出 problemId 目录下的所有对象
-	input := &s3.ListObjectsV2Input{
-		Bucket: aws.String("didaoj-judge"),
-		Prefix: aws.String(strconv.Itoa(problemId) + "/"), // 确保带 `/`，只列出这个目录下的
-	}
+	// 1. 尝试下载 md5.zip 文件
+	md5ZipKey := fmt.Sprintf("%d/%s/%d-%s.zip", problemId, md5, problemId, md5)
+	md5ZipPath := path.Join(".judge_data", md5ZipKey)
+	var md5ZipFound bool
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var downloadErr error
-
-	err = r2Client.ListObjectsV2PagesWithContext(
-		ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
-			for _, obj := range page.Contents {
-				if strings.HasSuffix(*obj.Key, ".zip") {
-					continue
-				}
-				wg.Add(1)
-				routine.SafeGo(
-					"download judge data", func() error {
-						defer wg.Done()
-						localPath := path.Join(".judge_data", *obj.Key)
-						var finalErr error
-						_ = retry.TryRetrySleep(
-							"download judge data", 6, time.Second*10, func(i int) bool {
-								err := s.downloadObject(ctx, r2Client, "didaoj-judge", *obj.Key, localPath)
-								if err != nil {
-									finalErr = err
-									return false
-								}
-								finalErr = nil
-								return true
-							},
-						)
-						if finalErr != nil {
-							mu.Lock()
-							defer mu.Unlock()
-							if downloadErr == nil {
-								downloadErr = finalErr
-							}
-						}
-						return nil
-					},
-				)
+	// 首先尝试下载 md5.zip 文件
+	retry.TryRetrySleep("download md5.zip", 6, time.Second*10, func(i int) bool {
+		err = s.downloadObject(ctx, r2Client, "didaoj-judge", md5ZipKey, md5ZipPath)
+		if err != nil {
+			// 如果文件不存在，直接返回false，不重试
+			if strings.Contains(err.Error(), "ailed to get object") {
+				return true // 表示不再重试
 			}
-			return true
-		},
-	)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to list objects")
-	}
+			return false // 其他错误继续重试
+		}
+		md5ZipFound = true
+		return true
+	})
 
-	// 等待所有下载完成
-	wg.Wait()
+	if md5ZipFound {
+		// 如果成功下载了 md5.zip 文件，进行解压
+		slog.Info("found md5.zip, extracting...", "problemId", problemId, "md5", md5)
+		unzipDir := path.Join(".judge_data", strconv.Itoa(problemId), md5)
 
-	// 如果有任何错误，返回
-	if downloadErr != nil {
-		return downloadErr
+		// 解压 zip 文件
+		unzipFile, err := os.Open(md5ZipPath)
+		if err != nil {
+			return metaerror.Wrap(err, "failed to open md5.zip")
+		}
+		defer func() {
+			_ = unzipFile.Close()
+			_ = os.Remove(md5ZipPath) // 解压后删除 zip 文件
+		}()
+
+		if err := metazip.UzipFile(md5ZipPath, unzipDir); err != nil {
+			return metaerror.Wrap(err, "failed to extract md5.zip")
+		}
+
+		slog.Info("extracted md5.zip successfully", "problemId", problemId, "md5", md5)
+	} else {
+		// 如果没有 md5.zip 文件，继续逐个下载其他文件
+		slog.Info("md5.zip not found, downloading files one by one", "problemId", problemId)
+
+		// 列出 problemId 目录下的所有对象
+		input := &s3.ListObjectsV2Input{
+			Bucket: aws.String("didaoj-judge"),
+			Prefix: aws.String(strconv.Itoa(problemId) + "/"), // 确保带 `/`，只列出这个目录下的
+		}
+
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var downloadErr error
+
+		err = r2Client.ListObjectsV2PagesWithContext(
+			ctx, input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+				for _, obj := range page.Contents {
+					if strings.HasSuffix(*obj.Key, ".zip") {
+						continue
+					}
+					wg.Add(1)
+					routine.SafeGo(
+						"download judge data", func() error {
+							defer wg.Done()
+							localPath := path.Join(".judge_data", *obj.Key)
+							var finalErr error
+							_ = retry.TryRetrySleep(
+								"download judge data", 6, time.Second*10, func(i int) bool {
+									err := s.downloadObject(ctx, r2Client, "didaoj-judge", *obj.Key, localPath)
+									if err != nil {
+										finalErr = err
+										return false
+									}
+									finalErr = nil
+									return true
+								},
+							)
+							if finalErr != nil {
+								mu.Lock()
+								defer mu.Unlock()
+								if downloadErr == nil {
+									downloadErr = finalErr
+								}
+							}
+							return nil
+						},
+					)
+				}
+				return true
+			},
+		)
+		if err != nil {
+			return metaerror.Wrap(err, "failed to list objects")
+		}
+
+		// 等待所有下载完成
+		wg.Wait()
+
+		// 如果有任何错误，返回
+		if downloadErr != nil {
+			return downloadErr
+		}
 	}
 
 	return nil
