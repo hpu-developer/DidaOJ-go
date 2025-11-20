@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
@@ -10,18 +9,18 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationoj "foundation/foundation-oj"
 	foundationr2 "foundation/foundation-r2"
-	"foundation/foundation-remote"
+	foundationremote "foundation/foundation-remote"
 	foundationservice "foundation/foundation-service"
 	foundationview "foundation/foundation-view"
 	"log"
 	"log/slog"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
-	"meta/error-code"
+	metaerrorcode "meta/error-code"
 	metaerror "meta/meta-error"
 	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
-	"meta/meta-response"
+	metaresponse "meta/meta-response"
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
 	metazip "meta/meta-zip"
@@ -41,7 +40,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type ProblemJudgeData struct {
@@ -968,10 +966,6 @@ func (c *ProblemController) PostEdit(ctx *gin.Context) {
 
 	oldDescription, err := foundationservice.GetProblemService().GetProblemDescription(ctx, problemId)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
-			return
-		}
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}

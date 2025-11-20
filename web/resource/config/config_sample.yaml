@@ -4,11 +4,6 @@ env:
 allowed-origins:
   - "*"
 
-mongo:
-  uri: ""
-  username: ""
-  password: ""
-
 go-judge:
   url: ""
 

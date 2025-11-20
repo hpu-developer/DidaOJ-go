@@ -6,7 +6,6 @@ import (
 	"meta/engine"
 	metaconfig "meta/meta-config"
 	metaemail "meta/meta-email"
-	metamogo "meta/meta-mongo"
 	metapostgresql "meta/meta-postgresql"
 	metastring "meta/meta-string"
 )
@@ -17,8 +16,6 @@ type Config struct {
 	} `yaml:"env"`
 
 	AllowedOrigins []string `yaml:"allowed-origins"` // 允许的跨域请求来源
-
-	Mongo metamogo.Config `yaml:"mongo"`
 
 	PostgreSql map[string]*metapostgresql.Config `yaml:"postgresql"`
 
@@ -69,17 +66,6 @@ func GetHttpPort() int32 {
 		return -1
 	}
 	return GetSubsystem().config.Env.HttpPort
-}
-
-func GetMongoConfig() *metamogo.Config {
-	configSubsystem := GetSubsystem()
-	if configSubsystem == nil {
-		return nil
-	}
-	if configSubsystem.config == nil {
-		return nil
-	}
-	return &configSubsystem.config.Mongo
 }
 
 func GetAllowedOrigins() []string {

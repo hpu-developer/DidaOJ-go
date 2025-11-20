@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
@@ -12,10 +11,10 @@ import (
 	"log"
 	cfr2 "meta/cf-r2"
 	metacontroller "meta/controller"
-	"meta/error-code"
+	metaerrorcode "meta/error-code"
 	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
-	"meta/meta-response"
+	metaresponse "meta/meta-response"
 	metatime "meta/meta-time"
 	"strconv"
 	"time"
@@ -27,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type DiscussController struct {
@@ -558,10 +556,6 @@ func (c *DiscussController) PostEdit(ctx *gin.Context) {
 
 	oldDescription, err := discussService.GetContent(ctx, discussId)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
-			return
-		}
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}

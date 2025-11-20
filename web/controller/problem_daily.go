@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	foundationerrorcode "foundation/error-code"
 	foundationauth "foundation/foundation-auth"
@@ -11,10 +12,10 @@ import (
 	foundationview "foundation/foundation-view"
 	"log"
 	cfr2 "meta/cf-r2"
-	"meta/error-code"
+	metaerrorcode "meta/error-code"
 	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
-	"meta/meta-response"
+	metaresponse "meta/meta-response"
 	metatime "meta/meta-time"
 	"strconv"
 	"time"
@@ -26,7 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/mongo"
+	"gorm.io/gorm"
 )
 
 func (c *ProblemController) GetDailyImageToken(ctx *gin.Context) {
@@ -354,7 +355,7 @@ func (c *ProblemController) PostDailyCreate(ctx *gin.Context) {
 		Build()
 	err = foundationservice.GetProblemDailyService().PostDailyCreate(ctx, problemDaily)
 	if err != nil {
-		if mongo.IsDuplicateKeyError(err) {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			metaresponse.NewResponse(ctx, weberrorcode.ProblemDailyAlreadyExists, nil)
 			return
 		}
