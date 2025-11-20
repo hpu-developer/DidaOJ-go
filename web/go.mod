@@ -8,8 +8,6 @@ require (
 	github.com/aws/aws-sdk-go v1.55.7
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.6.0
-	github.com/redis/go-redis/v9 v9.11.0
-	go.mongodb.org/mongo-driver v1.17.4
 )
 
 require (

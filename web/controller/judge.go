@@ -14,7 +14,6 @@ import (
 	metacontroller "meta/controller"
 	metaerrorcode "meta/error-code"
 	metapanic "meta/meta-panic"
-	metaredis "meta/meta-redis"
 	metaresponse "meta/meta-response"
 	metatime "meta/meta-time"
 	"strconv"
@@ -253,26 +252,23 @@ func (c *JudgeController) GetList(ctx *gin.Context) {
 
 func (c *JudgeController) GetStaticsRecently(ctx *gin.Context) {
 	codeKey := "judge_statics_recently"
-	redisClient := metaredis.GetSubsystem().GetClient()
-	cached, err := redisClient.Get(ctx, codeKey).Result()
-	if err == nil && cached != "" {
+
+	cached, err := foundationservice.GetKVStoreService().GetValue(ctx, codeKey)
+	if err == nil && cached != nil {
 		var statics interface{}
-		if err := json.Unmarshal([]byte(cached), &statics); err == nil {
+		if err := json.Unmarshal(*cached, &statics); err == nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.Success, statics)
 			return
 		}
 	}
+
 	judgeService := foundationservice.GetJudgeService()
 	statics, err := judgeService.GetJudgeJobCountStaticsRecently(ctx)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	// 缓存数据（序列化为 JSON）并设置 1 分钟过期
-	bytes, err := json.Marshal(statics)
-	if err == nil {
-		redisClient.Set(ctx, codeKey, string(bytes), time.Minute)
-	}
+	foundationservice.GetKVStoreService().SetValue(ctx, codeKey, statics, time.Minute)
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, statics)
 }
 

@@ -12,7 +12,7 @@
  Target Server Version : 170006 (170006)
  File Encoding         : 65001
 
- Date: 17/11/2025 10:33:08
+ Date: 20/11/2025 14:47:59
 */
 
 
@@ -416,6 +416,18 @@ CREATE TABLE "didaoj"."judger" (
   "modify_time" timestamptz(6),
   "hidden" bool,
   "enable" bool
+)
+;
+
+-- ----------------------------
+-- Table structure for kv_store
+-- ----------------------------
+DROP TABLE IF EXISTS "didaoj"."kv_store";
+CREATE TABLE "didaoj"."kv_store" (
+  "key" text COLLATE "pg_catalog"."default" NOT NULL,
+  "value" jsonb,
+  "insert_time" timestamptz(6) DEFAULT now(),
+  "expire_time" timestamptz(6)
 )
 ;
 
@@ -846,6 +858,21 @@ ALTER TABLE "didaoj"."judge_task" ADD CONSTRAINT "judge_task_pk" PRIMARY KEY ("t
 -- Primary Key structure for table judger
 -- ----------------------------
 ALTER TABLE "didaoj"."judger" ADD CONSTRAINT "judger_pk" PRIMARY KEY ("key");
+
+-- ----------------------------
+-- Indexes structure for table kv_store
+-- ----------------------------
+CREATE INDEX "kv_store_expire_time_index" ON "didaoj"."kv_store" USING btree (
+  "expire_time" "pg_catalog"."timestamptz_ops" ASC NULLS LAST
+);
+CREATE INDEX "kv_store_insert_time_index" ON "didaoj"."kv_store" USING btree (
+  "insert_time" "pg_catalog"."timestamptz_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table kv_store
+-- ----------------------------
+ALTER TABLE "didaoj"."kv_store" ADD CONSTRAINT "kv_store_pkey" PRIMARY KEY ("key");
 
 -- ----------------------------
 -- Indexes structure for table problem
