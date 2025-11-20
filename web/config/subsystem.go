@@ -149,3 +149,13 @@ func GetOjTemplateContent(oj string) string {
 	}
 	return content
 }
+func IsEnableRedis() bool {
+	configSubsystem := GetSubsystem()
+	if configSubsystem == nil {
+		return false
+	}
+	if configSubsystem.config == nil {
+		return false
+	}
+	return configSubsystem.config.Redis.Addr != ""
+}

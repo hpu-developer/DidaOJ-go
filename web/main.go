@@ -5,10 +5,9 @@ import (
 	foundationinit "foundation/foundation-init"
 	cfr2 "meta/cf-r2"
 	"meta/engine"
-	"meta/meta-http"
+	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
 	metapostgresql "meta/meta-postgresql"
-	metaredis "meta/meta-redis"
 	"meta/subsystem"
 	"web/application"
 	"web/config"
@@ -24,16 +23,6 @@ func InitPre() error {
 	engine.RegisterSubsystem(
 		func() subsystem.Interface {
 			return &config.Subsystem{}
-		},
-	)
-
-	engine.RegisterSubsystem(
-		func() subsystem.Interface {
-			redisSubsystem := &metaredis.Subsystem{}
-			redisSubsystem.GetConfig = func() *metaredis.Config {
-				return config.GetRedisConfig()
-			}
-			return redisSubsystem
 		},
 	)
 
