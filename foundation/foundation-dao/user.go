@@ -516,9 +516,12 @@ func (d *UserDao) InsertUserExperienceWithTx(tx *gorm.DB, expRecord *foundationm
 // AddUserCoinWithTx 在事务中更新用户金币
 // 使用数据库行级锁确保在高并发环境下的数据一致性
 func (d *UserDao) AddUserCoinWithTx(tx *gorm.DB, userId int, coinGain int, nowTime time.Time) (int, error) {
-	// 检查用户是否存在
-	var existingCoin int
-	if err := tx.Model(&foundationmodel.User{}).Where("id = ?", userId).Pluck("coin", &existingCoin).Error; err != nil {
+	// 使用FOR UPDATE获取行级锁，确保其他事务无法同时修改该记录
+	var user foundationmodel.User
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Model(&foundationmodel.User{}).
+		Where("id = ?", userId).
+		First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, metaerror.New("用户不存在")
 		}
@@ -526,22 +529,27 @@ func (d *UserDao) AddUserCoinWithTx(tx *gorm.DB, userId int, coinGain int, nowTi
 	}
 
 	// 检查金币是否会变为负数
-	if existingCoin+coinGain < 0 {
+	if user.Coin+coinGain < 0 {
 		return 0, metaerror.New("金币不足")
 	}
 
-	// 直接在SQL中使用+操作符更新金币值
+	// 计算更新后的金币值
+	updatedCoin := user.Coin + coinGain
+
+	// 更新用户金币值
 	res := tx.Model(&foundationmodel.User{}).
-		Where("id = ?", userId).
-		Update("coin", gorm.Expr("coin + ?", coinGain)).
-		Update("modify_time", nowTime)
+		Where("id = ?", userId). // 由于已获取行级锁，不需要额外的乐观锁条件
+		Updates(map[string]interface{}{
+			"coin":        updatedCoin,
+			"modify_time": nowTime,
+		})
 
 	if res.Error != nil {
 		return 0, metaerror.Wrap(res.Error, "更新用户金币失败")
 	}
 
 	// 返回更新后的金币值
-	return existingCoin + coinGain, nil
+	return updatedCoin, nil
 }
 
 // GetUserCoin 获取用户金币
