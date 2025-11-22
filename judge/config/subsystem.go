@@ -14,6 +14,7 @@ type Config struct {
 	MaxJob       int                               `yaml:"max-job"`        // 最大同时评测的job数量
 	MaxJobRemote int                               `yaml:"max-job-remote"` // 最大同时远程评测的job数量
 	MaxJobRun    int                               `yaml:"max-job-run"`    // 最大同时运行的job数量
+	MaxJobBot    int                               `yaml:"max-job-bot"`    // 最大同时评测的bot数量
 	JudgeData    cfr2.Config                       `yaml:"judge-data"`     // GoJudge 数据服务地址
 	PostgreSql   map[string]*metapostgresql.Config `yaml:"postgresql"`
 

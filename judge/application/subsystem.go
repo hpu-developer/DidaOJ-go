@@ -53,5 +53,10 @@ func (s *Subsystem) startSubSystem() error {
 		return err
 	}
 
+	err = service.GetBotService().Start()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
