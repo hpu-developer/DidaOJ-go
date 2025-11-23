@@ -16,7 +16,7 @@ import (
 	metaerror "meta/meta-error"
 	metahttp "meta/meta-http"
 	metapanic "meta/meta-panic"
-	"meta/routine"
+	"meta/metaroutine"
 	"meta/singleton"
 	"net/http"
 	"strconv"
@@ -127,7 +127,7 @@ func (s *RunService) handleStart() error {
 	s.runningTasks.Add(int32(jobsCount))
 
 	for _, job := range jobs {
-		routine.SafeGo(
+		metaroutine.SafeGo(
 			fmt.Sprintf("RunningRunJob_%d", job.Id), func() error {
 				// 执行完本Job后再尝试启动一次任务
 				defer s.checkStartJob()

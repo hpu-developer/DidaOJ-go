@@ -13,7 +13,7 @@ import (
 	"meta/cron"
 	metaerror "meta/meta-error"
 	metapanic "meta/meta-panic"
-	"meta/routine"
+	"meta/metaroutine"
 	"meta/singleton"
 	"net/http"
 	"sync"
@@ -127,7 +127,7 @@ func (s *RemoteService) handleStart() error {
 	s.runningTasks.Add(int32(jobsCount))
 
 	for _, job := range jobs {
-		routine.SafeGo(
+		metaroutine.SafeGo(
 			fmt.Sprintf("RunningJudgeJob_%d", job.Id), func() error {
 				defer func() {
 					slog.Info(fmt.Sprintf("RemoteTask_%d end", job.Id))

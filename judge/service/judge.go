@@ -22,8 +22,8 @@ import (
 	metapath "meta/meta-path"
 	metastring "meta/meta-string"
 	metazip "meta/meta-zip"
+	"meta/metaroutine"
 	"meta/retry"
-	"meta/routine"
 	"meta/singleton"
 	"net/http"
 	"os"
@@ -237,7 +237,7 @@ func (s *JudgeService) handleStart() error {
 	s.runningTasks.Add(int32(jobsCount))
 
 	for _, job := range jobs {
-		routine.SafeGo(
+		metaroutine.SafeGo(
 			fmt.Sprintf("RunningJudgeJob_%d", job.Id), func() error {
 				// 执行完本Job后再尝试启动一次任务
 				defer s.checkStartJob()
@@ -490,7 +490,7 @@ func (s *JudgeService) downloadJudgeData(ctx context.Context, problemId int, md5
 						continue
 					}
 					wg.Add(1)
-					routine.SafeGo(
+					metaroutine.SafeGo(
 						"download judge data", func() error {
 							defer wg.Done()
 							localPath := path.Join(".judge_data", *obj.Key)

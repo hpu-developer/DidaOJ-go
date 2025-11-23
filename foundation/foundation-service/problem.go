@@ -21,7 +21,7 @@ import (
 	metapath "meta/meta-path"
 	metaslice "meta/meta-slice"
 	metazip "meta/meta-zip"
-	"meta/routine"
+	"meta/metaroutine"
 	"meta/singleton"
 	"os"
 	"path"
@@ -742,7 +742,7 @@ func (s *ProblemService) PostJudgeData(
 	if len(deleteKeys) > 0 {
 		var maxConcurrency = 10
 
-		routine.SafeGo(
+		metaroutine.SafeGo(
 			"delete judge data object", func() error {
 				var wg sync.WaitGroup
 				sem := make(chan struct{}, maxConcurrency)
