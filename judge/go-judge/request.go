@@ -2,15 +2,15 @@ package gojudge
 
 // CmdFile 表示命令文件
 type CmdFile struct {
-	Src       *string `json:"src"`
-	Content   string  `json:"content"`
-	FileID    *string `json:"fileId"`
-	Name      string  `json:"name"`
-	Max       int64   `json:"max"`
-	Symlink   *string `json:"symlink"`
-	StreamIn  bool    `json:"streamIn"`
-	StreamOut bool    `json:"streamOut"`
-	Pipe      bool    `json:"pipe"`
+	Src       *string `json:"src,omitempty"`
+	Content   string  `json:"content,omitempty"`
+	FileID    string  `json:"fileId,omitempty"`
+	Name      string  `json:"name,omitempty"`
+	Max       int64   `json:"max,omitempty"`
+	Symlink   string  `json:"symlink,omitempty"`
+	StreamIn  bool    `json:"streamIn,omitempty"`
+	StreamOut bool    `json:"streamOut,omitempty"`
+	Pipe      bool    `json:"pipe,omitempty"`
 }
 
 // Cmd 表示执行命令

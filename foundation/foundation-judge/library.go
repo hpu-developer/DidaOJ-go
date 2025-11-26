@@ -112,6 +112,7 @@ func CompileCode(
 	code string,
 	configFiles map[string]string,
 	isSpj bool,
+	isBotJudge bool,
 ) (map[string]string, string, JudgeStatus, error) {
 	slog.Info("compile code", "job", jobKey)
 
@@ -203,15 +204,31 @@ func CompileCode(
 		copyOutCached = []string{"a"}
 	case JudgeLanguageGolang:
 		env = append(env, "GOCACHE=/tmp/go_cache")
-		args = []string{"go", "build", "-o", "a"}
-		copyIns = map[string]interface{}{
-			"a.go": map[string]interface{}{
-				"content": code,
-			},
-			"go.mod": map[string]interface{}{
-				"content": "module main\n",
-			},
+
+		if isBotJudge {
+			args = []string{"bash", "-c", "tar -xzf bot-judge.tar.gz && go build -o a"}
+
+			copyIns = map[string]interface{}{
+				"main.go": map[string]interface{}{
+					"content": code,
+				},
+			}
+
+			copyIns["bot-judge.tar.gz"] = map[string]interface{}{
+				"fileId": configFiles["bot-judge"],
+			}
+		} else {
+			args = []string{"go", "build", "-o", "a"}
+			copyIns = map[string]interface{}{
+				"a.go": map[string]interface{}{
+					"content": code,
+				},
+				"go.mod": map[string]interface{}{
+					"content": "module main\n",
+				},
+			}
 		}
+
 		copyOutCached = []string{"a"}
 	case JudgeLanguageTypeScript:
 		args = []string{"bash", "-c", "tar -xzf ts-env.tar.gz && npx tsc"}

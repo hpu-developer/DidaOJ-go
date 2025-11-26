@@ -38,6 +38,7 @@ vendor/
 # 忽略资源文件
 ts-env.tar.gz
 testlib.h
+bot-judge.tar.gz
 
 # 忽略正式运行的配置文件
 meta.yaml

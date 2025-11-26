@@ -629,6 +629,7 @@ func (s *JudgeService) compileSpecialJudge(
 		codeContent,
 		s.configFileIds,
 		true,
+		false,
 	)
 	if extraMessage != "" {
 		slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
@@ -667,6 +668,7 @@ func (s *JudgeService) compileCode(job *foundationmodel.JudgeJob) (
 		job.Language,
 		job.Code,
 		s.configFileIds,
+		false,
 		false,
 	)
 }

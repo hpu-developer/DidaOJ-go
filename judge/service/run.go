@@ -382,6 +382,7 @@ func (s *RunService) startRunJob(job *foundationmodel.RunJob) error {
 			job.Code,
 			GetJudgeService().configFileIds,
 			false,
+			false,
 		)
 		defer func() {
 			for _, fileId := range execFileIds {
