@@ -8,6 +8,7 @@ import (
 	foundationdao "foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
 	foundationmodel "foundation/foundation-model"
+	foundationview "foundation/foundation-view"
 	"io"
 	"judge/config"
 	gojudge "judge/go-judge"
@@ -162,7 +163,6 @@ func (s *BotService) handleStart() error {
 						config.GetConfig().Judger.Key,
 						foundationbot.BotGameStatusJudgeFail,
 						err.Error(),
-						0, 0,
 					)
 					if markErr != nil {
 						metapanic.ProcessError(markErr)
@@ -178,6 +178,29 @@ func (s *BotService) handleStart() error {
 }
 
 func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
+	ctx := context.Background()
+	codes, err := foundationdao.GetBotCodeDao().GetBotCodes(ctx, job.Bots)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to get bot replay code map")
+	}
+
+	slog.Info("bot replay code map", "codes", codes)
+
+	codeFiles := make(map[int]map[string]string)
+	for _, bc := range codes {
+		if !foundationjudge.IsLanguageNeedCompile(bc.Language) {
+			continue
+		}
+		fileIds, compileErr := s.compileBotCode(bc)
+		if compileErr != nil {
+			return metaerror.Wrap(compileErr, "failed to compile bot code")
+		}
+		codeFiles[bc.Id] = fileIds
+	}
+	codeViews := make(map[int]*foundationview.BotCodeView)
+	for _, bc := range codes {
+		codeViews[bc.Id] = bc
+	}
 
 	judgeClient, err := s.runJudgeExec(job)
 	if err != nil {
@@ -186,6 +209,19 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 	defer judgeClient.Close()
 
 	slog.Info("start bot game", "gameId", job.GameId, "bots", job.Bots)
+
+	agents := make(map[int]gojudge.Stream)
+	for _, bot := range job.Bots {
+		codeView, ok := codeViews[bot]
+		if !ok {
+			return metaerror.New(fmt.Sprintf("bot %d code not found", bot))
+		}
+		agent, err := s.runAgent(codeView, codeFiles[bot])
+		if err != nil {
+			return metaerror.Wrap(err, "failed to run agent")
+		}
+		agents[bot] = agent
+	}
 
 	metaroutine.SafeGo(fmt.Sprintf("game-%d-judge-receive", job.Id), func() error {
 		for {
@@ -287,6 +323,115 @@ func (s *BotService) runJudgeExec(job *foundationmodel.BotReplay) (gojudge.Strea
 	return streamClient, nil
 }
 
+func (s *BotService) runAgent(codeView *foundationview.BotCodeView, execFileIds map[string]string) (gojudge.Stream, error) {
+	wsURL := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "stream")
+	streamClient := s.newWebsocket([]string{}, wsURL)
+	if streamClient == nil {
+		return nil, metaerror.New("创建WebSocket连接失败")
+	}
+	var args []string
+	var copyIns map[string]gojudge.CmdFile
+
+	switch codeView.Language {
+	case foundationjudge.JudgeLanguageC, foundationjudge.JudgeLanguageCpp,
+		foundationjudge.JudgeLanguagePascal, foundationjudge.JudgeLanguageGolang,
+		foundationjudge.JudgeLanguageRust:
+		args = []string{"a"}
+		fileId, ok := execFileIds["a"]
+		if !ok {
+			return nil, metaerror.New("fileId not found")
+		}
+		copyIns = map[string]gojudge.CmdFile{
+			"a": {
+				FileID: fileId,
+			},
+		}
+	case foundationjudge.JudgeLanguageJava:
+		className := foundationjudge.GetJavaClass(codeView.Code)
+		if className == "" {
+			return nil, metaerror.New("class name not found")
+		}
+		packageName := foundationjudge.GetJavaPackage(codeView.Code)
+		qualifiedName := className
+		if packageName != "" {
+			qualifiedName = packageName + "." + className
+		}
+		jarFileName := className + ".jar"
+		args = []string{
+			"java",
+			"-Dfile.encoding=UTF-8",
+			"-cp",
+			jarFileName,
+			qualifiedName,
+		}
+		fileId, ok := execFileIds[jarFileName]
+		if !ok {
+			return nil, metaerror.New("fileId not found")
+		}
+		copyIns = map[string]gojudge.CmdFile{
+			jarFileName: {
+				FileID: fileId,
+			},
+		}
+	case foundationjudge.JudgeLanguagePython:
+		args = []string{"python3", "-u", "a.py"}
+		copyIns = map[string]gojudge.CmdFile{
+			"a.py": {
+				Content: codeView.Code,
+			},
+		}
+	case foundationjudge.JudgeLanguageLua:
+		args = []string{"luajit", "a.lua"}
+		copyIns = map[string]gojudge.CmdFile{
+			"a.lua": {
+				Content: codeView.Code,
+			},
+		}
+	case foundationjudge.JudgeLanguageTypeScript:
+		args = []string{"node", "a.js"}
+		fileId, ok := execFileIds["a.js"]
+		if !ok {
+			return nil, metaerror.New("fileId not found")
+		}
+		copyIns = map[string]gojudge.CmdFile{
+			"a.js": {
+				FileID: fileId,
+			},
+		}
+	default:
+		return nil, metaerror.New("language not support: %d", codeView.Language)
+	}
+
+	cpuLimit := uint64(5000000000)
+	memoryLimit := uint64(104857600)
+
+	req := &gojudge.RunRequest{
+		RequestID: fmt.Sprintf("%d-%s-%d", 1, time.Now().Format("20060102150405"), time.Now().UnixNano()),
+		Cmd: []gojudge.Cmd{
+			{
+				Args: args,
+				Env:  []string{"PATH=/usr/bin:/bin"},
+				Files: []*gojudge.CmdFile{
+					{StreamIn: true},
+					{StreamOut: true},
+				},
+				CPULimit:    cpuLimit,    // 5秒
+				MemoryLimit: memoryLimit, // 100MB
+				ProcLimit:   50,
+				CopyIn:      copyIns,
+				TTY:         true,
+			},
+		},
+	}
+	// 发送请求
+	err := streamClient.Send(&gojudge.StreamRequest{Request: req})
+	if err != nil {
+		return nil, metaerror.Wrap(err, "发送请求失败")
+	}
+
+	return streamClient, nil
+}
+
 func (s *BotService) getJudgeFileId(gameId int) string {
 	if s.judgeFileIds == nil {
 		return ""
@@ -340,7 +485,26 @@ func (s *BotService) compileJudge(gameId int) (string, error) {
 	return judgeFileId, nil
 }
 
-// 五子棋评测程序相关函数将在后面定义
+func (s *BotService) compileBotCode(code *foundationview.BotCodeView) (map[string]string, error) {
+	runUrl := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "run")
+	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
+		s.goJudgeClient,
+		fmt.Sprintf("bot_%d_code", code.Id),
+		runUrl,
+		code.Language,
+		code.Code,
+		GetJudgeService().configFileIds,
+		false,
+		false,
+	)
+	if compileStatus != foundationjudge.JudgeStatusAC {
+		return nil, metaerror.New("compile bot code failed: %s", extraMessage)
+	}
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to compile bot code")
+	}
+	return execFileIds, nil
+}
 
 // newWebsocket 创建WebSocket连接
 func (s *BotService) newWebsocket(args []string, wsURL string) gojudge.Stream {

@@ -12,30 +12,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type BotGameDao struct {
-	db *gorm.DB
-}
-
-var singletonBotDao = singleton.Singleton[BotGameDao]{}
-
-func GetBotGameDao() *BotGameDao {
-	return singletonBotDao.GetInstance(
-		func() *BotGameDao {
-			dao := &BotGameDao{}
-			dao.db = metapostgresql.GetSubsystem().GetClient("didaoj")
-			return dao
-		},
-	)
-}
-
-func (d *BotGameDao) GetJudgeCode(ctx context.Context, gameId int) (string, error) {
-	var judge string
-	if err := d.db.WithContext(ctx).Model(&foundationmodel.BotGame{}).Where("id = ?", gameId).Pluck("judge_code", &judge).Error; err != nil {
-		return "", metaerror.Wrap(err, "failed to get bot judge code")
-	}
-	return judge, nil
-}
-
 type BotReplayDao struct {
 	db *gorm.DB
 }
@@ -122,19 +98,15 @@ func (d *BotReplayDao) MarkBotReplayRunStatus(
 	id int,
 	judger string,
 	status foundationbot.BotGameStatus,
-	info string,
-	time int,
-	memory int,
+	message string,
 ) error {
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.BotReplay{}).
 		Where("id = ? AND judger = ?", id, judger).
 		Updates(
 			map[string]interface{}{
-				"status": status,
-				"info":   info,
-				"time":   time,
-				"memory": memory,
+				"status":  status,
+				"message": message,
 			},
 		).Error
 	if err != nil {
