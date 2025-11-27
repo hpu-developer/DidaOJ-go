@@ -244,6 +244,14 @@ func CompileCode(
 		copyOutCached = []string{"a.js"}
 		cpuLimit = cpuLimit + 5000000000        // TypeScript 编译时间可能较长，增加5秒
 		memoryLimit = memoryLimit + 1048576*128 // TypeScript 编译可能需要更多内存，增加128MB
+	case JudgeLanguageRust:
+		args = []string{"rustc", "a.rs", "-O", "-o", "a"}
+		copyIns = map[string]interface{}{
+			"a.rs": map[string]interface{}{
+				"content": code,
+			},
+		}
+		copyOutCached = []string{"a"}
 	default:
 		return nil, "compile failed, language not support.",
 			JudgeStatusJudgeFail,

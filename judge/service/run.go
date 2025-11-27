@@ -183,7 +183,8 @@ func (s *RunService) runJudgeTask(
 	var copyIns map[string]interface{}
 	switch job.Language {
 	case foundationjudge.JudgeLanguageC, foundationjudge.JudgeLanguageCpp,
-		foundationjudge.JudgeLanguagePascal, foundationjudge.JudgeLanguageGolang:
+		foundationjudge.JudgeLanguagePascal, foundationjudge.JudgeLanguageGolang,
+		foundationjudge.JudgeLanguageRust:
 		args = []string{"a"}
 		fileId, ok := execFileIds["a"]
 		if !ok {

@@ -12,6 +12,7 @@ const (
 	JudgeLanguageGolang     JudgeLanguage = 5
 	JudgeLanguageLua        JudgeLanguage = 6
 	JudgeLanguageTypeScript JudgeLanguage = 7
+	JudgeLanguageRust       JudgeLanguage = 8
 	JudgeLanguageMax        JudgeLanguage = iota
 )
 
@@ -19,7 +20,7 @@ const (
 func IsLanguageNeedCompile(language JudgeLanguage) bool {
 	switch language {
 	case JudgeLanguageC, JudgeLanguageCpp, JudgeLanguageJava, JudgeLanguagePython,
-		JudgeLanguagePascal, JudgeLanguageGolang, JudgeLanguageTypeScript:
+		JudgeLanguagePascal, JudgeLanguageGolang, JudgeLanguageRust, JudgeLanguageTypeScript:
 		return true
 	default:
 		return false
@@ -32,7 +33,7 @@ func IsValidJudgeLanguage(language int) bool {
 
 func IsValidSpecialJudgeLanguage(language JudgeLanguage) bool {
 	switch language {
-	case JudgeLanguageC, JudgeLanguageCpp, JudgeLanguageGolang:
+	case JudgeLanguageC, JudgeLanguageCpp, JudgeLanguageGolang, JudgeLanguageRust:
 		return true
 	default:
 		return false
@@ -53,6 +54,8 @@ func GetLanguageByKey(language string) JudgeLanguage {
 		return JudgeLanguagePascal
 	case "golang":
 		return JudgeLanguageGolang
+	case "rust":
+		return JudgeLanguageRust
 	default:
 		return JudgeLanguageUnknown
 	}
