@@ -13,3 +13,8 @@ judge-data:
   token: ""
   key: ""
   secret: ""
+
+files:
+  ts-env: ""
+  testlib: ""
+  bot-judge: ""

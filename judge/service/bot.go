@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	foundationbot "foundation/foundation-bot"
 	foundationdao "foundation/foundation-dao"
 	foundationjudge "foundation/foundation-judge"
+	foundationmodel "foundation/foundation-model"
 	"io"
 	"judge/config"
 	gojudge "judge/go-judge"
@@ -106,131 +108,89 @@ func (s *BotService) handleStart() error {
 	}
 	defer s.requestMutex.Unlock()
 
-	// 连接url并发送测试请求
-	// 五子棋评测程序将在其他地方调用
-	// 运行五子棋评测逻辑
-	err := s.testBase()
-	if err != nil {
-		return metaerror.Wrap(err, "failed to test base")
+	maxJob := config.GetConfig().MaxJobBot
+	runningCount := int(s.botRunningTasks.Load())
+	if runningCount >= maxJob {
+		return nil
 	}
-
-	return nil
-}
-
-func (s *BotService) testBase() error {
-	judgeFileId, err := s.compileJudge(1)
-	if err != nil {
-		return metaerror.Wrap(err, "failed to compile special judge")
-	}
-	if judgeFileId == "" {
-		return metaerror.New("special judge compile failed")
-	}
-	s.runGame(judgeFileId)
-
-	return nil
-}
-
-func (s *BotService) getJudgeFileId(gameId int) string {
-	if s.judgeFileIds == nil {
-		return ""
-	}
-	return s.judgeFileIds[gameId]
-}
-
-func (s *BotService) compileJudge(gameId int) (string, error) {
-
-	specialFileId := s.getJudgeFileId(gameId)
-	if specialFileId != "" {
-		return specialFileId, nil
-	}
-
 	ctx := context.Background()
-	code, err := foundationdao.GetBotGameDao().GetJudgeCode(ctx, gameId)
-	if err != nil {
-		return "", metaerror.Wrap(err, "failed to start process judge job")
-	}
-
-	runUrl := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "run")
-
-	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
-		s.goJudgeClient,
-		"bot_1_judge",
-		runUrl,
-		foundationjudge.JudgeLanguageGolang,
-		code,
-		GetJudgeService().configFileIds,
-		false,
-		true,
+	jobs, err := foundationdao.GetBotReplayDao().RequestBotReplayListPending(
+		ctx,
+		maxJob-runningCount,
+		config.GetConfig().Judger.Key,
 	)
-	if extraMessage != "" {
-		slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
-	}
-	if compileStatus != foundationjudge.JudgeStatusAC {
-		return "", metaerror.New("compile special judge failed: %s", extraMessage)
-	}
 	if err != nil {
-		return "", metaerror.Wrap(err, "failed to compile special judge")
+		return metaerror.Wrap(err, "failed to get run job list")
 	}
-	var ok bool
-	specialFileId, ok = execFileIds["a"]
-	if !ok {
-		return "", metaerror.New("special judge compile failed, fileId not found")
+	jobsCount := len(jobs)
+	if jobsCount == 0 {
+		return nil
 	}
-	if s.judgeFileIds == nil {
-		s.judgeFileIds = make(map[int]string)
+
+	slog.Info("get bot replay list", "runningCount", runningCount, "maxJob", maxJob, "count", jobsCount)
+
+	s.botRunningTasks.Add(int32(jobsCount))
+
+	for _, job := range jobs {
+		metaroutine.SafeGo(
+			fmt.Sprintf("RunningBotGame_%d", job.Id), func() error {
+				// 执行完本Job后再尝试启动一次任务
+				defer s.checkStartBot()
+
+				defer func() {
+					slog.Info(fmt.Sprintf("BotGame_%d end", job.Id))
+					s.botRunningTasks.Add(-1)
+				}()
+				val, _ := s.botJobMutexMap.LoadOrStore(job.Id, &botMutexEntry{})
+				e := val.(*botMutexEntry)
+				atomic.AddInt32(&e.ref, 1)
+
+				defer func() {
+					if atomic.AddInt32(&e.ref, -1) == 0 {
+						s.botJobMutexMap.Delete(job.Id)
+					}
+				}()
+				e.mu.Lock()
+				defer e.mu.Unlock()
+
+				slog.Info(fmt.Sprintf("BotGame_%d start", job.Id))
+				err = s.startBotJob(job)
+				if err != nil {
+					markErr := foundationdao.GetBotReplayDao().MarkBotReplayRunStatus(
+						ctx,
+						job.Id,
+						config.GetConfig().Judger.Key,
+						foundationbot.BotGameStatusJudgeFail,
+						err.Error(),
+						0, 0,
+					)
+					if markErr != nil {
+						metapanic.ProcessError(markErr)
+					}
+					return err
+				}
+
+				return nil
+			},
+		)
 	}
-	s.judgeFileIds[gameId] = specialFileId
-	return specialFileId, nil
+	return nil
 }
 
-func (s *BotService) runGame(judgeFileId string) error {
-	wsURL := "http://127.0.0.1:30000/stream"
-	streamClient := s.newWebsocket([]string{}, wsURL)
-	if streamClient == nil {
-		return metaerror.New("创建WebSocket连接失败")
-	}
-	defer streamClient.Close()
+func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 
-	var args []string
-	var copyIns map[string]gojudge.CmdFile
-	args = []string{"a"}
-	copyIns = map[string]gojudge.CmdFile{
-		"a": {
-			FileID: judgeFileId,
-		},
-	}
-
-	cpuLimit := uint64(5000000000)
-	memoryLimit := uint64(104857600)
-
-	req := &gojudge.RunRequest{
-		RequestID: fmt.Sprintf("%d-%s-%d", 1, time.Now().Format("20060102150405"), time.Now().UnixNano()),
-		Cmd: []gojudge.Cmd{
-			{
-				Args: args,
-				Env:  []string{"PATH=/usr/bin:/bin"},
-				Files: []*gojudge.CmdFile{
-					{StreamIn: true},
-					{StreamOut: true},
-				},
-				CPULimit:    cpuLimit,    // 5秒
-				MemoryLimit: memoryLimit, // 100MB
-				ProcLimit:   50,
-				CopyIn:      copyIns,
-				TTY:         false,
-			},
-		},
-	}
-	// 发送请求
-	err := streamClient.Send(&gojudge.StreamRequest{Request: req})
+	judgeClient, err := s.runJudgeExec(job)
 	if err != nil {
-		return metaerror.Wrap(err, "发送请求失败")
+		return metaerror.Wrap(err, "failed to run judge exec")
 	}
+	defer judgeClient.Close()
 
-	metaroutine.SafeGo(fmt.Sprintf("runGame-%d-%s", 1, req.RequestID), func() error {
+	slog.Info("start bot game", "gameId", job.GameId, "bots", job.Bots)
+
+	metaroutine.SafeGo(fmt.Sprintf("game-%d-judge-receive", job.Id), func() error {
 		for {
 			// 接收响应
-			resp, err := streamClient.Recv()
+			resp, err := judgeClient.Recv()
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					log.Println("连接已关闭")
@@ -269,7 +229,115 @@ func (s *BotService) runGame(judgeFileId string) error {
 	// 	return nil
 	// })
 	time.Sleep(10 * time.Second)
+
 	return nil
+}
+
+func (s *BotService) runJudgeExec(job *foundationmodel.BotReplay) (gojudge.Stream, error) {
+
+	judgeFileId, err := s.compileJudge(job.GameId)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to compile special judge")
+	}
+	if judgeFileId == "" {
+		return nil, metaerror.New("special judge compile failed")
+	}
+	wsURL := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "stream")
+	streamClient := s.newWebsocket([]string{}, wsURL)
+	if streamClient == nil {
+		return nil, metaerror.New("创建WebSocket连接失败")
+	}
+
+	var args []string
+	var copyIns map[string]gojudge.CmdFile
+	args = []string{"a"}
+	copyIns = map[string]gojudge.CmdFile{
+		"a": {
+			FileID: judgeFileId,
+		},
+	}
+
+	cpuLimit := uint64(5000000000)
+	memoryLimit := uint64(104857600)
+
+	req := &gojudge.RunRequest{
+		RequestID: fmt.Sprintf("%d-%s-%d", 1, time.Now().Format("20060102150405"), time.Now().UnixNano()),
+		Cmd: []gojudge.Cmd{
+			{
+				Args: args,
+				Env:  []string{"PATH=/usr/bin:/bin"},
+				Files: []*gojudge.CmdFile{
+					{StreamIn: true},
+					{StreamOut: true},
+				},
+				CPULimit:    cpuLimit,    // 5秒
+				MemoryLimit: memoryLimit, // 100MB
+				ProcLimit:   50,
+				CopyIn:      copyIns,
+				TTY:         true,
+			},
+		},
+	}
+	// 发送请求
+	err = streamClient.Send(&gojudge.StreamRequest{Request: req})
+	if err != nil {
+		return nil, metaerror.Wrap(err, "发送请求失败")
+	}
+
+	return streamClient, nil
+}
+
+func (s *BotService) getJudgeFileId(gameId int) string {
+	if s.judgeFileIds == nil {
+		return ""
+	}
+	return s.judgeFileIds[gameId]
+}
+
+func (s *BotService) compileJudge(gameId int) (string, error) {
+
+	judgeFileId := s.getJudgeFileId(gameId)
+	if judgeFileId != "" {
+		return judgeFileId, nil
+	}
+
+	ctx := context.Background()
+	code, err := foundationdao.GetBotGameDao().GetJudgeCode(ctx, gameId)
+	if err != nil {
+		return "", metaerror.Wrap(err, "failed to start process judge job")
+	}
+
+	runUrl := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "run")
+
+	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
+		s.goJudgeClient,
+		"bot_1_judge",
+		runUrl,
+		foundationjudge.JudgeLanguageGolang,
+		code,
+		GetJudgeService().configFileIds,
+		false,
+		true,
+	)
+	if extraMessage != "" {
+		slog.Warn("judge compile", "extraMessage", extraMessage, "compileStatus", compileStatus)
+	}
+	if compileStatus != foundationjudge.JudgeStatusAC {
+		return "", metaerror.New("compile special judge failed: %s", extraMessage)
+	}
+	if err != nil {
+		return "", metaerror.Wrap(err, "failed to compile special judge")
+	}
+	var ok bool
+	judgeFileId, ok = execFileIds["a"]
+	if !ok {
+		return "", metaerror.New("special judge compile failed, fileId not found")
+	}
+	if s.judgeFileIds == nil {
+		s.judgeFileIds = make(map[int]string)
+	}
+	s.judgeFileIds[gameId] = judgeFileId
+	return judgeFileId, nil
 }
 
 // 五子棋评测程序相关函数将在后面定义
