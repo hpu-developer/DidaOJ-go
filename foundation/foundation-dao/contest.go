@@ -164,21 +164,23 @@ func (d *ContestDao) GetContestStartTime(ctx context.Context, id int) (*time.Tim
 }
 
 func (d *ContestDao) GetContestDescription(ctx context.Context, id int) (*string, error) {
-	var description string
+	var contestDescription struct {
+		Description *string `gorm:"column:description"`
+	}
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.Contest{}).
 		Where("id = ?", id).
-		Pluck("description", &description).Error
+		First(&contestDescription).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, metaerror.Wrap(err, "find contest description error")
 	}
-	if description == "" {
+	if contestDescription.Description == nil {
 		return nil, nil
 	}
-	return &description, nil
+	return contestDescription.Description, nil
 }
 
 func (d *ContestDao) GetContestViewLock(ctx context.Context, id int) (*foundationview.ContestViewLock, error) {
