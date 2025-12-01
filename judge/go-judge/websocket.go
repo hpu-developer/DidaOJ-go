@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	metaerror "meta/meta-error"
 
 	"github.com/gorilla/websocket"
 )
@@ -23,11 +23,9 @@ type WebsocketStream struct {
 
 // Send 实现Stream接口的Send方法
 func (s *WebsocketStream) Send(req *StreamRequest) error {
-	log.Println("发送消息到WebSocket服务器")
 	w, err := s.Conn.NextWriter(websocket.BinaryMessage)
 	if err != nil {
-		log.Printf("获取WebSocket写入器失败: %v", err)
-		return err
+		return metaerror.Wrap(err, "failed to get websocket writer")
 	}
 	defer w.Close()
 
@@ -67,8 +65,7 @@ func (s *WebsocketStream) Send(req *StreamRequest) error {
 func (s *WebsocketStream) Recv() (*StreamResponse, error) {
 	_, r, err := s.Conn.ReadMessage()
 	if err != nil {
-		log.Printf("接收消息失败: %v", err)
-		return nil, err
+		return nil, metaerror.Wrap(err, "failed to read message")
 	}
 	if len(r) == 0 {
 		return nil, io.ErrUnexpectedEOF
@@ -81,7 +78,7 @@ func (s *WebsocketStream) Recv() (*StreamResponse, error) {
 	case 1:
 		resp.Response = new(RunResponse)
 		if err := json.Unmarshal(r[1:], resp.Response); err != nil {
-			return nil, err
+			return nil, metaerror.Wrap(err, "failed to unmarshal run response")
 		}
 	case 2:
 		if len(r) < 2 {
@@ -99,6 +96,9 @@ func (s *WebsocketStream) Recv() (*StreamResponse, error) {
 
 // Close 实现Stream接口的Close方法
 func (s *WebsocketStream) Close() error {
-	log.Println("关闭WebSocket连接")
-	return s.Conn.Close()
+	err := s.Conn.Close()
+	if err != nil {
+		return metaerror.Wrap(err, "failed to close websocket connection")
+	}
+	return nil
 }

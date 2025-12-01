@@ -264,6 +264,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 	// 	}
 	// 	return nil
 	// })
+
 	time.Sleep(10 * time.Second)
 
 	return nil
@@ -279,9 +280,9 @@ func (s *BotService) runJudgeExec(job *foundationmodel.BotReplay) (gojudge.Strea
 		return nil, metaerror.New("special judge compile failed")
 	}
 	wsURL := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "stream")
-	streamClient := s.newWebsocket([]string{}, wsURL)
-	if streamClient == nil {
-		return nil, metaerror.New("创建WebSocket连接失败")
+	streamClient, err := s.newWebsocket([]string{}, wsURL)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to create websocket")
 	}
 
 	var args []string
@@ -325,9 +326,9 @@ func (s *BotService) runJudgeExec(job *foundationmodel.BotReplay) (gojudge.Strea
 
 func (s *BotService) runAgent(codeView *foundationview.BotCodeView, execFileIds map[string]string) (gojudge.Stream, error) {
 	wsURL := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "stream")
-	streamClient := s.newWebsocket([]string{}, wsURL)
-	if streamClient == nil {
-		return nil, metaerror.New("创建WebSocket连接失败")
+	streamClient, err := s.newWebsocket([]string{}, wsURL)
+	if err != nil {
+		return nil, metaerror.Wrap(err, "failed to create websocket")
 	}
 	var args []string
 	var copyIns map[string]gojudge.CmdFile
@@ -424,7 +425,7 @@ func (s *BotService) runAgent(codeView *foundationview.BotCodeView, execFileIds 
 		},
 	}
 	// 发送请求
-	err := streamClient.Send(&gojudge.StreamRequest{Request: req})
+	err = streamClient.Send(&gojudge.StreamRequest{Request: req})
 	if err != nil {
 		return nil, metaerror.Wrap(err, "发送请求失败")
 	}
@@ -507,7 +508,7 @@ func (s *BotService) compileBotCode(code *foundationview.BotCodeView) (map[strin
 }
 
 // newWebsocket 创建WebSocket连接
-func (s *BotService) newWebsocket(args []string, wsURL string) gojudge.Stream {
+func (s *BotService) newWebsocket(args []string, wsURL string) (gojudge.Stream, error) {
 	header := make(http.Header)
 	token := os.Getenv("TOKEN")
 	if token != "" {
@@ -518,14 +519,9 @@ func (s *BotService) newWebsocket(args []string, wsURL string) gojudge.Stream {
 	if len(wsURL) >= 7 && wsURL[:7] == "http://" {
 		wsURL = "ws://" + wsURL[7:]
 	}
-
-	log.Printf("尝试连接到WebSocket服务器: %s", wsURL)
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, header)
 	if err != nil {
-		log.Printf("WebSocket连接失败: %v", err)
-		return nil
+		return nil, metaerror.Wrap(err, "WebSocket failed to connect")
 	}
-
-	log.Println("WebSocket连接成功")
-	return &gojudge.WebsocketStream{Conn: conn}
+	return &gojudge.WebsocketStream{Conn: conn}, nil
 }
