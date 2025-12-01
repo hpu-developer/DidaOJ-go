@@ -223,7 +223,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 			return metaerror.Wrap(err, "failed to run agent")
 		}
 
-		// 收到agent的输出后，发送给agent
+		// 收到agent的输出后，发送给judgeClient
 		metaroutine.SafeGo(fmt.Sprintf("game-%d-agent-%d-receive", job.Id, i), func() error {
 			for {
 				resp, err := agent.Recv()
@@ -368,8 +368,8 @@ func (s *BotService) runJudgeExec(job *foundationmodel.BotReplay) (gojudge.Strea
 		},
 	}
 
-	cpuLimit := uint64(5000000000)
-	memoryLimit := uint64(104857600)
+	cpuLimit := uint64(10000000000)
+	memoryLimit := uint64(10485760000)
 
 	req := &gojudge.RunRequest{
 		RequestID: fmt.Sprintf("%d-%s-%d", 1, time.Now().Format("20060102150405"), time.Now().UnixNano()),
@@ -477,8 +477,8 @@ func (s *BotService) runAgent(codeView *foundationview.BotCodeView, execFileIds 
 		return nil, metaerror.New("language not support: %d", codeView.Language)
 	}
 
-	cpuLimit := uint64(5000000000)
-	memoryLimit := uint64(104857600)
+	cpuLimit := uint64(10000000000)
+	memoryLimit := uint64(1048576000)
 
 	req := &gojudge.RunRequest{
 		RequestID: fmt.Sprintf("%d-%s-%d", 1, time.Now().Format("20060102150405"), time.Now().UnixNano()),
