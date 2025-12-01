@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	foundationbot "foundation/foundation-bot"
@@ -10,6 +11,7 @@ import (
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	"io"
+	botjudge "judge/bot-judge"
 	"judge/config"
 	gojudge "judge/go-judge"
 	"log"
@@ -184,7 +186,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 		return metaerror.Wrap(err, "failed to get bot replay code map")
 	}
 
-	slog.Info("bot replay code map", "codes", codes)
+	// slog.Info("bot replay code map", "codes", codes)
 
 	codeFiles := make(map[int]map[string]string)
 	for _, bc := range codes {
@@ -211,7 +213,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 	slog.Info("start bot game", "gameId", job.GameId, "bots", job.Bots)
 
 	agents := make(map[int]gojudge.Stream)
-	for _, bot := range job.Bots {
+	for i, bot := range job.Bots {
 		codeView, ok := codeViews[bot]
 		if !ok {
 			return metaerror.New(fmt.Sprintf("bot %d code not found", bot))
@@ -220,10 +222,49 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 		if err != nil {
 			return metaerror.Wrap(err, "failed to run agent")
 		}
-		agents[bot] = agent
+
+		// 收到agent的输出后，发送给agent
+		metaroutine.SafeGo(fmt.Sprintf("game-%d-agent-%d-receive", job.Id, i), func() error {
+			for {
+				resp, err := agent.Recv()
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						log.Printf("agent %d 连接已关闭", i)
+						return nil
+					}
+					return metaerror.Wrap(err, fmt.Sprintf("agent %d 接收响应失败", i))
+				}
+				if resp.Output != nil {
+					paramBytes, err := json.Marshal(botjudge.ChannelContent{
+						Index:   i,
+						Content: string(resp.Output.Content),
+					})
+					if err != nil {
+						return metaerror.Wrap(err, fmt.Sprintf("agent %d 序列化响应失败", i))
+					}
+					requestData := botjudge.Request{
+						Action: botjudge.ActionTypeOutput,
+						Param:  json.RawMessage(paramBytes),
+					}
+					err = judgeClient.Send(&gojudge.StreamRequest{Input: &gojudge.InputRequest{
+						Index:   0,
+						Fd:      1,
+						Content: []byte(requestData.Json()),
+					}})
+					if err != nil {
+						return metaerror.Wrap(err, fmt.Sprintf("agent %d 发送响应失败", i))
+					}
+				}
+			}
+		})
+
+		agents[i] = agent
 	}
 
 	metaroutine.SafeGo(fmt.Sprintf("game-%d-judge-receive", job.Id), func() error {
+		// JSON缓冲区，用于累积不完整的JSON数据
+		jsonBuffer := make([]byte, 0, 4096)
+
 		for {
 			// 接收响应
 			resp, err := judgeClient.Recv()
@@ -235,7 +276,59 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 				return metaerror.Wrap(err, "接收响应失败")
 			}
 			if resp.Output != nil {
-				log.Printf("收到输出: index:%d, fd:%d, %v", resp.Output.Index, resp.Output.Fd, string(resp.Output.Content))
+				// 将新数据添加到缓冲区
+				jsonBuffer = append(jsonBuffer, resp.Output.Content...)
+
+				// 处理缓冲区中的JSON数据
+				for {
+					if len(jsonBuffer) == 0 {
+						break
+					}
+
+					// 使用botjudge.processJSONBuffer处理缓冲区
+					position, err := botjudge.ProcessJSONBuffer(&jsonBuffer, func(req *json.RawMessage) error {
+						// 解析请求数据
+						var requestData botjudge.Request
+						err := json.Unmarshal(*req, &requestData)
+						if err != nil {
+							return metaerror.Wrap(err, "failed to unmarshal request data")
+						}
+
+						// 处理解析出的请求
+						if requestData.Action == botjudge.ActionTypeInput {
+							var inputReq botjudge.ChannelContent
+							err = json.Unmarshal(requestData.Param, &inputReq)
+							if err != nil {
+								return metaerror.Wrap(err, "failed to unmarshal input request data")
+							}
+							agent, ok := agents[inputReq.Index]
+							if !ok {
+								return metaerror.New(fmt.Sprintf("bot %d agent not found", inputReq.Index))
+							}
+							err = agent.Send(&gojudge.StreamRequest{Input: &gojudge.InputRequest{
+								Index:   0,
+								Fd:      1,
+								Content: []byte(inputReq.Content),
+							}})
+							if err != nil {
+								return metaerror.Wrap(err, "failed to send input request")
+							}
+						}
+						return nil
+					})
+
+					if err != nil {
+						return metaerror.Wrap(err, "failed to process JSON buffer")
+					}
+
+					// 如果没有解析到任何数据，说明缓冲区中的JSON不完整，等待更多数据
+					if position == 0 {
+						break
+					}
+
+					// 移除已处理的部分
+					jsonBuffer = jsonBuffer[position:]
+				}
 			} else if resp.Response != nil {
 				if len(resp.Response.Results) > 0 {
 					log.Printf("收到响应: %v", resp.Response.Results[0].String())
@@ -245,25 +338,6 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 		}
 		return nil
 	})
-
-	// metaroutine.SafeGo(fmt.Sprintf("runGame-%d-%s", 1, req.RequestID), func() error {
-	// 	for {
-	// 		randValue := metamath.GetRandomInt(1000, 9999)
-	// 		slog.Info("发送随机值", "randValue", randValue)
-	// 		inputReq := &gojudge.InputRequest{
-	// 			Index:   0,
-	// 			Fd:      0,
-	// 			Content: []byte(fmt.Sprintf("%d\n", randValue)),
-	// 		}
-	// 		// 发送输入请求
-	// 		err = streamClient.Send(&gojudge.StreamRequest{Input: inputReq})
-	// 		if err != nil {
-	// 			return metaerror.Wrap(err, "发送输入请求失败")
-	// 		}
-	// 		time.Sleep(3 * time.Second)
-	// 	}
-	// 	return nil
-	// })
 
 	time.Sleep(10 * time.Second)
 
@@ -311,7 +385,7 @@ func (s *BotService) runJudgeExec(job *foundationmodel.BotReplay) (gojudge.Strea
 				MemoryLimit: memoryLimit, // 100MB
 				ProcLimit:   50,
 				CopyIn:      copyIns,
-				TTY:         true,
+				TTY:         false,
 			},
 		},
 	}
@@ -420,7 +494,7 @@ func (s *BotService) runAgent(codeView *foundationview.BotCodeView, execFileIds 
 				MemoryLimit: memoryLimit, // 100MB
 				ProcLimit:   50,
 				CopyIn:      copyIns,
-				TTY:         true,
+				TTY:         false,
 			},
 		},
 	}
