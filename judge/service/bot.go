@@ -234,6 +234,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 					}
 					return metaerror.Wrap(err, fmt.Sprintf("agent %d 接收响应失败", i))
 				}
+				slog.Info("recv agent output", "agent", i, "resp", resp)
 				if resp.Output != nil {
 					paramBytes, err := json.Marshal(botjudge.ChannelContent{
 						Index:   i,
@@ -293,7 +294,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 						if err != nil {
 							return metaerror.Wrap(err, "failed to unmarshal request data")
 						}
-
+						slog.Info("send input request", "requestData", requestData)
 						// 处理解析出的请求
 						if requestData.Action == botjudge.ActionTypeInput {
 							var inputReq botjudge.ChannelContent
@@ -305,6 +306,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 							if !ok {
 								return metaerror.New(fmt.Sprintf("bot %d agent not found", inputReq.Index))
 							}
+
 							err = agent.Send(&gojudge.StreamRequest{Input: &gojudge.InputRequest{
 								Index:   0,
 								Fd:      1,
