@@ -60,5 +60,6 @@ func RegisterRoutes(r *gin.Engine) {
 	metahttp.AutoRegisterRoute(r, "/rank", new(controller.RankController), metahttp.AuthMiddlewareTypeNone)
 	metahttp.AutoRegisterRoute(r, "/system", new(controller.SystemController), metahttp.AuthMiddlewareTypeOptional)
 	metahttp.AutoRegisterRoute(r, "/run", new(controller.RunController), metahttp.AuthMiddlewareTypeRequire)
+	metahttp.AutoRegisterRoute(r, "/bot", new(controller.BotController), metahttp.AuthMiddlewareTypeOptional)
 
 }

@@ -154,7 +154,7 @@ func (d *UserDao) GetUserAccountInfo(ctx context.Context, id int) (*foundationvi
 	var userAccountInfo foundationview.UserAccountInfo
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.User{}).
-		Select("id, username, nickname").
+		Select("id, username, nickname, email").
 		Where("id = ?", id).
 		Take(&userAccountInfo).Error
 	if err != nil {

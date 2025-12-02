@@ -145,3 +145,15 @@ func (d *BotReplayDao) MarkBotReplayRunStatus(
 	}
 	return nil
 }
+
+// GetBotReplayById 根据ID获取BotReplay
+func (d *BotReplayDao) GetBotReplayById(ctx context.Context, id int) (*foundationmodel.BotReplay, error) {
+	var botReplay foundationmodel.BotReplay
+	if err := d.db.WithContext(ctx).Where("id = ?", id).First(&botReplay).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "failed to get bot replay by id")
+	}
+	return &botReplay, nil
+}

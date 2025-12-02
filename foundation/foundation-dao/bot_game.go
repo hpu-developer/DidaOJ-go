@@ -33,3 +33,15 @@ func (d *BotGameDao) GetJudgeCode(ctx context.Context, gameId int) (string, erro
 	}
 	return judge, nil
 }
+
+// GetBotGameByKey 根据key获取BotGame
+func (d *BotGameDao) GetBotGameByKey(ctx context.Context, key string) (*foundationmodel.BotGame, error) {
+	var botGame foundationmodel.BotGame
+	if err := d.db.WithContext(ctx).Where("key = ?", key).First(&botGame).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "failed to get bot game by key")
+	}
+	return &botGame, nil
+}

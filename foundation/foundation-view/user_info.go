@@ -39,14 +39,15 @@ type UserInfo struct {
 	Experience   int                       `json:"experience,omitempty" gorm:"comment:用户经验值"`
 	Coin         int                       `json:"coin,omitempty" gorm:"comment:用户金币"`
 
-	ExperienceUpgrade int `json:"experience_upgrade,omitempty" gorm:"-;comment:当前等级升级所需总经验"`
-	ExperienceCurrentLevel     int `json:"experience_current_level,omitempty" gorm:"-;comment:当前等级段已积攒经验"`
+	ExperienceUpgrade      int `json:"experience_upgrade,omitempty" gorm:"-;comment:当前等级升级所需总经验"`
+	ExperienceCurrentLevel int `json:"experience_current_level,omitempty" gorm:"-;comment:当前等级段已积攒经验"`
 }
 
 type UserAccountInfo struct {
 	Id       int    `json:"id" gorm:"id"`                       // 数据库索引时真正的Id
 	Username string `json:"username" gorm:"username"`           // 对用户展示的唯一标识
 	Nickname string `json:"nickname,omitempty" gorm:"nickname"` // 显示的昵称
+	Email    string `json:"email,omitempty" gorm:"email"`       // 邮箱
 }
 
 type UserModifyInfo struct {
