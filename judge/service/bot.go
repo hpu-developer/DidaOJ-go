@@ -14,7 +14,6 @@ import (
 	botjudge "judge/bot-judge"
 	"judge/config"
 	gojudge "judge/go-judge"
-	"log"
 	"log/slog"
 	"meta/cron"
 	metaerror "meta/meta-error"
@@ -243,6 +242,8 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 		}
 	}()
 
+	finalStatus := foundationbot.BotGameStatusFinish
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 	metaroutine.SafeGo(fmt.Sprintf("game-%d-judge-receive", job.Id), func() error {
@@ -265,7 +266,6 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 				return metaerror.Wrap(judgeRecvErr, "接收响应失败")
 			}
 			if resp.Output != nil {
-				slog.Info("recv judge resp", "Content", string(resp.Output.Content))
 
 				// 将新数据添加到缓冲区
 				jsonBuffer = append(jsonBuffer, resp.Output.Content...)
@@ -348,11 +348,34 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 					jsonBuffer = jsonBuffer[position:]
 				}
 			} else if resp.Response != nil {
-				slog.Info("recv judge resp", "resp", resp)
 				if len(resp.Response.Results) > 0 {
-					log.Printf("收到响应: %v", resp.Response.Results[0].String())
-					break
+					result := resp.Response.Results[0]
+					if result.Status != gojudge.StatusAccepted {
+						switch resp.Response.Results[0].Status {
+						case gojudge.StatusSignalled:
+							finalStatus = foundationbot.BotGameStatusRE
+						case gojudge.StatusNonzeroExit:
+							finalStatus = foundationbot.BotGameStatusRE
+						case gojudge.StatusInternalError:
+							slog.Warn("internal error", "job", job.Id, "responseData", result)
+							finalStatus = foundationbot.BotGameStatusJudgeFail
+						case gojudge.StatusOutputLimit:
+							finalStatus = foundationbot.BotGameStatusOLE
+						case gojudge.StatusFileError:
+							finalStatus = foundationbot.BotGameStatusOLE
+						case gojudge.StatusMemoryLimit:
+							finalStatus = foundationbot.BotGameStatusMLE
+						case gojudge.StatusTimeLimit:
+							finalStatus = foundationbot.BotGameStatusTLE
+						default:
+							slog.Warn("status error", "job", job.Id, "responseData", result)
+							finalStatus = foundationbot.BotGameStatusJudgeFail
+						}
+					}
+				} else {
+					finalStatus = foundationbot.BotGameStatusJudgeFail
 				}
+				break
 			}
 		}
 		return nil
@@ -396,7 +419,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 		ctx,
 		job.Id,
 		config.GetConfig().Judger.Key,
-		foundationbot.BotGameStatusFinish,
+		finalStatus,
 		"",
 	)
 	if err != nil {
