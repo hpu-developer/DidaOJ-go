@@ -48,3 +48,8 @@ func (s *BotService) GetBotReplayById(ctx context.Context, id int) (*foundationv
 
 	return botReplayView, nil
 }
+
+// GetBotReplayParamById 根据ID获取BotReplay的状态、参数和消息（只查询需要的字段）
+func (s *BotService) GetBotReplayParamById(ctx context.Context, id int) (*foundationview.BotReplayParamView, error) {
+	return foundationdao.GetBotReplayDao().GetBotReplayParamById(ctx, id)
+}

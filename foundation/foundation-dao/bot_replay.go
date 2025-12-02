@@ -4,6 +4,7 @@ import (
 	"context"
 	foundationbot "foundation/foundation-bot"
 	foundationmodel "foundation/foundation-model"
+	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
 	metapostgresql "meta/meta-postgresql"
 	metatime "meta/meta-time"
@@ -156,4 +157,21 @@ func (d *BotReplayDao) GetBotReplayById(ctx context.Context, id int) (*foundatio
 		return nil, metaerror.Wrap(err, "failed to get bot replay by id")
 	}
 	return &botReplay, nil
+}
+
+// GetBotReplayParamById 根据ID获取BotReplay的状态、参数和消息（只查询需要的字段）
+func (d *BotReplayDao) GetBotReplayParamById(ctx context.Context, id int) (*foundationview.BotReplayParamView, error) {
+	var result foundationview.BotReplayParamView
+
+	if err := d.db.WithContext(ctx).Table("bot_replay").
+		Select("status, param, message").
+		Where("id = ?", id).
+		First(&result).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, metaerror.Wrap(err, "failed to get bot replay status, param and message by id")
+	}
+
+	return &result, nil
 }

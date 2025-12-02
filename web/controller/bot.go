@@ -51,3 +51,38 @@ func (c *BotController) GetReplay(ctx *gin.Context) {
 	// 返回结果
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, botReplayView)
 }
+
+func (c *BotController) GetReplayParam(ctx *gin.Context) {
+	// 获取参数
+	gameKey := ctx.Query("game_key")
+	replayIdStr := ctx.Query("replay_id")
+
+	// 参数校验
+	if gameKey == "" || replayIdStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	replayId, err := strconv.Atoi(replayIdStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+
+	// 获取bot服务
+	botService := foundationservice.GetBotService()
+
+	// 只获取需要的字段：status、param 和 message，避免查询不必要的数据
+	param, err := botService.GetBotReplayParamById(ctx, replayId)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	if param == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+
+	// 返回结果
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, param)
+}
