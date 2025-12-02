@@ -141,7 +141,7 @@ func (c *BotController) PostGameEdit(ctx *gin.Context) {
 	// 获取bot服务
 	botService := foundationservice.GetBotService()
 
-	botGameId := requestData.Id
+	botGameId := requestData.GameId
 
 	userId, ok, err := botService.CheckGameEditAuth(ctx, botGameId)
 	if err != nil {
