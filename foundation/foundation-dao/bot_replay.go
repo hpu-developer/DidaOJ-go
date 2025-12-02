@@ -108,6 +108,21 @@ func (d *BotReplayDao) MarkBotReplayInfo(ctx context.Context, id int, judger str
 	return nil
 }
 
+func (d *BotReplayDao) MarkBotReplayParam(ctx context.Context, id int, judger string, param string) error {
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.BotReplay{}).
+		Where("id = ? AND judger = ?", id, judger).
+		Updates(
+			map[string]interface{}{
+				"param": param,
+			},
+		).Error
+	if err != nil {
+		return metaerror.Wrap(err, "failed to mark bot replay param")
+	}
+	return nil
+}
+
 // MarkBotReplayRunStatus 更新BotReplay任务状态
 func (d *BotReplayDao) MarkBotReplayRunStatus(
 	ctx context.Context,

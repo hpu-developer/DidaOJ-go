@@ -14,6 +14,7 @@ const (
 	ActionTypeAgentOutput ActionType = 4 // 用于传递Agent的输出
 	ActionTypeInfo        ActionType = 5 // 输出Info信息
 	ActionTypeParam       ActionType = 6 // 输出Param信息
+	ActionTypeFinish      ActionType = 7 // 表示结束可以关闭
 )
 
 type Request struct {

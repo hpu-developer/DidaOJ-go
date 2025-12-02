@@ -24,6 +24,7 @@ import (
 	"meta/singleton"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -245,11 +246,16 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	metaroutine.SafeGo(fmt.Sprintf("game-%d-judge-receive", job.Id), func() error {
-		defer wg.Wait()
+		defer wg.Done()
 		// JSON缓冲区，用于累积不完整的JSON数据
 		jsonBuffer := make([]byte, 0, 4096)
 
+		isEnd := false
+
 		for {
+			if isEnd {
+				break
+			}
 			// 接收响应
 			resp, judgeRecvErr := judgeClient.Recv()
 			if judgeRecvErr != nil {
@@ -266,6 +272,9 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 
 				// 处理缓冲区中的JSON数据
 				for {
+					if isEnd {
+						break
+					}
 					if len(jsonBuffer) == 0 {
 						break
 					}
@@ -274,7 +283,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 					position, err := botjudge.ProcessJSONBuffer(&jsonBuffer, func(req *json.RawMessage) error {
 						// 解析请求数据
 						var requestData botjudge.Request
-						err := json.Unmarshal(*req, &requestData)
+						err = json.Unmarshal(*req, &requestData)
 						if err != nil {
 							return metaerror.Wrap(err, "failed to unmarshal request data")
 						}
@@ -286,7 +295,18 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 								if err != nil {
 									return metaerror.Wrap(err, "failed to mark bot replay info")
 								}
-
+							}
+						case botjudge.ActionTypeParam:
+							{
+								err = foundationdao.GetBotReplayDao().MarkBotReplayParam(ctx, job.Id, config.GetConfig().Judger.Key, string(requestData.Param))
+								if err != nil {
+									return metaerror.Wrap(err, "failed to mark bot replay param")
+								}
+							}
+						case botjudge.ActionTypeFinish:
+							{
+								isEnd = true
+								return nil
 							}
 						case botjudge.ActionTypeAgentInput:
 							{
@@ -370,6 +390,17 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 
 	for _, agent := range agents {
 		agent.Send(&gojudge.StreamRequest{Cancel: &struct{}{}})
+	}
+
+	err = foundationdao.GetBotReplayDao().MarkBotReplayRunStatus(
+		ctx,
+		job.Id,
+		config.GetConfig().Judger.Key,
+		foundationbot.BotGameStatusFinish,
+		"",
+	)
+	if err != nil {
+		return metaerror.Wrap(err, "failed to mark bot replay run status")
 	}
 
 	return nil
@@ -540,8 +571,7 @@ func (s *BotService) runAgent(job *foundationmodel.BotReplay, agentIndex int, ju
 		for {
 			resp, err := streamClient.Recv()
 			if err != nil {
-				if errors.Is(err, io.EOF) {
-					log.Printf("agent %d 连接已关闭", agentIndex)
+				if errors.Is(err, io.EOF) || strings.Contains(err.Error(), "unexpected EOF") {
 					return nil
 				}
 				return metaerror.Wrap(err, fmt.Sprintf("agent %d 接收响应失败", agentIndex))

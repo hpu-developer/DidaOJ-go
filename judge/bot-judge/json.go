@@ -73,6 +73,7 @@ func ProcessJSONBuffer(buffer *[]byte, handle func(*json.RawMessage) error) (int
 // Stop 停止JSON处理循环
 func Stop() {
 	stopOnce.Do(func() {
+		SendFinish()
 		runningLock.Lock()
 		defer runningLock.Unlock()
 		if isRunning {

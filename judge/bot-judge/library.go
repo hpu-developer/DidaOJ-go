@@ -72,3 +72,10 @@ func SendInfo(info interface{}) error {
 	fmt.Println(req.Json())
 	return nil
 }
+
+func SendFinish() {
+	req := Request{
+		Action: ActionTypeFinish,
+	}
+	fmt.Println(req.Json())
+}
