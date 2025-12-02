@@ -7,11 +7,11 @@ import (
 type ActionType int
 
 const (
-	ActionNone       ActionType = 0
-	ActionTypeLog    ActionType = 1
-	ActionTypeError  ActionType = 2
-	ActionTypeInput  ActionType = 3
-	ActionTypeOutput ActionType = 4
+	ActionNone            ActionType = 0
+	ActionTypeLog         ActionType = 1
+	ActionTypeError       ActionType = 2
+	ActionTypeAgentInput  ActionType = 3
+	ActionTypeAgentOutput ActionType = 4
 )
 
 type Request struct {

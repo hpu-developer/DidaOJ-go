@@ -5,18 +5,38 @@ import (
 	"fmt"
 )
 
+type Content struct {
+	Content string `json:"content"`
+}
+
 func SendError(err error) {
+	content := Content{
+		Content: err.Error(),
+	}
+	jsonBytes, err := json.Marshal(content)
+	if err != nil {
+		fmt.Printf("JSON marshal error: %s", err.Error())
+		return
+	}
 	req := Request{
 		Action: ActionTypeError,
-		Param:  json.RawMessage(err.Error()),
+		Param:  json.RawMessage(jsonBytes),
 	}
 	fmt.Println(req.Json())
 }
 
 func SendLog(log string) {
+	content := Content{
+		Content: log,
+	}
+	jsonBytes, err := json.Marshal(content)
+	if err != nil {
+		SendError(fmt.Errorf("JSON marshal error: %v", err))
+		return
+	}
 	req := Request{
 		Action: ActionTypeLog,
-		Param:  json.RawMessage(log),
+		Param:  json.RawMessage(jsonBytes),
 	}
 	fmt.Println(req.Json())
 }
@@ -28,11 +48,11 @@ func SendInput(index int, input string) error {
 	}
 	paramBytes, err := json.Marshal(param)
 	if err != nil {
-		return fmt.Errorf("JSON序列化错误: %v", err)
+		return fmt.Errorf("JSON marshal error: %v", err)
 	}
 
 	req := Request{
-		Action: ActionTypeInput,
+		Action: ActionTypeAgentInput,
 		Param:  json.RawMessage(paramBytes),
 	}
 	fmt.Println(req.Json())

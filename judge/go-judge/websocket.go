@@ -45,7 +45,9 @@ func (s *WebsocketStream) Send(req *StreamRequest) error {
 			return err
 		}
 	case req.Input != nil:
-		if _, err := w.Write([]byte{3, byte(req.Input.Index<<4 | req.Input.Fd)}); err != nil {
+		index := req.Input.Index & 0xf
+		fd := req.Input.Fd & 0xf
+		if _, err := w.Write([]byte{3, byte(index<<4 | fd)}); err != nil {
 			return err
 		}
 		if _, err := w.Write(req.Input.Content); err != nil {

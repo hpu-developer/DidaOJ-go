@@ -77,7 +77,7 @@ type ResizeRequest struct {
 
 // InputRequest defines input operation from the remote
 type InputRequest struct {
-	Index   int
-	Fd      int
-	Content []byte
+	Index   int    `json:"index,omitempty"`
+	Fd      int    `json:"fd,omitempty"`
+	Content []byte `json:"content,omitempty"`
 }
