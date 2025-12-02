@@ -272,6 +272,8 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 								return metaerror.New(fmt.Sprintf("bot %d agent not found", inputReq.Index))
 							}
 
+							slog.Info("send input request", "index", inputReq.Index, "content", inputReq.Content)
+
 							err = agent.Send(&gojudge.StreamRequest{Input: &gojudge.InputRequest{
 								Index:   0,
 								Fd:      0,
@@ -498,10 +500,11 @@ func (s *BotService) runAgent(job *foundationmodel.BotReplay, agentIndex int, ju
 					Action: botjudge.ActionTypeAgentOutput,
 					Param:  json.RawMessage(paramBytes),
 				}
+				realContent := fmt.Sprintf("%s\n", requestData.Json())
 				err = judgeClient.Send(&gojudge.StreamRequest{Input: &gojudge.InputRequest{
 					Index:   0,
 					Fd:      0,
-					Content: []byte(requestData.Json()),
+					Content: []byte(realContent),
 				}})
 				if err != nil {
 					return metaerror.Wrap(err, fmt.Sprintf("agent %d 发送响应失败", agentIndex))
