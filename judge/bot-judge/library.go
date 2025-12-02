@@ -59,3 +59,16 @@ func SendInput(index int, input string) error {
 
 	return nil
 }
+
+func SendInfo(info interface{}) error {
+	jsonBytes, err := json.Marshal(info)
+	if err != nil {
+		return fmt.Errorf("JSON marshal error: %w", err)
+	}
+	req := Request{
+		Action: ActionTypeInfo,
+		Param:  json.RawMessage(jsonBytes),
+	}
+	fmt.Println(req.Json())
+	return nil
+}

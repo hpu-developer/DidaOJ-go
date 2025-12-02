@@ -181,12 +181,22 @@ func (s *BotService) handleStart() error {
 
 func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 	ctx := context.Background()
+
+	err := foundationdao.GetBotReplayDao().MarkBotReplayRunStatus(
+		ctx,
+		job.Id,
+		config.GetConfig().Judger.Key,
+		foundationbot.BotGameStatusCompiling,
+		"",
+	)
+	if err != nil {
+		return err
+	}
+
 	codes, err := foundationdao.GetBotCodeDao().GetBotCodes(ctx, job.Bots)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to get bot replay code map")
 	}
-
-	// slog.Info("bot replay code map", "codes", codes)
 
 	codeFiles := make(map[int]map[string]string)
 	for _, bc := range codes {
@@ -226,19 +236,27 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 		agents[i] = agent
 	}
 
+	defer func() {
+		for _, agent := range agents {
+			agent.Close()
+		}
+	}()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
 	metaroutine.SafeGo(fmt.Sprintf("game-%d-judge-receive", job.Id), func() error {
+		defer wg.Wait()
 		// JSON缓冲区，用于累积不完整的JSON数据
 		jsonBuffer := make([]byte, 0, 4096)
 
 		for {
 			// 接收响应
-			resp, err := judgeClient.Recv()
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					log.Println("连接已关闭")
+			resp, judgeRecvErr := judgeClient.Recv()
+			if judgeRecvErr != nil {
+				if errors.Is(judgeRecvErr, io.EOF) {
 					return nil
 				}
-				return metaerror.Wrap(err, "接收响应失败")
+				return metaerror.Wrap(judgeRecvErr, "接收响应失败")
 			}
 			if resp.Output != nil {
 				slog.Info("recv judge resp", "Content", string(resp.Output.Content))
@@ -261,26 +279,37 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 							return metaerror.Wrap(err, "failed to unmarshal request data")
 						}
 						// 处理解析出的请求
-						if requestData.Action == botjudge.ActionTypeAgentInput {
-							var inputReq botjudge.ChannelContent
-							err = json.Unmarshal(requestData.Param, &inputReq)
-							if err != nil {
-								return metaerror.Wrap(err, "failed to unmarshal input request data")
-							}
-							agent, ok := agents[inputReq.Index]
-							if !ok {
-								return metaerror.New(fmt.Sprintf("bot %d agent not found", inputReq.Index))
-							}
+						switch requestData.Action {
+						case botjudge.ActionTypeInfo:
+							{
+								err = foundationdao.GetBotReplayDao().MarkBotReplayInfo(ctx, job.Id, config.GetConfig().Judger.Key, string(requestData.Param))
+								if err != nil {
+									return metaerror.Wrap(err, "failed to mark bot replay info")
+								}
 
-							slog.Info("send input request", "index", inputReq.Index, "content", inputReq.Content)
+							}
+						case botjudge.ActionTypeAgentInput:
+							{
+								var inputReq botjudge.ChannelContent
+								err = json.Unmarshal(requestData.Param, &inputReq)
+								if err != nil {
+									return metaerror.Wrap(err, "failed to unmarshal input request data")
+								}
+								agent, ok := agents[inputReq.Index]
+								if !ok {
+									return metaerror.New(fmt.Sprintf("bot %d agent not found", inputReq.Index))
+								}
 
-							err = agent.Send(&gojudge.StreamRequest{Input: &gojudge.InputRequest{
-								Index:   0,
-								Fd:      0,
-								Content: []byte(inputReq.Content),
-							}})
-							if err != nil {
-								return metaerror.Wrap(err, "failed to send input request")
+								slog.Info("send input request", "index", inputReq.Index, "content", inputReq.Content)
+
+								err = agent.Send(&gojudge.StreamRequest{Input: &gojudge.InputRequest{
+									Index:   0,
+									Fd:      0,
+									Content: []byte(inputReq.Content),
+								}})
+								if err != nil {
+									return metaerror.Wrap(err, "failed to send input request")
+								}
 							}
 						}
 						return nil
@@ -309,7 +338,39 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 		return nil
 	})
 
-	time.Sleep(10 * time.Second)
+	var agentInfos []botjudge.AgentInfo
+	for _, bot := range job.Bots {
+		agentInfo, ok := codeViews[bot]
+		if !ok {
+			return metaerror.New(fmt.Sprintf("bot %d code not found", bot))
+		}
+		agentInfos = append(agentInfos, botjudge.AgentInfo{
+			Id:       agentInfo.Id,
+			Version:  agentInfo.Version,
+			Nickname: fmt.Sprintf("%d", agentInfo.Inserter),
+		})
+	}
+	paramBytes, err := json.Marshal(botjudge.JudgeInfo{
+		Agents: agentInfos,
+	})
+	if err != nil {
+		return metaerror.Wrap(err, "judge info marshal error")
+	}
+	realContent := fmt.Sprintf("%s\n", string(paramBytes))
+	err = judgeClient.Send(&gojudge.StreamRequest{Input: &gojudge.InputRequest{
+		Index:   0,
+		Fd:      0,
+		Content: []byte(realContent),
+	}})
+	if err != nil {
+		return metaerror.Wrap(err, "judge send error")
+	}
+
+	wg.Wait()
+
+	for _, agent := range agents {
+		agent.Send(&gojudge.StreamRequest{Cancel: &struct{}{}})
+	}
 
 	return nil
 }
@@ -507,7 +568,7 @@ func (s *BotService) runAgent(job *foundationmodel.BotReplay, agentIndex int, ju
 					Content: []byte(realContent),
 				}})
 				if err != nil {
-					return metaerror.Wrap(err, fmt.Sprintf("agent %d 发送响应失败", agentIndex))
+					return metaerror.Wrap(err, fmt.Sprintf("judge %d send error", agentIndex))
 				}
 			} else if resp.Response != nil {
 				slog.Info("recv agent resp", "agentIndex", agentIndex, "resp", resp)

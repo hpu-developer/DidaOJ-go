@@ -92,6 +92,22 @@ func (d *BotReplayDao) RequestBotReplayListPending(
 	return jobs, nil
 }
 
+func (d *BotReplayDao) MarkBotReplayInfo(ctx context.Context, id int, judger string, info string) error {
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.BotReplay{}).
+		Where("id = ? AND judger = ?", id, judger).
+		Updates(
+			map[string]interface{}{
+				"status": foundationbot.BotGameStatusRunning,
+				"info":   info,
+			},
+		).Error
+	if err != nil {
+		return metaerror.Wrap(err, "failed to mark bot replay status")
+	}
+	return nil
+}
+
 // MarkBotReplayRunStatus 更新BotReplay任务状态
 func (d *BotReplayDao) MarkBotReplayRunStatus(
 	ctx context.Context,
