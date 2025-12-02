@@ -624,6 +624,7 @@ func (d *ProblemDao) UpdateProblem(
 				"time_limit":   problem.TimeLimit,
 				"memory_limit": problem.MemoryLimit,
 				"source":       problem.Source,
+				"modifier":     problem.Modifier,
 				"modify_time":  problem.ModifyTime,
 				"private":      problem.Private,
 			}
