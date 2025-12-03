@@ -86,13 +86,11 @@ jobs:
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
-        # Build web directory
-        cd web
-        go build -o web main.go
+        # Build web directory from project root
+        go build -o web/web web/main.go
         
-        # Build judge directory
-        cd ../judge
-        go build -o judge main.go
+        # Build judge directory from project root
+        go build -o judge/judge judge/main.go
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
