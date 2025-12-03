@@ -87,10 +87,10 @@ jobs:
       shell: bash
       run: |
         # Build web directory from project root
-        go build -o web/web web/main.go
+        go build -C . -o web/web web/main.go
         
         # Build judge directory from project root
-        go build -o judge/judge judge/main.go
+        go build -C . -o judge/judge judge/main.go
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
