@@ -62,8 +62,11 @@ jobs:
     # Add any setup steps before running the `github/codeql-action/init` action.
     # This includes steps like installing compilers or runtimes (`actions/setup-node`
     # or others). This is typically only required for manual builds.
-    # - name: Setup runtime (example)
-    #   uses: actions/setup-example@v1
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version-file: 'go.work'  # Use the Go version specified in go.work
+        cache: true
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
@@ -88,11 +91,13 @@ jobs:
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
-        # Build web directory from project root
-        go build -C . -o web/web web/main.go
+        # Build the Go code
+        # Using basic go build commands to ensure CodeQL can trace the process
+        echo "Building web application..."
+        cd web && go build
         
-        # Build judge directory from project root
-        go build -C . -o judge/judge judge/main.go
+        echo "Building judge application..."
+        cd ../judge && go build
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
