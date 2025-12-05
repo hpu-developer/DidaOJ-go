@@ -52,6 +52,23 @@ func GetProblemService() *ProblemService {
 	)
 }
 
+// CheckProblemIdViewByKey 检查用户是否有权限查看指定key的问题，返回问题ID
+func (s *ProblemService) CheckProblemIdView(
+	ctx context.Context, problemId int,
+	userId int,
+	hasAuth bool,
+) (bool, error) {
+	return foundationdao.GetProblemDao().CheckProblemIdView(ctx, problemId, userId, hasAuth)
+}
+
+func (s *ProblemService) CheckProblemIdViewByKey(
+	ctx context.Context, problemKey string,
+	userId int,
+	hasAuth bool,
+) (int, error) {
+	return foundationdao.GetProblemDao().CheckProblemIdViewByKey(ctx, problemKey, userId, hasAuth)
+}
+
 func (s *ProblemService) CheckEditAuth(ctx *gin.Context, id int) (
 	int,
 	bool,
@@ -185,15 +202,6 @@ func (s *ProblemService) GetProblemIdByKey(ctx context.Context, problemKey strin
 
 func (s *ProblemService) GetProblemIdsByKey(ctx context.Context, problemKeys []string) ([]int, error) {
 	return foundationdao.GetProblemDao().GetProblemIdsByKey(ctx, problemKeys)
-}
-
-// CheckProblemIdViewByKey 检查用户是否有权限查看指定key的问题，返回问题ID
-func (s *ProblemService) CheckProblemIdViewByKey(
-	ctx context.Context, problemKey string,
-	userId int,
-	hasAuth bool,
-) (int, error) {
-	return foundationdao.GetProblemDao().CheckProblemIdViewByKey(ctx, problemKey, userId, hasAuth)
 }
 
 func (s *ProblemService) FilterValidProblemIds(ctx context.Context, ids []int) ([]int, error) {

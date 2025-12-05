@@ -316,6 +316,43 @@ func (d *ProblemDao) GetProblemIdsByKey(ctx context.Context, problemKeys []strin
 	return ids, nil
 }
 
+func (d *ProblemDao) CheckProblemIdView(
+	ctx context.Context, problemId int,
+	userId int, hasAuth bool,
+) (
+	bool,
+	error,
+) {
+	db := d.db.WithContext(ctx).Table("problem AS p").
+		Select(`p.id`).
+		Where("p.id = ?", problemId)
+
+	if !hasAuth {
+		if userId > 0 {
+			db = db.Where(
+				`
+				p.private = FALSE OR
+				p.inserter = ? OR
+				EXISTS (
+					SELECT 1 FROM problem_member pm WHERE pm.id = p.id AND pm.user_id = ?
+				) OR
+				EXISTS (
+					SELECT 1 FROM problem_member_auth pam WHERE pam.id = p.id AND pam.user_id = ?
+				)
+			`, userId, userId, userId,
+			)
+		} else {
+			db = db.Where("p.private = FALSE")
+		}
+	}
+	var testId int
+	err := db.Take(&testId).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	return testId > 0, err
+}
+
 func (d *ProblemDao) CheckProblemIdViewByKey(
 	ctx context.Context, problemKey string,
 	userId int, hasAuth bool,

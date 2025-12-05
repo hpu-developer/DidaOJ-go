@@ -93,8 +93,15 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 		}
 	} else {
 		if !hasAuth {
-			if judgeAuth.Private {
-				if judgeAuth.Inserter != userId {
+			if judgeAuth.Inserter != userId {
+				if judgeAuth.Private {
+					return userId, false, false, nil, nil
+				}
+				hasAuth, err = GetProblemService().CheckProblemIdView(ctx, judgeAuth.ProblemId, userId, false)
+				if err != nil {
+					return userId, false, false, nil, err
+				}
+				if !hasAuth {
 					return userId, false, false, nil, nil
 				}
 			}
@@ -244,6 +251,26 @@ func (s *JudgeService) GetJudgeList(
 						judgeJob.Memory = 0
 						judgeJob.Time = 0
 					}
+				}
+			}
+		} else {
+			problemAuth := map[int]bool{}
+			for _, judgeJob := range judgeJobs {
+				// 检查题目权限
+				hasAuth, exist := problemAuth[judgeJob.ProblemId]
+				if !exist {
+					hasAuth, err = GetProblemService().CheckProblemIdView(ctx, judgeJob.ProblemId, userId, false)
+					if err != nil {
+						return nil, -1, err
+					}
+					problemAuth[judgeJob.ProblemId] = hasAuth
+				}
+				if !hasAuth {
+					judgeJob.Language = foundationjudge.JudgeLanguageUnknown
+					judgeJob.CodeLength = 0
+					judgeJob.Memory = 0
+					judgeJob.Time = 0
+					judgeJob.Status = foundationjudge.JudgeStatusUnknown
 				}
 			}
 		}

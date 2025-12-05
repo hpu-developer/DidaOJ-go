@@ -24,6 +24,7 @@ type JudgeJob struct {
 
 type JudgeJobViewAuth struct {
 	Id         int       `json:"id"`
+	ProblemId  int       `json:"problem_id,omitempty"`                       // 题目ID
 	ContestId  int       `json:"contest_id,omitempty"`                       // 比赛ID
 	Inserter   int       `json:"inserter_id" bson:"inserter_id"`             // 提交者UserId
 	InsertTime time.Time `json:"inserter_time" bson:"inserter_time"`         // 申请时间

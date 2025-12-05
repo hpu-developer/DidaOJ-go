@@ -57,6 +57,8 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 	problemKey := ctx.Query("key")
 	isContest := false
 	problemId := 0
+	var userId int
+	var hasAuth bool
 	if problemKey == "" {
 		contestIdStr := ctx.Query("contest_id")
 		if contestIdStr == "" {
@@ -83,11 +85,26 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 			return
 		}
+		// 判断是否有
+		userId, hasAuth, err = foundationservice.GetContestService().CheckViewAuth(ctx, contestId)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+			return
+		}
+		if !hasAuth {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
 		isContest = true
 	} else {
 		problemId, err = problemService.GetProblemIdByKey(ctx, problemKey)
 		if err != nil {
 			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+		userId, hasAuth, err = foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
+		if err != nil {
+			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
 		}
 	}
@@ -96,9 +113,7 @@ func (c *ProblemController) Get(ctx *gin.Context) {
 		return
 	}
 
-	userId, ok, err := foundationservice.GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageProblem)
-
-	problem, err := problemService.GetProblemView(ctx, problemId, userId, ok)
+	problem, err := problemService.GetProblemView(ctx, problemId, userId, hasAuth)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
