@@ -2,6 +2,7 @@ package foundationdao
 
 import (
 	"context"
+	"errors"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
 	metapostgresql "meta/meta-postgresql"
@@ -57,6 +58,9 @@ func (d *ContestMemberDao) GetUser(ctx context.Context, id int, userId int) (
 		Where("user_id = ?", userId).
 		First(&user).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &user, nil

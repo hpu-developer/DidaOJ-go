@@ -483,10 +483,6 @@ func (c *ContestController) GetMemberSelf(ctx *gin.Context) {
 		metaresponse.NewResponseError(ctx, err)
 		return
 	}
-	if member == nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
-		return
-	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, member)
 }
 
