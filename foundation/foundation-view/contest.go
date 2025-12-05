@@ -22,6 +22,7 @@ type ContestDetailEdit struct {
 	foundationmodel.Contest
 
 	Problems []int `json:"problems" gorm:"-"` // 比赛题目列表
+	Members  []int `json:"members" gorm:"-"`  // 比赛成员列表
 
 	InserterUsername string `json:"inserter_username"`
 	InserterNickname string `json:"inserter_nickname"`

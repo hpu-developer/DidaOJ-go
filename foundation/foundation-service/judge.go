@@ -255,11 +255,15 @@ func (s *JudgeService) GetJudgeList(
 			}
 		} else {
 			problemAuth := map[int]bool{}
+			hasManageAuth, err := GetUserService().CheckUserAnyAuthsByUserId(ctx, userId, []foundationauth.AuthType{foundationauth.AuthTypeManageProblem})
+			if err != nil {
+				return nil, -1, err
+			}
 			for _, judgeJob := range judgeJobs {
 				// 检查题目权限
 				hasAuth, exist := problemAuth[judgeJob.ProblemId]
 				if !exist {
-					hasAuth, err = GetProblemService().CheckProblemIdView(ctx, judgeJob.ProblemId, userId, false)
+					hasAuth, err = GetProblemService().CheckProblemIdView(ctx, judgeJob.ProblemId, userId, hasManageAuth)
 					if err != nil {
 						return nil, -1, err
 					}

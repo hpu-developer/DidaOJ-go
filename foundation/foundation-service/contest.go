@@ -224,6 +224,10 @@ func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundatio
 	if err != nil {
 		return nil, err
 	}
+	contest.Members, err = foundationdao.GetContestMemberDao().GetUserIds(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	return contest, err
 }
 

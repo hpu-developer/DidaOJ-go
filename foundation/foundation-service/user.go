@@ -250,6 +250,18 @@ func (s *UserService) CheckUserAuthsByUserId(ctx context.Context, userId int, au
 	return ok, nil
 }
 
+func (s *UserService) CheckUserAnyAuthsByUserId(ctx context.Context, userId int, auths []foundationauth.AuthType) (
+	bool,
+	error,
+) {
+	userRoles, err := foundationdao.GetUserRoleDao().GetUserRoles(ctx, userId)
+	if err != nil {
+		return false, err
+	}
+	ok := foundationconfig.CheckRolesHasAnyAuths(userRoles, auths)
+	return ok, nil
+}
+
 func (s *UserService) GetRankAcAll(ctx *gin.Context, page int, pageSize int) ([]*foundationview.UserRank, int, error) {
 	return foundationdao.GetUserDao().GetRankAcAll(ctx, page, pageSize)
 }

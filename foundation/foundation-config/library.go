@@ -2,12 +2,13 @@ package foundationconfig
 
 import (
 	foundationauth "foundation/foundation-auth"
-	"foundation/foundation-flag"
-	"gopkg.in/yaml.v3"
+	foundationflag "foundation/foundation-flag"
 	"log/slog"
 	metaerror "meta/meta-error"
 	metafeishu "meta/meta-feishu"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
 var foundationConfig Config
@@ -82,4 +83,29 @@ func CheckRolesHasAllAuths(roles []string, auths []foundationauth.AuthType) bool
 		}
 	}
 	return true
+}
+
+func CheckRolesHasAnyAuths(roles []string, auths []foundationauth.AuthType) bool {
+	if len(auths) == 0 {
+		return false
+	}
+	if len(roles) == 0 {
+		return false
+	}
+	allRoleAuths := make(map[foundationauth.AuthType]struct{})
+	for _, role := range roles {
+		auths, ok := GetConfig().Roles[role]
+		if !ok {
+			continue
+		}
+		for _, auth := range auths {
+			allRoleAuths[auth] = struct{}{}
+		}
+	}
+	for _, auth := range auths {
+		if _, ok := allRoleAuths[auth]; ok {
+			return true
+		}
+	}
+	return false
 }
