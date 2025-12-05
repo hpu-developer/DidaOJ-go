@@ -828,7 +828,15 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		SubmitAnytime(requestData.SubmitAnytime).
 		Build()
 
-	err = contestService.UpdateContest(ctx, contest, problems, nil, nil, memberIds, nil, nil, nil)
+	members := make([]*foundationmodel.ContestMember, 0, len(memberIds))
+	for _, uid := range memberIds {
+		members = append(members, foundationmodel.NewContestMemberBuilder().
+			ContestName("").
+			UserId(uid).
+			Build())
+	}
+
+	err = contestService.UpdateContest(ctx, contest, problems, nil, nil, members, nil, nil, nil)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return

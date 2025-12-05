@@ -404,7 +404,7 @@ func (d *ContestDao) UpdateContest(
 	contestProblems []*foundationmodel.ContestProblem,
 	languages []string,
 	authors []int,
-	members []int,
+	members []*foundationmodel.ContestMember,
 	memberAuths []int,
 	memberIgnores []int,
 	memberVolunteers []int,
@@ -533,19 +533,14 @@ func (d *ContestDao) UpdateContest(
 
 			// members
 			if len(members) > 0 {
-				var memberModels []*foundationmodel.ContestMember
-				for _, uid := range members {
-					memberModels = append(
-						memberModels, &foundationmodel.ContestMember{
-							Id:     contest.Id,
-							UserId: uid,
-						},
-					)
+				newMemberIds := make([]int, 0, len(members))
+				for _, m := range members {
+					newMemberIds = append(newMemberIds, m.UserId)
 				}
 				if err := tx.Model(&foundationmodel.ContestMember{}).Where(
 					"id = ? AND user_id NOT IN ?",
 					contest.Id,
-					members,
+					newMemberIds,
 				).
 					Delete(&foundationmodel.ContestMember{}).Error; err != nil {
 					return metaerror.Wrap(err, "delete outdated members")
@@ -555,7 +550,7 @@ func (d *ContestDao) UpdateContest(
 						Columns:   []clause.Column{{Name: "id"}, {Name: "user_id"}},
 						DoNothing: true,
 					},
-				).Create(&memberModels).Error; err != nil {
+				).Create(&members).Error; err != nil {
 					return metaerror.Wrap(err, "upsert members")
 				}
 			} else {

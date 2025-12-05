@@ -425,7 +425,7 @@ func (s *ContestService) UpdateContest(
 	contestProblems []*foundationmodel.ContestProblem,
 	languages []string,
 	authors []int,
-	members []int,
+	members []*foundationmodel.ContestMember,
 	memberAuths []int,
 	memberIgnores []int,
 	memberVolunteers []int,
