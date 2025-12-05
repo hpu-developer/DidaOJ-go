@@ -383,11 +383,11 @@ func (d *ContestDao) UpdateDescription(ctx context.Context, id int, description 
 }
 
 func (d *ContestDao) PostPassword(ctx context.Context, userId int, contestId int, password string) (bool, error) {
-	sql := `INSERT INTO contest_member (user_id, contest_id)
+	sql := `INSERT INTO contest_member (user_id, id)
 SELECT ?, id
 FROM contest
 WHERE id = ? AND password = ?
-ON CONFLICT (user_id, contest_id) DO NOTHING`
+ON CONFLICT (user_id, id) DO NOTHING`
 	res := d.db.WithContext(ctx).Exec(sql, userId, contestId, password)
 	if res.Error != nil {
 		return false, metaerror.Wrap(res.Error, "failed to insert contest member")
