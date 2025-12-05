@@ -463,6 +463,33 @@ func (c *ContestController) GetStatistics(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, resp)
 }
 
+func (c *ContestController) GetMemberSelf(ctx *gin.Context) {
+	contestId, err := strconv.Atoi(ctx.Query("id"))
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	member, err := foundationservice.GetContestService().GetContestMember(
+		ctx,
+		contestId,
+		userId,
+	)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if member == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, member)
+}
+
 func (c *ContestController) GetImageToken(ctx *gin.Context) {
 	idStr := ctx.Query("id")
 	if idStr == "" {
@@ -889,6 +916,37 @@ func (c *ContestController) PostPassword(ctx *gin.Context) {
 	}
 	if !success {
 		metaresponse.NewResponse(ctx, weberrorcode.ContestPostPasswordError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)
+}
+
+func (c *ContestController) PostMemberEditSelf(ctx *gin.Context) {
+	var requestData struct {
+		Id          int    `json:"id" binding:"required"`
+		ContestName string `json:"contest_name"`
+	}
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	userId, hasAuth, err := foundationservice.GetContestService().CheckViewAuthWithoutStartTime(ctx, requestData.Id)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	err = foundationservice.GetContestService().PostContestMemberName(
+		ctx,
+		userId,
+		requestData.Id,
+		requestData.ContestName,
+	)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
 		return
 	}
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, nil)

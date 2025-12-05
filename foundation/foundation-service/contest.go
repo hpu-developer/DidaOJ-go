@@ -368,6 +368,10 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int, nowTime ti
 	if err != nil {
 		return
 	}
+	contest.Members, err = foundationdao.GetContestMemberDao().GetUsersWithName(ctx, id)
+	if err != nil {
+		return
+	}
 	var contestProblems []*foundationview.ContestProblemRank
 	contestProblems, err = foundationdao.GetContestProblemDao().GetProblemsRank(ctx, id)
 	if err != nil {
@@ -408,6 +412,12 @@ func (s *ContestService) GetContestRanks(ctx context.Context, id int, nowTime ti
 	contest.Problems = problemIndexes
 
 	return contest, contestRanks, isLocked, nil
+}
+
+func (s *ContestService) GetContestMember(
+	ctx context.Context, id int, userId int,
+) (*foundationview.ContestMember, error) {
+	return foundationdao.GetContestMemberDao().GetUser(ctx, id, userId)
 }
 
 func (s *ContestService) UpdateContest(
@@ -584,4 +594,10 @@ func (s *ContestService) DolosContest(ctx context.Context, id int) (*string, err
 		return nil, metaerror.Wrap(err, "解析HTTP响应失败")
 	}
 	return &res.HTMLUrl, nil
+}
+
+func (s *ContestService) PostContestMemberName(
+	ctx context.Context, userId int, contestId int, name string,
+) error {
+	return foundationdao.GetContestMemberDao().PostContestMemberName(ctx, userId, contestId, name)
 }
