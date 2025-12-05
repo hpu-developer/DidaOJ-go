@@ -38,7 +38,7 @@ func (d *ContestMemberDao) GetUserIds(ctx context.Context, id int) (
 		return nil, err
 	}
 	if len(userIds) == 0 {
-		return nil, gorm.ErrRecordNotFound
+		return nil, nil
 	}
 	return userIds, nil
 }
