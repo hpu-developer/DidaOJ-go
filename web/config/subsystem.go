@@ -18,7 +18,7 @@ type Config struct {
 
 	PostgreSql map[string]*metapostgresql.Config `yaml:"postgresql"`
 
-	CfTurnstile string `yaml:"cf-turnstile"` // Cloudflare Turnstile 密钥
+	Recaptcha string `yaml:"recaptcha"` // Recaptcha 密钥
 
 	CfR2 map[string]*cfr2.Config `yaml:"cf-r2"` // GoJudge 数据服务地址
 

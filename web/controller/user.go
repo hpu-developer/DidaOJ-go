@@ -12,7 +12,6 @@ import (
 	foundationuser "foundation/foundation-user"
 	foundationview "foundation/foundation-view"
 	"io"
-	cfturnstile "meta/cf-turnstile"
 	metacontroller "meta/controller"
 	metaerrorcode "meta/error-code"
 	metaemail "meta/meta-email"
@@ -22,6 +21,7 @@ import (
 	metaresponse "meta/meta-response"
 	metastring "meta/meta-string"
 	metatime "meta/meta-time"
+	"meta/recaptcha"
 	"net/http"
 	"strconv"
 	"strings"
@@ -231,13 +231,13 @@ func (c *UserController) PostModifyEmailKey(ctx *gin.Context) {
 		return
 	}
 
-	isTurnstileValid, err := cfturnstile.IsTurnstileTokenValid(ctx, config.GetConfig().CfTurnstile, requestData.Token)
+	isRecaptchaValid, err := recaptcha.IsRecaptchaTokenValid(ctx, config.GetConfig().Recaptcha, requestData.Token, ctx.ClientIP())
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	if !isTurnstileValid {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	if !isRecaptchaValid {
+		metaresponse.NewResponse(ctx, weberrorcode.RecaptchaVerifyFail, nil)
 		return
 	}
 
@@ -317,13 +317,13 @@ func (c *UserController) PostModifyEmailKeyOld(ctx *gin.Context) {
 		return
 	}
 
-	isTurnstileValid, err := cfturnstile.IsTurnstileTokenValid(ctx, config.GetConfig().CfTurnstile, requestData.Token)
+	isRecaptchaValid, err := recaptcha.IsRecaptchaTokenValid(ctx, config.GetConfig().Recaptcha, requestData.Token, ctx.ClientIP())
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	if !isTurnstileValid {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	if !isRecaptchaValid {
+		metaresponse.NewResponse(ctx, weberrorcode.RecaptchaVerifyFail, nil)
 		return
 	}
 
@@ -520,13 +520,13 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 		return
 	}
 
-	isTurnstileValid, err := cfturnstile.IsTurnstileTokenValid(ctx, config.GetConfig().CfTurnstile, requestData.Token)
+	isRecaptchaValid, err := recaptcha.IsRecaptchaTokenValid(ctx, config.GetConfig().Recaptcha, requestData.Token, ctx.ClientIP())
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	if !isTurnstileValid {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	if !isRecaptchaValid {
+		metaresponse.NewResponse(ctx, weberrorcode.RecaptchaVerifyFail, nil)
 		return
 	}
 
@@ -708,13 +708,13 @@ func (c *UserController) PostForget(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
 		return
 	}
-	isTurnstileValid, err := cfturnstile.IsTurnstileTokenValid(ctx, config.GetConfig().CfTurnstile, requestData.Token)
+	isRecaptchaValid, err := recaptcha.IsRecaptchaTokenValid(ctx, config.GetConfig().Recaptcha, requestData.Token, ctx.ClientIP())
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
-	if !isTurnstileValid {
-		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+	if !isRecaptchaValid {
+		metaresponse.NewResponse(ctx, weberrorcode.RecaptchaVerifyFail, nil)
 		return
 	}
 	userEmail, err := foundationservice.GetUserService().GetEmailByUsername(ctx, username)

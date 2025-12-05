@@ -110,3 +110,8 @@ func (s *BotService) UpdateBotGame(
 ) error {
 	return foundationdao.GetBotGameDao().UpdateBotGame(ctx, botGameId, botGame)
 }
+
+// GetBotReplayList 获取BotReplay列表
+func (s *BotService) GetBotReplayList(ctx context.Context, gameKey string, page, pageSize int) ([]map[string]interface{}, int64, error) {
+	return foundationdao.GetBotReplayDao().GetBotReplayList(ctx, gameKey, page, pageSize)
+}

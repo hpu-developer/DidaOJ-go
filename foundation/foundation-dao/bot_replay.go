@@ -175,3 +175,32 @@ func (d *BotReplayDao) GetBotReplayParamById(ctx context.Context, id int) (*foun
 
 	return &result, nil
 }
+
+// GetBotReplayList 获取BotReplay列表，支持分页和游戏类型过滤
+func (d *BotReplayDao) GetBotReplayList(ctx context.Context, gameKey string, page, pageSize int) ([]map[string]interface{}, int64, error) {
+	var result []map[string]interface{}
+	var total int64
+
+	// 构建查询
+	query := d.db.WithContext(ctx).Table("bot_replay").
+		Select("bot_replay.*, bot_game.key as game_key, bot_game.title as game_name").
+		Joins("LEFT JOIN bot_game ON bot_replay.game_id = bot_game.id")
+
+	// 添加过滤条件
+	if gameKey != "" {
+		query = query.Where("bot_game.key = ?", gameKey)
+	}
+
+	// 计算总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, metaerror.Wrap(err, "failed to count bot replay list")
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	if err := query.Offset(offset).Limit(pageSize).Order("bot_replay.insert_time DESC").Scan(&result).Error; err != nil {
+		return nil, 0, metaerror.Wrap(err, "failed to get bot replay list")
+	}
+
+	return result, total, nil
+}
