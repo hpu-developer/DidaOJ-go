@@ -100,6 +100,10 @@ func (s *UserService) GetUserIdsByUsername(ctx *gin.Context, usernames []string)
 	return foundationdao.GetUserDao().GetUserIdsByUsername(ctx, usernames)
 }
 
+func (s *UserService) HasUserByUsername(ctx *gin.Context, username string) (bool, error) {
+	return foundationdao.GetUserDao().HasUserByUsername(ctx, username)
+}
+
 func (s *UserService) InsertUser(ctx context.Context, user *foundationmodel.User) error {
 	return foundationdao.GetUserDao().InsertUser(ctx, user)
 }

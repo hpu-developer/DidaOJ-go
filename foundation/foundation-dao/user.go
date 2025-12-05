@@ -182,6 +182,18 @@ func (d *UserDao) GetUserAccountInfos(ctx context.Context, ids []int) ([]*founda
 	return userAccountInfos, nil
 }
 
+func (d *UserDao) HasUserByUsername(ctx context.Context, username string) (bool, error) {
+	var count int64
+	err := d.db.WithContext(ctx).
+		Model(&foundationmodel.User{}).
+		Where("LOWER(username) = LOWER(?)", username).
+		Count(&count).Error
+	if err != nil {
+		return false, metaerror.Wrap(err, "check user by username")
+	}
+	return count > 0, nil
+}
+
 func (d *UserDao) GetUserAccountInfosByUsername(
 	ctx context.Context,
 	usernames []string,
