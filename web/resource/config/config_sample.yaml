@@ -29,4 +29,4 @@ email:
 template:
   hdu: "resource/template/hdu.md"
 
-judge-data-max-size: 20971520
+judge-data-max-size: 33554432

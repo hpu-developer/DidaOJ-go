@@ -48,4 +48,5 @@ const (
 	JudgeApproveCodeTooShort             metaerrorcode.ErrorCode = 100043
 	UserCheckinAlreadyDone               metaerrorcode.ErrorCode = 100044
 	UserRewardAlreadyDone                metaerrorcode.ErrorCode = 100045
+	UserRegisterUsernameDuplicate        metaerrorcode.ErrorCode = 100046
 )

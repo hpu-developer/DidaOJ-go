@@ -661,6 +661,16 @@ func (c *UserController) PostRegister(ctx *gin.Context) {
 
 	gender := foundationenum.GetUserGender(requestData.Gender)
 
+	exist, err := foundationservice.GetUserService().HasUserByUsername(ctx, requestData.Username)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err, nil)
+		return
+	}
+	if exist {
+		metaresponse.NewResponse(ctx, weberrorcode.UserRegisterUsernameDuplicate, nil)
+		return
+	}
+
 	user := foundationmodel.NewUserBuilder().
 		Username(requestData.Username).
 		Password(passwordEncode).
