@@ -6,9 +6,10 @@ import (
 	foundationdao "foundation/foundation-dao"
 	foundationmodel "foundation/foundation-model"
 	foundationview "foundation/foundation-view"
-	"github.com/gin-gonic/gin"
 	"meta/singleton"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type DiscussService struct {
@@ -141,6 +142,7 @@ func (s *DiscussService) GetDiscussView(ctx context.Context, id int) (*foundatio
 			}
 			// 隐藏真实的ProblemId
 			discuss.ProblemId = nil
+			discuss.ProblemKey = nil
 		}
 	} else if discuss.ProblemId != nil {
 		// 校验权限
