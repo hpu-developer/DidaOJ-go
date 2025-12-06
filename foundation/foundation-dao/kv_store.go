@@ -2,7 +2,6 @@ package foundationdao
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	foundationmodel "foundation/foundation-model"
 	metapostgresql "meta/meta-postgresql"
@@ -29,7 +28,7 @@ func GetKVStoreDao() *KVStoreDao {
 	)
 }
 
-func (d *KVStoreDao) SetValue(ctx context.Context, key string, value json.RawMessage, expiration time.Duration) error {
+func (d *KVStoreDao) SetValue(ctx context.Context, key string, value string, expiration time.Duration) error {
 	// 如果key存在则更新信息，否则插入
 	// 使用GORM的Upsert功能，通过OnConflict子句实现一次数据库操作完成
 
@@ -70,7 +69,7 @@ func (d *KVStoreDao) SetValue(ctx context.Context, key string, value json.RawMes
 		Create(data).Error
 }
 
-func (d *KVStoreDao) GetValue(ctx context.Context, key string) (*json.RawMessage, error) {
+func (d *KVStoreDao) GetValue(ctx context.Context, key string) (*string, error) {
 	var kvStore foundationmodel.KVStore
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.KVStore{}).
@@ -93,7 +92,7 @@ func (d *KVStoreDao) DeleteValue(ctx context.Context, key string) error {
 }
 
 // SetNXValue 尝试设置一个键值对，如果键已存在但未过期，则认为失败；如果键已存在且已过期，则更新
-func (d *KVStoreDao) SetNXValue(ctx context.Context, key string, value json.RawMessage, expiration time.Duration) (bool, error) {
+func (d *KVStoreDao) SetNXValue(ctx context.Context, key string, value string, expiration time.Duration) (bool, error) {
 	// 处理过期时间
 	expireExpr := gorm.Expr("NULL") // 默认永不过期
 	if expiration > 0 {

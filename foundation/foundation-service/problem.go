@@ -316,7 +316,7 @@ func (s *ProblemService) GetProblemRecommend(
 	cached, err := kvStoreDao.GetValue(ctx, kvKey)
 	if err == nil && cached != nil {
 		var statics []*foundationview.ProblemViewList
-		if err := json.Unmarshal(*cached, &statics); err == nil {
+		if err := json.Unmarshal([]byte(*cached), &statics); err == nil {
 			return statics, nil
 		}
 	}
@@ -330,8 +330,7 @@ func (s *ProblemService) GetProblemRecommend(
 		return nil, err
 	}
 	if len(problemIds) == 0 {
-		emptyArray := json.RawMessage("[]")
-		err := kvStoreDao.SetValue(ctx, kvKey, emptyArray, time.Hour)
+		err := kvStoreDao.SetValue(ctx, kvKey, "[]", time.Hour)
 		if err != nil {
 			return nil, err
 		}
@@ -342,8 +341,7 @@ func (s *ProblemService) GetProblemRecommend(
 		return nil, err
 	}
 	if len(problemList) == 0 {
-		emptyArray := json.RawMessage("[]")
-		err := kvStoreDao.SetValue(ctx, kvKey, emptyArray, time.Hour)
+		err := kvStoreDao.SetValue(ctx, kvKey, "[]", time.Hour)
 		if err != nil {
 			return nil, err
 		}
@@ -362,7 +360,7 @@ func (s *ProblemService) GetProblemRecommend(
 	if err != nil {
 		return nil, metaerror.Wrap(err, "marshal problem list error")
 	}
-	err = kvStoreDao.SetValue(ctx, kvKey, jsonString, time.Hour)
+	err = kvStoreDao.SetValue(ctx, kvKey, string(jsonString), time.Hour)
 	if err != nil {
 		return nil, err
 	}

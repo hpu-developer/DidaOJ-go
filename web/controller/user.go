@@ -246,7 +246,7 @@ func (c *UserController) PostModifyEmailKey(ctx *gin.Context) {
 	codeKey := fmt.Sprintf("modify_email_key_%d_%s", userId, email)
 
 	// 检查是否在 1 分钟内重复发送
-	ok, err := kvStoreDao.SetNXValue(ctx, flagKey, []byte("1"), time.Minute)
+	ok, err := kvStoreDao.SetNXValue(ctx, flagKey, "1", time.Minute)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -258,7 +258,7 @@ func (c *UserController) PostModifyEmailKey(ctx *gin.Context) {
 
 	// 生成验证码并存入 KV 存储，设置10分钟过期
 	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
-	if err := kvStoreDao.SetValue(ctx, codeKey, []byte(code), 10*time.Minute); err != nil {
+	if err := kvStoreDao.SetValue(ctx, codeKey, code, 10*time.Minute); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -332,7 +332,7 @@ func (c *UserController) PostModifyEmailKeyOld(ctx *gin.Context) {
 	codeKey := fmt.Sprintf("modify_email_old_key_%d", userId)
 
 	// 检查是否在 1 分钟内重复发送
-	ok, err := kvStoreDao.SetNXValue(ctx, flagKey, []byte("1"), time.Minute)
+	ok, err := kvStoreDao.SetNXValue(ctx, flagKey, "1", time.Minute)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -344,7 +344,7 @@ func (c *UserController) PostModifyEmailKeyOld(ctx *gin.Context) {
 
 	// 生成验证码并存入 KV 存储，设置10分钟过期
 	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
-	if err := kvStoreDao.SetValue(ctx, codeKey, []byte(code), 10*time.Minute); err != nil {
+	if err := kvStoreDao.SetValue(ctx, codeKey, code, 10*time.Minute); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -449,7 +449,7 @@ func (c *UserController) PostModifyVjudge(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, metaerrorcode.Success)
 	} else {
 		randomString := metastring.GetRandomString(16)
-		err = kvStoreDao.SetValue(ctx, codeKey, []byte(randomString), 10*time.Minute)
+		err = kvStoreDao.SetValue(ctx, codeKey, randomString, 10*time.Minute)
 		if err != nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 			return
@@ -535,7 +535,7 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 	codeKey := fmt.Sprintf("register_email_key_%s", email)
 
 	// 检查是否在 1 分钟内重复发送
-	ok, err := kvStoreDao.SetNXValue(ctx, flagKey, []byte("1"), time.Minute)
+	ok, err := kvStoreDao.SetNXValue(ctx, flagKey, "1", time.Minute)
 	if err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
@@ -547,7 +547,7 @@ func (c *UserController) PostRegisterEmail(ctx *gin.Context) {
 
 	// 生成验证码并存入 KV 存储，设置10分钟过期
 	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
-	if err := kvStoreDao.SetValue(ctx, codeKey, []byte(code), 10*time.Minute); err != nil {
+	if err := kvStoreDao.SetValue(ctx, codeKey, code, 10*time.Minute); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}
@@ -732,7 +732,7 @@ func (c *UserController) PostForget(ctx *gin.Context) {
 
 	// 生成验证码并存入 KV 存储，设置10分钟过期
 	code := strconv.Itoa(metamath.GetRandomInt(100000, 999999))
-	if err := kvStoreDao.SetValue(ctx, codeKey, []byte(code), 10*time.Minute); err != nil {
+	if err := kvStoreDao.SetValue(ctx, codeKey, code, 10*time.Minute); err != nil {
 		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
 		return
 	}

@@ -256,7 +256,7 @@ func (c *JudgeController) GetStaticsRecently(ctx *gin.Context) {
 	cached, err := foundationservice.GetKVStoreService().GetValue(ctx, codeKey)
 	if err == nil && cached != nil {
 		var statics interface{}
-		if err := json.Unmarshal(*cached, &statics); err == nil {
+		if err := json.Unmarshal([]byte(*cached), &statics); err == nil {
 			metaresponse.NewResponse(ctx, metaerrorcode.Success, statics)
 			return
 		}

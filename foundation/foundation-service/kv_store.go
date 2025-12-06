@@ -23,7 +23,7 @@ func GetKVStoreService() *KVStoreService {
 	)
 }
 
-func (s *KVStoreService) GetValue(ctx context.Context, key string) (*json.RawMessage, error) {
+func (s *KVStoreService) GetValue(ctx context.Context, key string) (*string, error) {
 	return foundationdao.GetKVStoreDao().GetValue(ctx, key)
 }
 
@@ -43,5 +43,5 @@ func (s *KVStoreService) SetValue(ctx context.Context, key string, value any, ex
 	if err != nil {
 		return metaerror.Wrap(err, "KVStore marshal value to json failed")
 	}
-	return foundationdao.GetKVStoreDao().SetValue(ctx, key, jsonValue, expiration)
+	return foundationdao.GetKVStoreDao().SetValue(ctx, key, string(jsonValue), expiration)
 }
