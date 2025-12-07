@@ -112,6 +112,7 @@ func (s *BotService) UpdateBotGame(
 }
 
 // GetBotReplayList 获取BotReplay列表
-func (s *BotService) GetBotReplayList(ctx context.Context, gameKey string, page, pageSize int) ([]map[string]interface{}, int64, error) {
-	return foundationdao.GetBotReplayDao().GetBotReplayList(ctx, gameKey, page, pageSize)
+func (s *BotService) GetBotReplayList(ctx context.Context, gameKey string, page, pageSize int) ([]*foundationview.BotGameView, int64, error) {
+	// return foundationdao.GetBotReplayDao().GetBotReplayList(ctx, gameKey, page, pageSize)
+	return nil, 0, nil
 }

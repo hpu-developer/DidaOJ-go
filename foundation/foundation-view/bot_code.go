@@ -9,3 +9,8 @@ type BotCodeView struct {
 	Version  int                           `json:"version"`
 	Inserter int                           `json:"inserter"`
 }
+
+type BotCodePlayerView struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}

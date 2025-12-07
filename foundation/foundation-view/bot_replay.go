@@ -8,6 +8,8 @@ import (
 type BotReplayView struct {
 	foundationmodel.BotReplay
 
+	Bots []*BotCodePlayerView `json:"bots"`
+
 	InserterUsername string `json:"inserter_username"`
 	InserterNickname string `json:"inserter_nickname"`
 	InserterEmail    string `json:"inserter_email"`

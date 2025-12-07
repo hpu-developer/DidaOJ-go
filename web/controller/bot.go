@@ -125,7 +125,7 @@ func (c *BotController) GetReplayParam(ctx *gin.Context) {
 
 func (c *BotController) GetReplayList(ctx *gin.Context) {
 	// 获取参数
-	gameKey := ctx.Query("game_key")
+	// gameKey := ctx.Query("game_key")
 	pageStr := ctx.DefaultQuery("page", "1")
 	pageSizeStr := ctx.DefaultQuery("page_size", "20")
 
@@ -141,25 +141,25 @@ func (c *BotController) GetReplayList(ctx *gin.Context) {
 	}
 
 	// 获取bot服务
-	botService := foundationservice.GetBotService()
+	// botService := foundationservice.GetBotService()
 
 	// 获取回放列表
-	replayList, total, err := botService.GetBotReplayList(ctx, gameKey, page, pageSize)
-	if err != nil {
-		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
-		return
-	}
+	// replayList, total, err := botService.GetBotReplayList(ctx, gameKey, page, pageSize)
+	// if err != nil {
+	// 	metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+	// 	return
+	// }
 
-	// 返回结果
-	responseData := struct {
-		List  []map[string]interface{} `json:"list"`
-		Total int64                    `json:"total"`
-	}{
-		List:  replayList,
-		Total: total,
-	}
+	// // 返回结果
+	// responseData := struct {
+	// 	List  []map[string]interface{} `json:"list"`
+	// 	Total int64                    `json:"total"`
+	// }{
+	// 	List:  replayList,
+	// 	Total: total,
+	// }
 
-	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }
 
 // PostGameEdit 编辑Bot游戏信息
