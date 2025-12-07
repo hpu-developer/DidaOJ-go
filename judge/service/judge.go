@@ -1158,19 +1158,26 @@ func (s *JudgeService) runJudgeTask(
 
 	if specialFileId == "" {
 		// 移除所有空行和每行前后的空格
-		outContentMyPe := strings.Fields(rightOutContent)
-		ansContentMyPe := strings.Fields(userAnsContent)
+		rightOutContentFields := strings.Fields(rightOutContent)
+		userAnsContentFileds := strings.Fields(userAnsContent)
 		WaHint := ""
-		for i := 0; i < len(outContentMyPe); i++ {
-			if i < len(ansContentMyPe) {
-				if outContentMyPe[i] != ansContentMyPe[i] {
-					WaHint = fmt.Sprintf("#%d %s != %s", i+1, outContentMyPe[i], ansContentMyPe[i])
+		for i := 0; i < len(rightOutContentFields); i++ {
+			if i < len(userAnsContentFileds) {
+				if rightOutContentFields[i] != userAnsContentFileds[i] {
+					WaHint = fmt.Sprintf("#%d %s != %s", i+1, rightOutContentFields[i], userAnsContentFileds[i])
 				}
 			} else {
-				WaHint = fmt.Sprintf("#%d %s not found", i+1, outContentMyPe[i])
+				WaHint = fmt.Sprintf("#%d %s not found", i+1, rightOutContentFields[i])
 				break
 			}
 		}
+		if WaHint == "" {
+			// 有可能是userAnsContentFileds超过rightOutContentFields的长度
+			if len(userAnsContentFileds) > len(rightOutContentFields) {
+				WaHint = "extra output:" + userAnsContentFileds[len(rightOutContentFields)]
+			}
+		}
+
 		if WaHint != "" {
 			task.Status = foundationjudge.JudgeStatusWA
 			task.Hint = metastring.GetTextEllipsis(WaHint, 1000)
