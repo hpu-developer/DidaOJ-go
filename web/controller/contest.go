@@ -897,7 +897,7 @@ func (c *ContestController) PostPassword(ctx *gin.Context) {
 	}
 	userId, hasAuth, err := foundationservice.GetContestService().CheckViewAuth(ctx, requestData.ContestId)
 	if err != nil {
-		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		metaresponse.NewResponseError(ctx, err)
 		return
 	}
 	if hasAuth {
