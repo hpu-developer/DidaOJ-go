@@ -535,6 +535,7 @@ func (d *ContestDao) UpdateContest(
 			if len(members) > 0 {
 				newMemberIds := make([]int, 0, len(members))
 				for _, m := range members {
+					m.Id = contest.Id
 					newMemberIds = append(newMemberIds, m.UserId)
 				}
 				if err := tx.Model(&foundationmodel.ContestMember{}).Where(
