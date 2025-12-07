@@ -36,9 +36,6 @@ func (d *ContestProblemDao) GetProblemId(ctx context.Context, id int, index int)
 	if err != nil {
 		return 0, err
 	}
-	if problemId == 0 {
-		return 0, gorm.ErrRecordNotFound
-	}
 	return problemId, nil
 }
 

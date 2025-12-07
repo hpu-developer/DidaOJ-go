@@ -289,7 +289,7 @@ func (d *ProblemDao) GetProblemIdByKey(ctx context.Context, key string) (int, er
 		Take(&result).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, metaerror.New("problem %s not found", key)
+			return 0, nil
 		}
 		return 0, metaerror.Wrap(err, "find problem id by key %s failed", key)
 	}

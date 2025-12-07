@@ -290,6 +290,14 @@ func (c *DiscussController) GetList(ctx *gin.Context) {
 				contestId,
 				problemKey,
 			)
+			if err != nil {
+				metaresponse.NewResponseError(ctx, err)
+				return
+			}
+			if problemId <= 0 {
+				metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+				return
+			}
 		} else {
 			problemId, err = foundationservice.GetProblemService().GetProblemIdByKey(ctx, problemKey)
 			if err != nil {
