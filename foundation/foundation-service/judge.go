@@ -57,6 +57,9 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 	if judgeAuth == nil {
 		return userId, false, false, nil, nil
 	}
+
+	hasTaskAuth := true
+
 	// 如果在比赛中，则以比赛中的权限为准进行一次拦截
 	var contest *foundationview.ContestViewLock
 	if judgeAuth.ContestId > 0 {
@@ -80,7 +83,9 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 		}
 		if !hasAuth {
 			nowTime := metatime.GetTimeNow()
-			hasStatusAuth, hasDetailAuth, hasTaskAuth := s.isContestJudgeHasViewAuth(
+			var hasStatusAuth bool
+			var hasDetailAuth bool
+			hasStatusAuth, hasDetailAuth, hasTaskAuth = s.isContestJudgeHasViewAuth(
 				contest, userId,
 				nowTime,
 				judgeAuth.Private,
@@ -107,7 +112,7 @@ func (s *JudgeService) CheckJudgeViewAuth(ctx *gin.Context, id int) (
 			}
 		}
 	}
-	return userId, true, true, contest, nil
+	return userId, true, hasTaskAuth, contest, nil
 }
 
 func (s *JudgeService) GetJudge(ctx context.Context, id int, fields []string) (*foundationview.JudgeJob, error) {
