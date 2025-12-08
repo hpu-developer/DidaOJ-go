@@ -18,6 +18,18 @@ type ContestDetail struct {
 	ModifierNickname string `json:"modifier_nickname"`
 }
 
+type ContestDetailClone struct {
+	Title            string                            `json:"title" gorm:"type:varchar(75);not null"`
+	Type             foundationenum.ContestType        `json:"type" gorm:"type:tinyint(1) unsigned;"`
+	ScoreType        foundationenum.ContestScoreType   `json:"score_type,omitempty" gorm:"type:tinyint"`
+	LockRankDuration *time.Duration                    `json:"lock_rank_duration,omitempty" gorm:"type:bigint"`
+	AlwaysLock       bool                              `json:"always_lock,omitempty" gorm:"type:tinyint(1)"`
+	DiscussType      foundationenum.ContestDiscussType `json:"discuss_type,omitempty" gorm:"type:tinyint;comment:'讨论类型，0正常讨论，1仅查看自己的讨论'"`
+
+	Problems []int `json:"problems" gorm:"-"` // 比赛题目列表
+	Members  []int `json:"members" gorm:"-"`  // 比赛成员列表
+}
+
 type ContestDetailEdit struct {
 	foundationmodel.Contest
 

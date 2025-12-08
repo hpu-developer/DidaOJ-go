@@ -117,6 +117,39 @@ func (c *ContestController) GetEdit(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
 }
 
+func (c *ContestController) GetClone(ctx *gin.Context) {
+	contestService := foundationservice.GetContestService()
+	idStr := ctx.Query("id")
+	if idStr == "" {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	contest, hasAuth, err := contestService.GetContestClone(ctx, id)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err, nil)
+		return
+	}
+	if !hasAuth {
+		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
+		return
+	}
+	if contest == nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.NotFound, nil)
+		return
+	}
+	responseData := struct {
+		Contest *foundationview.ContestDetailClone `json:"contest"`
+	}{
+		Contest: contest,
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, responseData)
+}
+
 func (c *ContestController) GetList(ctx *gin.Context) {
 	contestService := foundationservice.GetContestService()
 	pageStr := ctx.DefaultQuery("page", "1")

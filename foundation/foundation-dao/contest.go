@@ -253,6 +253,27 @@ func (d *ContestDao) GetContestEdit(ctx context.Context, id int) (*foundationvie
 	return &result, nil
 }
 
+func (d *ContestDao) GetContestClone(ctx context.Context, id int) (*foundationview.ContestDetailClone, error) {
+	var result foundationview.ContestDetailClone
+	err := d.db.WithContext(ctx).
+		Table("contest AS c").
+		Select(
+			`
+			c.title,
+			c.always_lock, c.lock_rank_duration, c.type, c.score_type, c.discuss_type
+		`,
+		).
+		Where("c.id = ?", id).
+		Scan(&result).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, metaerror.Wrap(err, "find contest error")
+	}
+	return &result, nil
+}
+
 func (d *ContestDao) GetContestViewRank(ctx context.Context, id int) (*foundationview.ContestRankDetail, error) {
 	var contest foundationview.ContestRankDetail
 	if err := d.db.WithContext(ctx).

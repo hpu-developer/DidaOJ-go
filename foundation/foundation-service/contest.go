@@ -212,6 +212,32 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 	return
 }
 
+func (s *ContestService) GetContestClone(ctx *gin.Context, id int) (*foundationview.ContestDetailClone, bool, error) {
+	_, hasAuth, err := GetContestService().CheckViewAuth(ctx, id)
+	if err != nil {
+		return nil, false, err
+	}
+	if !hasAuth {
+		return nil, false, nil
+	}
+	contest, err := foundationdao.GetContestDao().GetContestClone(ctx, id)
+	if err != nil {
+		return nil, false, err
+	}
+	if contest == nil {
+		return nil, false, nil
+	}
+	contest.Problems, err = foundationdao.GetContestProblemDao().GetProblemIds(ctx, id)
+	if err != nil {
+		return nil, false, err
+	}
+	contest.Members, err = foundationdao.GetContestMemberDao().GetUserIds(ctx, id)
+	if err != nil {
+		return nil, false, err
+	}
+	return contest, true, nil
+}
+
 func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundationview.ContestDetailEdit, error) {
 	contest, err := foundationdao.GetContestDao().GetContestEdit(ctx, id)
 	if err != nil {
