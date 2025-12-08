@@ -55,4 +55,6 @@ const (
 	ContestStartTimeBeforeNow     metaerrorcode.ErrorCode = 100049
 	ContestEndTimeBeforeStartTime metaerrorcode.ErrorCode = 100050
 	ContestDurationTooLong        metaerrorcode.ErrorCode = 100051
+	ContestCannotEditStartTime    metaerrorcode.ErrorCode = 100052
+	ContestCannotEditEndTime      metaerrorcode.ErrorCode = 100053
 )

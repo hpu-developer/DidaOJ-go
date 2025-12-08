@@ -316,6 +316,23 @@ func (d *ContestDao) GetContestViewRank(ctx context.Context, id int) (*foundatio
 	return &contest, nil
 }
 
+func (d *ContestDao) GetContestTime(ctx context.Context, id int) (*time.Time, *time.Time, error) {
+	var startTime, endTime time.Time
+	if err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Contest{}).
+		Where("id = ?", id).
+		Pluck("start_time", &startTime).Error; err != nil {
+		return nil, nil, err
+	}
+	if err := d.db.WithContext(ctx).
+		Model(&foundationmodel.Contest{}).
+		Where("id = ?", id).
+		Pluck("end_time", &endTime).Error; err != nil {
+		return nil, nil, err
+	}
+	return &startTime, &endTime, nil
+}
+
 func (d *ContestDao) GetContestInserter(ctx context.Context, id int) (int, error) {
 	var inserter int
 	if err := d.db.WithContext(ctx).

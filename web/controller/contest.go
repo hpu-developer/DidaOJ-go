@@ -764,6 +764,24 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 	endTime := requestData.EndTime
 	nowTime := metatime.GetTimeNow()
 
+	contestStartTime, contestEndTime, err := foundationservice.GetContestService().GetContestTime(ctx, requestData.Id)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err)
+		return
+	}
+	if *contestStartTime != startTime {
+		if !contestStartTime.Before(nowTime) {
+			metaresponse.NewResponse(ctx, weberrorcode.ContestCannotEditStartTime, nil)
+			return
+		}
+	}
+	if *contestEndTime != endTime {
+		if nowTime.After(*contestEndTime) {
+			metaresponse.NewResponse(ctx, weberrorcode.ContestCannotEditEndTime, nil)
+			return
+		}
+	}
+
 	_, hasAuth, err := foundationservice.GetContestService().CheckEditAuth(ctx, requestData.Id)
 	if err != nil {
 		metapanic.ProcessError(err)

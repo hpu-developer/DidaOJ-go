@@ -272,6 +272,18 @@ func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundatio
 	return contest, err
 }
 
+func (s *ContestService) GetContestTime(ctx *gin.Context, id int) (
+	startTime *time.Time,
+	endTime *time.Time,
+	err error,
+) {
+	startTime, endTime, err = foundationdao.GetContestDao().GetContestTime(ctx, id)
+	if err != nil {
+		return
+	}
+	return
+}
+
 func (s *ContestService) GetContestStatistics(ctx *gin.Context, id int, language foundationjudge.JudgeLanguage) (
 	[]*foundationview.ContestProblemStatistics,
 	error,

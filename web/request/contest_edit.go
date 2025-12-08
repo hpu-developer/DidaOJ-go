@@ -42,7 +42,7 @@ func (r *ContestEdit) CheckRequest() (bool, int) {
 	if r.EndTime.Before(r.StartTime) {
 		return false, int(weberrorcode.ContestEndTimeBeforeStartTime)
 	}
-	// 判断时长是否超过了1个月
+	// 判断时长是否超过了30天
 	if r.EndTime.Sub(r.StartTime) > time.Hour*24*30 {
 		return false, int(weberrorcode.ContestDurationTooLong)
 	}
