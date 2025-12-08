@@ -42,6 +42,21 @@ func (d *BotGameDao) CheckGameEditAuth(ctx context.Context, gameId int, userId i
 	return exists == 1, nil
 }
 
+// GetBotGameIdByKey 根据key获取BotGameId
+func (d *BotGameDao) GetBotGameIdByKey(ctx context.Context, gameKey string) (int, error) {
+	var gameId int
+	if err := d.db.WithContext(ctx).Model(&foundationmodel.BotGame{}).
+		Select("id").
+		Where("LOWER(game_key) = LOWER(?)", gameKey).
+		Take(&gameId).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, nil
+		}
+		return 0, metaerror.Wrap(err, "failed to get bot game id by key")
+	}
+	return gameId, nil
+}
+
 // GetBotGameByKey 根据key获取BotGame
 func (d *BotGameDao) GetBotGameByKey(ctx context.Context, gameKey string) (*foundationmodel.BotGame, error) {
 	var botGame foundationmodel.BotGame

@@ -31,9 +31,20 @@ func (d *BotCodeDao) GetBotCodes(ctx context.Context, botIds []int) ([]*foundati
 	var botCodes []*foundationview.BotCodeView
 	if err := d.db.WithContext(ctx).Model(&foundationmodel.BotCode{}).
 		Where("id IN ?", botIds).
-		Select("id, language, code, version, inserter").
+		Select("id, language, code, version, inserter, name").
 		Find(&botCodes).Error; err != nil {
 		return nil, metaerror.Wrap(err, "failed to get bot code map")
 	}
 	return botCodes, nil
+}
+
+func (d *BotCodeDao) GetBotPlayers(ctx context.Context, botIds []int) ([]*foundationview.BotCodePlayerView, error) {
+	var botPlayers []*foundationview.BotCodePlayerView
+	if err := d.db.WithContext(ctx).Model(&foundationmodel.BotCode{}).
+		Where("id IN ?", botIds).
+		Select("id, name").
+		Find(&botPlayers).Error; err != nil {
+		return nil, metaerror.Wrap(err, "failed to get bot players")
+	}
+	return botPlayers, nil
 }
