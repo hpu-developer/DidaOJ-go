@@ -250,7 +250,7 @@ func (s *ContestService) GetContestEdit(ctx context.Context, id int) (*foundatio
 	if err != nil {
 		return nil, err
 	}
-	contest.Members, err = foundationdao.GetContestMemberDao().GetUserIds(ctx, id)
+	contest.Members, err = foundationdao.GetContestMemberDao().GetUsersWithName(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -482,7 +482,7 @@ func (s *ContestService) InsertContest(
 	contestProblems []*foundationmodel.ContestProblem,
 	languages []string,
 	authors []int,
-	members []int,
+	members []*foundationmodel.ContestMember,
 	memberAuths []int,
 	memberIgnores []int,
 	memberVolunteers []int,

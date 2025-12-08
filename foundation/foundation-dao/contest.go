@@ -570,7 +570,7 @@ func (d *ContestDao) UpdateContest(
 				if err := tx.Clauses(
 					clause.OnConflict{
 						Columns:   []clause.Column{{Name: "id"}, {Name: "user_id"}},
-						DoNothing: true,
+						DoUpdates: clause.AssignmentColumns([]string{"contest_name"}),
 					},
 				).Create(&members).Error; err != nil {
 					return metaerror.Wrap(err, "upsert members")
@@ -703,7 +703,7 @@ func (d *ContestDao) InsertContest(
 	contestProblems []*foundationmodel.ContestProblem,
 	languages []string,
 	authors []int,
-	members []int,
+	members []*foundationmodel.ContestMember,
 	memberAuths []int,
 	memberIgnores []int,
 	memberVolunteers []int,
@@ -756,17 +756,12 @@ func (d *ContestDao) InsertContest(
 				}
 			}
 			if len(members) > 0 {
-				var contestMembers []*foundationmodel.ContestMember
-				for _, memberId := range members {
-					contestMembers = append(
-						contestMembers, &foundationmodel.ContestMember{
-							Id:     contest.Id,
-							UserId: memberId,
-						},
-					)
+				// 为每个成员设置比赛ID
+				for _, member := range members {
+					member.Id = contest.Id
 				}
 				if err := tx.Model(&foundationmodel.ContestMember{}).
-					Create(contestMembers).Error; err != nil {
+					Create(members).Error; err != nil {
 					return metaerror.Wrap(err, "insert contest members")
 				}
 			}

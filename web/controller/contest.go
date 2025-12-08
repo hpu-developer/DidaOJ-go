@@ -612,7 +612,13 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, weberrorcode.ContestTitleDuplicate, nil)
 		return
 	}
-	memberIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Members)
+	// 从Members中提取用户ID
+	memberIdList := make([]int, 0, len(requestData.Members))
+	for _, member := range requestData.Members {
+		memberIdList = append(memberIdList, member.Id)
+	}
+	// 过滤有效用户ID
+	memberIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, memberIdList)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
@@ -688,7 +694,21 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		SubmitAnytime(requestData.SubmitAnytime).
 		Build()
 
-	err = contestService.InsertContest(ctx, contest, problems, nil, nil, memberIds, nil, nil, nil)
+	// 创建ContestMember对象，使用请求中的contest_name
+	members := make([]*foundationmodel.ContestMember, 0, len(memberIds))
+	// 创建用户ID到ContestName的映射
+	memberNameMap := make(map[int]string)
+	for _, member := range requestData.Members {
+		memberNameMap[member.Id] = member.ContestName
+	}
+	for _, uid := range memberIds {
+		members = append(members, foundationmodel.NewContestMemberBuilder().
+			UserId(uid).
+			ContestName(memberNameMap[uid]).
+			Build())
+	}
+
+	err = contestService.InsertContest(ctx, contest, problems, nil, nil, members, nil, nil, nil)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
@@ -753,7 +773,13 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		metaresponse.NewResponse(ctx, foundationerrorcode.AuthError, nil)
 		return
 	}
-	memberIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, requestData.Members)
+	// 从Members中提取用户ID
+	memberIdList := make([]int, 0, len(requestData.Members))
+	for _, member := range requestData.Members {
+		memberIdList = append(memberIdList, member.Id)
+	}
+	// 过滤有效用户ID
+	memberIds, err := foundationservice.GetUserService().FilterValidUserIds(ctx, memberIdList)
 	if err != nil {
 		metaresponse.NewResponseError(ctx, err)
 		return
@@ -861,11 +887,17 @@ func (c *ContestController) PostEdit(ctx *gin.Context) {
 		SubmitAnytime(requestData.SubmitAnytime).
 		Build()
 
+	// 创建ContestMember对象，使用请求中的contest_name
 	members := make([]*foundationmodel.ContestMember, 0, len(memberIds))
+	// 创建用户ID到ContestName的映射
+	memberNameMap := make(map[int]string)
+	for _, member := range requestData.Members {
+		memberNameMap[member.Id] = member.ContestName
+	}
 	for _, uid := range memberIds {
 		members = append(members, foundationmodel.NewContestMemberBuilder().
-			ContestName("").
 			UserId(uid).
+			ContestName(memberNameMap[uid]).
 			Build())
 	}
 
