@@ -51,6 +51,7 @@ type UserAccountInfo struct {
 }
 
 type UserModifyInfo struct {
+	Username     string                    `json:"username" gorm:"type:varchar(50);unique;not null;comment:用户名"`
 	Nickname     string                    `json:"nickname" gorm:"type:varchar(80);not null;comment:昵称"`
 	RealName     *string                   `json:"real_name,omitempty" gorm:"type:varchar(20);comment:真实名称"`
 	Email        string                    `json:"email,omitempty" gorm:"type:varchar(90)"`

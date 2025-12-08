@@ -157,7 +157,7 @@ func (s *UserService) Login(ctx *gin.Context, username string, password string, 
 			return nil, metaerror.Wrap(err)
 		}
 		if len(decoded) <= 20 {
-			return nil, metaerror.New("password decoded error", "len", len(decoded))
+			return nil, metaerror.New("password decoded error, len: %d", len(decoded))
 		}
 		salt := decoded[20:]
 		md5Hex := md5.Sum([]byte(password))
@@ -298,7 +298,7 @@ func (s *UserService) UpdateUserPassword(
 		return metaerror.Wrap(err)
 	}
 	if len(decoded) <= 20 {
-		return metaerror.New("password decoded error", "len", len(decoded))
+		return metaerror.New("password decoded error, len: %d", len(decoded))
 	}
 	salt := decoded[20:]
 	md5Hex := md5.Sum([]byte(requestData.Password))
@@ -322,6 +322,11 @@ func (s *UserService) UpdateUserPassword(
 
 func (s *UserService) UpdateUserEmail(ctx context.Context, userId int, email string, now time.Time) error {
 	return foundationdao.GetUserDao().UpdateUserEmail(ctx, userId, email, now)
+}
+
+// UpdateUsername 更新用户用户名
+func (s *UserService) UpdateUsername(ctx context.Context, userId int, username string, now time.Time) error {
+	return foundationdao.GetUserDao().UpdateUsername(ctx, userId, username, now)
 }
 
 // CalculateUserLevel 根据经验值计算用户等级

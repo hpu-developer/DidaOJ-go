@@ -14,6 +14,10 @@ type UserModifyPassword struct {
 	NewPassword string `json:"new_password,omitempty"`
 }
 
+type UserModifyUsername struct {
+	Username string `json:"username"`
+}
+
 type UserModifyVjudge struct {
 	Approved bool   `json:"approved"`
 	Username string `json:"username"`

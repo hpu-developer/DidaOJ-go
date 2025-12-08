@@ -373,6 +373,40 @@ func (c *UserController) PostModifyEmailKeyOld(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success)
 }
 
+func (c *UserController) PostModifyUsername(ctx *gin.Context) {
+	userId, err := foundationauth.GetUserIdFromContext(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, weberrorcode.UserNeedLogin, nil)
+		return
+	}
+	var requestData foundationrequest.UserModifyUsername
+	if err := ctx.ShouldBindJSON(&requestData); err != nil {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	username := requestData.Username
+	if !foundationuser.IsValidUsername(requestData.Username) {
+		metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+		return
+	}
+	// 判断是否已存在
+	exist, err := foundationservice.GetUserService().HasUserByUsername(ctx, username)
+	if err != nil {
+		metaresponse.NewResponseError(ctx, err, nil)
+		return
+	}
+	if exist {
+		metaresponse.NewResponse(ctx, weberrorcode.UserRegisterUsernameDuplicate, nil)
+		return
+	}
+	if err := foundationservice.GetUserService().UpdateUsername(ctx, userId, username, metatime.GetTimeNow()); err != nil {
+		metaresponse.NewResponseError(ctx, err, nil)
+		return
+	}
+
+	metaresponse.NewResponse(ctx, metaerrorcode.Success)
+}
+
 func (c *UserController) PostModifyVjudge(ctx *gin.Context) {
 	userId, err := foundationauth.GetUserIdFromContext(ctx)
 	if err != nil {

@@ -113,7 +113,7 @@ func (d *UserDao) GetModifyInfo(ctx context.Context, userId int) (*foundationvie
 	err := d.db.WithContext(ctx).
 		Model(&foundationmodel.User{}).
 		Select(
-			`id, username, nickname, real_name, 
+			`id, username, username, nickname, real_name, 
 email, gender, number, slogan, organization, qq, blog,
 vjudge_id, github, codeforces`,
 		).
@@ -375,6 +375,21 @@ func (d *UserDao) UpdatePasswordByUserId(ctx *gin.Context, id int, encodePasswor
 		Update("modify_time", nowTime)
 	if res.Error != nil {
 		return metaerror.Wrap(res.Error, "update user password")
+	}
+	if res.RowsAffected == 0 {
+		return metaerror.New("no rows affected, user not found")
+	}
+	return nil
+}
+
+// UpdateUsername 更新用户用户名
+func (d *UserDao) UpdateUsername(ctx context.Context, userId int, username string, modifyTime time.Time) error {
+	db := d.db.WithContext(ctx).Model(&foundationmodel.User{})
+	res := db.Where("id = ?", userId).
+		Update("username", username).
+		Update("modify_time", modifyTime)
+	if res.Error != nil {
+		return metaerror.Wrap(res.Error, "update user username")
 	}
 	if res.RowsAffected == 0 {
 		return metaerror.New("no rows affected, user not found")
