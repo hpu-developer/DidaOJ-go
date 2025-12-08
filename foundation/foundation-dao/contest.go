@@ -75,6 +75,30 @@ func (d *ContestDao) HasContestViewAuthWithoutStartTime(ctx context.Context, id 
 	return exists == 1, nil
 }
 
+func (d *ContestDao) HasContestViewAuthWithEnd(ctx context.Context, id int, userId int) (bool, error) {
+	now := metatime.GetTimeNow()
+	var exists int
+	err := d.db.WithContext(ctx).
+		Table("contest").
+		Select("1").
+		Where("id = ?", id).
+		Where("end_time <= ?", now).
+		Where(
+			d.db.Table("contest").
+				Where("inserter = ?", userId).
+				Or("private = FALSE").
+				Or("? IN (SELECT user_id FROM contest_member WHERE id = contest.id)", userId).
+				Or("? IN (SELECT user_id FROM contest_member_auth WHERE id = contest.id)", userId),
+		).
+		Limit(1).
+		Scan(&exists).Error
+
+	if err != nil {
+		return false, err
+	}
+	return exists == 1, nil
+}
+
 func (d *ContestDao) HasContestViewAuth(ctx context.Context, id int, userId int) (bool, error) {
 	now := metatime.GetTimeNow()
 	var exists int
@@ -435,15 +459,31 @@ func (d *ContestDao) UpdateContest(
 	}
 	err := d.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
-			// 更新 contest 主表
+			// 更新 contest 主表，使用数据库表达式在同一语句中完成NotificationVersion的条件自增
 			txResult := tx.Model(contest).
 				Where("id = ?", contest.Id).
-				Select(
-					"title", "description", "notification", "start_time", "end_time",
-					"private", "password", "lock_rank_duration", "always_lock", "submit_anytime",
-					"modifier", "modify_time",
-				).
-				Updates(contest)
+				Updates(map[string]interface{}{
+					"title":                contest.Title,
+					"description":          contest.Description,
+					"notification":         contest.Notification,
+					"notification_version": gorm.Expr("CASE WHEN notification != ? THEN notification_version + 1 ELSE notification_version END", contest.Notification),
+					"start_time":           contest.StartTime,
+					"end_time":             contest.EndTime,
+					"private":              contest.Private,
+					"password":             contest.Password,
+					"lock_rank_duration":   contest.LockRankDuration,
+					"always_lock":          contest.AlwaysLock,
+					"submit_anytime":       contest.SubmitAnytime,
+					"modifier":             contest.Modifier,
+					"modify_time":          contest.ModifyTime,
+				})
+
+			// 手动设置notification_version值，以便后续可能的使用
+			var updatedContest foundationmodel.Contest
+			if err := tx.Model(&foundationmodel.Contest{}).Where("id = ?", contest.Id).Select("notification_version").First(&updatedContest).Error; err != nil {
+				return metaerror.Wrap(err, "query updated notification_version")
+			}
+			contest.NotificationVersion = updatedContest.NotificationVersion
 			if txResult.Error != nil {
 				return metaerror.Wrap(txResult.Error, "update contest")
 			}

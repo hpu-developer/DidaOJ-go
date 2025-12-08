@@ -50,4 +50,9 @@ const (
 	UserRewardAlreadyDone                metaerrorcode.ErrorCode = 100045
 	UserRegisterUsernameDuplicate        metaerrorcode.ErrorCode = 100046
 	RecaptchaVerifyFail                  metaerrorcode.ErrorCode = 100047
+
+	ContestTitleEmpty             metaerrorcode.ErrorCode = 100048
+	ContestStartTimeBeforeNow     metaerrorcode.ErrorCode = 100049
+	ContestEndTimeBeforeStartTime metaerrorcode.ErrorCode = 100050
+	ContestDurationTooLong        metaerrorcode.ErrorCode = 100051
 )

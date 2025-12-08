@@ -81,6 +81,21 @@ func (s *ContestService) CheckViewAuthWithoutStartTime(ctx *gin.Context, id int)
 	return userId, true, nil
 }
 
+func (s *ContestService) CheckViewAuthWithEnd(ctx *gin.Context, id int) (int, bool, error) {
+	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageContest)
+	if err != nil {
+		return userId, false, err
+	}
+	if !hasAuth {
+		hasAuth, err = foundationdao.GetContestDao().HasContestViewAuthWithEnd(ctx, id, userId)
+		if err != nil {
+			return userId, false, err
+		}
+		return userId, hasAuth, nil
+	}
+	return userId, true, nil
+}
+
 // CheckViewAuth 检查查看比赛权限
 func (s *ContestService) CheckViewAuth(ctx *gin.Context, id int) (int, bool, error) {
 	userId, hasAuth, err := GetUserService().CheckUserAuth(ctx, foundationauth.AuthTypeManageContest)
@@ -213,7 +228,7 @@ func (s *ContestService) GetContest(ctx *gin.Context, id int, nowTime time.Time)
 }
 
 func (s *ContestService) GetContestClone(ctx *gin.Context, id int) (*foundationview.ContestDetailClone, bool, error) {
-	_, hasAuth, err := GetContestService().CheckViewAuth(ctx, id)
+	_, hasAuth, err := GetContestService().CheckViewAuthWithEnd(ctx, id)
 	if err != nil {
 		return nil, false, err
 	}

@@ -6,24 +6,25 @@ import (
 )
 
 type Contest struct {
-	Id               int                               `json:"id" gorm:"primaryKey;autoIncrement"`
-	Title            string                            `json:"title" gorm:"type:varchar(75);not null"`
-	Description      *string                           `json:"description,omitempty" gorm:"type:text"`
-	Notification     *string                           `json:"notification,omitempty" gorm:"type:varchar(100)"`
-	StartTime        time.Time                         `json:"start_time,omitempty" gorm:"type:datetime"`
-	EndTime          time.Time                         `json:"end_time,omitempty" gorm:"type:datetime"`
-	Inserter         int                               `json:"inserter,omitempty"`
-	InsertTime       time.Time                         `json:"insert_time,omitempty" gorm:"type:datetime"`
-	Modifier         int                               `json:"modifier,omitempty"`
-	ModifyTime       time.Time                         `json:"modify_time,omitempty" gorm:"type:datetime"`
-	Private          bool                              `json:"private,omitempty" gorm:"type:tinyint(1)"`
-	Password         *string                           `json:"password,omitempty" gorm:"type:varchar(35)"`
-	SubmitAnytime    bool                              `json:"submit_anytime,omitempty" gorm:"type:tinyint(1)"`
-	Type             foundationenum.ContestType        `json:"type,omitempty" gorm:"type:tinyint"`
-	ScoreType        foundationenum.ContestScoreType   `json:"score_type,omitempty" gorm:"type:tinyint"`
-	LockRankDuration *time.Duration                    `json:"lock_rank_duration,omitempty" gorm:"type:bigint"`
-	AlwaysLock       bool                              `json:"always_lock,omitempty" gorm:"type:tinyint(1)"`
-	DiscussType      foundationenum.ContestDiscussType `json:"discuss_type,omitempty" gorm:"type:tinyint;comment:'讨论类型，0正常讨论，1仅查看自己的讨论'"`
+	Id                  int                               `json:"id" gorm:"primaryKey;autoIncrement"`
+	Title               string                            `json:"title" gorm:"type:varchar(75);not null"`
+	Description         *string                           `json:"description,omitempty" gorm:"type:text"`
+	Notification        *string                           `json:"notification,omitempty" gorm:"type:varchar(100)"`
+	NotificationVersion int                               `json:"notification_version,omitempty" gorm:"type:tinyint"`
+	StartTime           time.Time                         `json:"start_time,omitempty" gorm:"type:datetime"`
+	EndTime             time.Time                         `json:"end_time,omitempty" gorm:"type:datetime"`
+	Inserter            int                               `json:"inserter,omitempty"`
+	InsertTime          time.Time                         `json:"insert_time,omitempty" gorm:"type:datetime"`
+	Modifier            int                               `json:"modifier,omitempty"`
+	ModifyTime          time.Time                         `json:"modify_time,omitempty" gorm:"type:datetime"`
+	Private             bool                              `json:"private,omitempty" gorm:"type:tinyint(1)"`
+	Password            *string                           `json:"password,omitempty" gorm:"type:varchar(35)"`
+	SubmitAnytime       bool                              `json:"submit_anytime,omitempty" gorm:"type:tinyint(1)"`
+	Type                foundationenum.ContestType        `json:"type,omitempty" gorm:"type:tinyint"`
+	ScoreType           foundationenum.ContestScoreType   `json:"score_type,omitempty" gorm:"type:tinyint"`
+	LockRankDuration    *time.Duration                    `json:"lock_rank_duration,omitempty" gorm:"type:bigint"`
+	AlwaysLock          bool                              `json:"always_lock,omitempty" gorm:"type:tinyint(1)"`
+	DiscussType         foundationenum.ContestDiscussType `json:"discuss_type,omitempty" gorm:"type:tinyint;comment:'讨论类型，0正常讨论，1仅查看自己的讨论'"`
 }
 
 func (*Contest) TableName() string {
@@ -55,6 +56,11 @@ func (b *ContestBuilder) Description(description *string) *ContestBuilder {
 
 func (b *ContestBuilder) Notification(notification *string) *ContestBuilder {
 	b.item.Notification = notification
+	return b
+}
+
+func (b *ContestBuilder) NotificationVersion(notificationVersion int) *ContestBuilder {
+	b.item.NotificationVersion = notificationVersion
 	return b
 }
 

@@ -681,6 +681,7 @@ func (c *ContestController) PostCreate(ctx *gin.Context) {
 		Title(requestData.Title).
 		Description(requestData.Description).
 		Notification(requestData.Notification).
+		NotificationVersion(0).
 		StartTime(startTime).
 		EndTime(endTime).
 		Inserter(userId).
