@@ -420,11 +420,11 @@ func (d *ProblemDao) GetProblemTitles(
 				inserter = ? OR
 				EXISTS (
 					SELECT 1 FROM problem_member pm
-					WHERE pm.problem_id = problems.id AND pm.user_id = ?
+					WHERE pm.id = problem.id AND pm.user_id = ?
 				) OR
 				EXISTS (
 					SELECT 1 FROM problem_member_auth pam
-					WHERE pam.problem_id = problems.id AND pam.user_id = ?
+					WHERE pam.id = problem.id AND pam.user_id = ?
 				)
 			`, userId, userId, userId,
 			)
