@@ -39,18 +39,34 @@ func (dao *UserDao) WithTransaction(ctx context.Context, fn func(tx *gorm.DB) er
 		return tx.Error
 	}
 
+	// 标记事务是否已经被提交或回滚
+	committed := false
+	rolledBack := false
+
 	defer func() {
 		if r := recover(); r != nil {
-			tx.Rollback()
+			if !committed && !rolledBack {
+				tx.Rollback()
+				rolledBack = true
+			}
+			panic(r) // 重新抛出 panic
 		}
 	}()
 
 	if err := fn(tx); err != nil {
-		tx.Rollback()
+		if !rolledBack {
+			tx.Rollback()
+			rolledBack = true
+		}
 		return err
 	}
 
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	committed = true
+
+	return nil
 }
 
 func GetUserDao() *UserDao {
