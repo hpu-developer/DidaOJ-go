@@ -117,9 +117,6 @@ func (s *BotService) GetBotReplayList(ctx context.Context, gameKey string, page,
 	if err != nil {
 		return nil, 0, err
 	}
-	if gameId <= 0 {
-		return nil, 0, nil
-	}
 	replayList, totalCount, err := foundationdao.GetBotReplayDao().GetBotReplayList(ctx, gameId, page, pageSize)
 	if err != nil {
 		return nil, 0, err
