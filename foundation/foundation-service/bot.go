@@ -69,6 +69,11 @@ func (s *BotService) GetGameDescription(ctx context.Context, id int) (*string, e
 	return foundationdao.GetBotGameDao().GetBotGameDescription(ctx, id)
 }
 
+// GetGameList 获取游戏列表
+func (s *BotService) GetGameList(ctx context.Context) ([]*foundationview.BotGameListView, error) {
+	return foundationdao.GetBotGameDao().GetBotGameList(ctx)
+}
+
 // GetBotReplayById 根据ID获取BotReplay信息
 func (s *BotService) GetBotReplayById(ctx context.Context, id int) (*foundationview.BotReplayView, error) {
 	// 获取bot replay信息

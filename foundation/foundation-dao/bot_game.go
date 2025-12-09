@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	foundationmodel "foundation/foundation-model"
+	foundationview "foundation/foundation-view"
 	metaerror "meta/meta-error"
 	metapostgresql "meta/meta-postgresql"
 	"meta/singleton"
@@ -82,6 +83,17 @@ func (d *BotGameDao) GetBotGameDescription(ctx context.Context, gameId int) (*st
 		return nil, nil
 	}
 	return &result.Description, err
+}
+
+// GetBotGameList 获取游戏列表
+func (d *BotGameDao) GetBotGameList(ctx context.Context) ([]*foundationview.BotGameListView, error) {
+	var botGameList []*foundationview.BotGameListView
+	if err := d.db.WithContext(ctx).Model(&foundationmodel.BotGame{}).
+		Select("id, game_key, title, introduction").
+		Find(&botGameList).Error; err != nil {
+		return nil, metaerror.Wrap(err, "failed to get bot game list")
+	}
+	return botGameList, nil
 }
 
 func (d *BotGameDao) GetJudgeCode(ctx context.Context, gameId int) (string, error) {

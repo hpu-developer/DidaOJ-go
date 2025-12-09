@@ -3,15 +3,16 @@ package foundationmodel
 import "time"
 
 type BotGame struct {
-	Id          int       `json:"id" gorm:"primaryKey;autoIncrement"`
-	Key         string    `json:"key" gorm:"type:varchar(20)"`
-	Title       string    `json:"title" gorm:"type:varchar(30)"`
-	Description string    `json:"description" gorm:"type:text"`
-	JudgeCode   string    `json:"judge_code" gorm:"type:text"`
-	Inserter    int       `json:"inserter" gorm:"type:int"`
-	InsertTime  time.Time `json:"insert_time" gorm:"type:timestamp"`
-	Modifier    int       `json:"modifier" gorm:"type:int"`
-	ModifyTime  time.Time `json:"modify_time" gorm:"type:timestamp"`
+	Id           int       `json:"id" gorm:"primaryKey;autoIncrement"`
+	GameKey      string    `json:"game_key" gorm:"type:varchar(20)"`
+	Title        string    `json:"title" gorm:"type:varchar(30)"`
+	Introduction string    `json:"introduction" gorm:"type:text"`
+	Description  string    `json:"description" gorm:"type:text"`
+	JudgeCode    string    `json:"judge_code" gorm:"type:text"`
+	Inserter     int       `json:"inserter" gorm:"type:int"`
+	InsertTime   time.Time `json:"insert_time" gorm:"type:timestamp"`
+	Modifier     int       `json:"modifier" gorm:"type:int"`
+	ModifyTime   time.Time `json:"modify_time" gorm:"type:timestamp"`
 }
 
 func (*BotGame) TableName() string {
@@ -31,8 +32,8 @@ func (b *BotGameBuilder) Id(id int) *BotGameBuilder {
 	return b
 }
 
-func (b *BotGameBuilder) Key(key string) *BotGameBuilder {
-	b.item.Key = key
+func (b *BotGameBuilder) GameKey(key string) *BotGameBuilder {
+	b.item.GameKey = key
 	return b
 }
 

@@ -53,6 +53,21 @@ func (c *BotController) GetGame(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, gameView)
 }
 
+func (c *BotController) GetGameList(ctx *gin.Context) {
+	// 获取bot服务
+	botService := foundationservice.GetBotService()
+
+	// 获取游戏列表
+	gameListView, err := botService.GetGameList(ctx)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+
+	// 返回结果
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, gameListView)
+}
+
 func (c *BotController) GetReplay(ctx *gin.Context) {
 	// 获取参数
 	gameKey := ctx.Query("game_key")
