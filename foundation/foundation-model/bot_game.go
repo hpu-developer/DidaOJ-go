@@ -8,6 +8,8 @@ type BotGame struct {
 	Title        string    `json:"title" gorm:"type:varchar(30)"`
 	Introduction string    `json:"introduction" gorm:"type:text"`
 	Description  string    `json:"description" gorm:"type:text"`
+	PlayerMin    int       `json:"player_min" gorm:"type:int"`
+	PlayerMax    int       `json:"player_max" gorm:"type:int"`
 	JudgeCode    string    `json:"judge_code" gorm:"type:text"`
 	Inserter     int       `json:"inserter" gorm:"type:int"`
 	InsertTime   time.Time `json:"insert_time" gorm:"type:timestamp"`

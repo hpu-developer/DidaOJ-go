@@ -89,7 +89,7 @@ func (d *BotGameDao) GetBotGameDescription(ctx context.Context, gameId int) (*st
 func (d *BotGameDao) GetBotGameList(ctx context.Context) ([]*foundationview.BotGameListView, error) {
 	var botGameList []*foundationview.BotGameListView
 	if err := d.db.WithContext(ctx).Model(&foundationmodel.BotGame{}).
-		Select("id, game_key, title, introduction").
+		Select("id, game_key, title, introduction, player_min, player_max").
 		Find(&botGameList).Error; err != nil {
 		return nil, metaerror.Wrap(err, "failed to get bot game list")
 	}

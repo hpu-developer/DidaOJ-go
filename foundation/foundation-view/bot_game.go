@@ -13,4 +13,6 @@ type BotGameListView struct {
 	GameKey      string `json:"game_key"`
 	Title        string `json:"title"`
 	Introduction string `json:"introduction"`
+	PlayerMin    int    `json:"player_min"`
+	PlayerMax    int    `json:"player_max"`
 }
