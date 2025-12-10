@@ -116,6 +116,26 @@ func (s *BotService) UpdateBotGame(
 	return foundationdao.GetBotGameDao().UpdateBotGame(ctx, botGameId, botGame)
 }
 
+func (s *BotService) GetBotAgentList(
+	ctx context.Context,
+	agentId int,
+	name string,
+	username string,
+) ([]*foundationview.BotAgentView, error) {
+	var err error
+	searchUserId := -1
+	if username != "" {
+		searchUserId, err = foundationdao.GetUserDao().GetUserIdByUsername(ctx, username)
+		if err != nil {
+			return nil, err
+		}
+		if searchUserId <= 0 {
+			return nil, nil
+		}
+	}
+	return foundationdao.GetBotAgentDao().GetBotAgentList(ctx, agentId, name, searchUserId)
+}
+
 // GetBotReplayList 获取BotReplay列表
 func (s *BotService) GetBotReplayList(ctx context.Context, gameKey string, page, pageSize int) ([]*foundationview.BotReplayView, int64, error) {
 	gameId, err := foundationdao.GetBotGameDao().GetBotGameIdByKey(ctx, gameKey)
@@ -131,11 +151,11 @@ func (s *BotService) GetBotReplayList(ctx context.Context, gameKey string, page,
 		botIds = append(botIds, replay.Bots...)
 	}
 	// 获取botcode信息
-	botPlayers, err := foundationdao.GetBotCodeDao().GetBotPlayers(ctx, botIds)
+	botPlayers, err := foundationdao.GetBotAgentDao().GetBotPlayers(ctx, botIds)
 	if err != nil {
 		return nil, 0, err
 	}
-	botPlayerMap := map[int]*foundationview.BotCodePlayerView{}
+	botPlayerMap := map[int]*foundationview.BotAgentPlayerView{}
 	for _, botPlayer := range botPlayers {
 		botPlayerMap[botPlayer.Id] = botPlayer
 	}

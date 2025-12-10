@@ -193,7 +193,7 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 		return err
 	}
 
-	codes, err := foundationdao.GetBotCodeDao().GetBotCodes(ctx, job.Bots)
+	codes, err := foundationdao.GetBotAgentDao().GetBotAgents(ctx, job.Bots)
 	if err != nil {
 		return metaerror.Wrap(err, "failed to get bot replay code map")
 	}
@@ -203,13 +203,13 @@ func (s *BotService) startBotJob(job *foundationmodel.BotReplay) error {
 		if !foundationjudge.IsLanguageNeedCompile(bc.Language) {
 			continue
 		}
-		fileIds, compileErr := s.compileBotCode(bc)
+		fileIds, compileErr := s.compileBotAgent(bc)
 		if compileErr != nil {
 			return metaerror.Wrap(compileErr, "failed to compile bot code")
 		}
 		codeFiles[bc.Id] = fileIds
 	}
-	codeViews := make(map[int]*foundationview.BotCodeView)
+	codeViews := make(map[int]*foundationview.BotAgentView)
 	for _, bc := range codes {
 		codeViews[bc.Id] = bc
 	}
@@ -483,7 +483,7 @@ func (s *BotService) runJudgeExec(job *foundationmodel.BotReplay) (gojudge.Strea
 	return streamClient, nil
 }
 
-func (s *BotService) runAgent(job *foundationmodel.BotReplay, agentIndex int, judgeClient gojudge.Stream, codeView *foundationview.BotCodeView, execFileIds map[string]string) (gojudge.Stream, error) {
+func (s *BotService) runAgent(job *foundationmodel.BotReplay, agentIndex int, judgeClient gojudge.Stream, codeView *foundationview.BotAgentView, execFileIds map[string]string) (gojudge.Stream, error) {
 	wsURL := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "stream")
 	streamClient, err := s.newWebsocket([]string{}, wsURL)
 	if err != nil {
@@ -684,7 +684,7 @@ func (s *BotService) compileJudge(gameId int) (string, error) {
 	return judgeFileId, nil
 }
 
-func (s *BotService) compileBotCode(code *foundationview.BotCodeView) (map[string]string, error) {
+func (s *BotService) compileBotAgent(code *foundationview.BotAgentView) (map[string]string, error) {
 	runUrl := metahttp.UrlJoin(config.GetConfig().GoJudge.Url, "run")
 	execFileIds, extraMessage, compileStatus, err := foundationjudge.CompileCode(
 		s.goJudgeClient,

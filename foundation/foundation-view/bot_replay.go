@@ -11,7 +11,7 @@ type BotReplayView struct {
 	GameKey   string `json:"game_key"`
 	GameTitle string `json:"game_title"`
 
-	Players []*BotCodePlayerView `json:"players" gorm:"-"`
+	Players []*BotAgentPlayerView `json:"players" gorm:"-"`
 
 	InserterUsername string `json:"inserter_username"`
 	InserterNickname string `json:"inserter_nickname"`

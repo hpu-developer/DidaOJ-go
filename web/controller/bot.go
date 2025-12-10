@@ -68,6 +68,30 @@ func (c *BotController) GetGameList(ctx *gin.Context) {
 	metaresponse.NewResponse(ctx, metaerrorcode.Success, gameListView)
 }
 
+func (c *BotController) GetAgentList(ctx *gin.Context) {
+	var err error
+	var agentId int
+	agentIdStr := ctx.Query("id")
+	if agentIdStr != "" {
+		agentId, err = strconv.Atoi(agentIdStr)
+		if err != nil {
+			metaresponse.NewResponse(ctx, foundationerrorcode.ParamError, nil)
+			return
+		}
+	}
+
+	name := ctx.Query("name")
+	username := ctx.Query("username")
+
+	botService := foundationservice.GetBotService()
+	agentList, err := botService.GetBotAgentList(ctx, agentId, name, username)
+	if err != nil {
+		metaresponse.NewResponse(ctx, metaerrorcode.CommonError, nil)
+		return
+	}
+	metaresponse.NewResponse(ctx, metaerrorcode.Success, agentList)
+}
+
 func (c *BotController) GetReplay(ctx *gin.Context) {
 	// 获取参数
 	gameKey := ctx.Query("game_key")

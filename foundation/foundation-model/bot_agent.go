@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type BotCode struct {
+type BotAgent struct {
 	Id         int                           `json:"id" gorm:"primaryKey;autoIncrement"`
 	Language   foundationjudge.JudgeLanguage `json:"language" gorm:"column:language;not null"`
 	Code       string                        `json:"code" gorm:"type:text"`
@@ -16,6 +16,6 @@ type BotCode struct {
 	ModifyTime time.Time                     `json:"modify_time" gorm:"type:timestamp"`
 }
 
-func (*BotCode) TableName() string {
-	return "bot_code"
+func (*BotAgent) TableName() string {
+	return "bot_agent"
 }
